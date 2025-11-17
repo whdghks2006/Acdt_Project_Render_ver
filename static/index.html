@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Smart Scheduler</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0 auto; max-width: 800px; padding: 20px; background-color: #f9fafb; }
+        .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        h1, h2 { color: #111827; }
+        label { display: block; margin-top: 15px; font-weight: 600; color: #374151; }
+        textarea, input[type="text"] { width: 98%; padding: 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 1rem; margin-top: 5px; }
+        button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; margin-top: 20px; }
+        .btn-secondary { background-color: #e5e7eb; color: #1f2937; }
+        .btn-primary { background-color: #2563eb; color: white; font-weight: 600; }
+        #link-output { margin-top: 20px; font-size: 1.1rem; }
+        #translated-output { background-color: #f3f4f6; border: none; }
+        hr { border: none; border-top: 1px solid #e5e7eb; margin: 25px 0; }
+        .loading { display: none; text-align: center; font-size: 1.2rem; color: #374151; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>AI Smart Schedule Extractor 🤖</h1>
+        <p>Supports both Korean (auto-translate) and English inputs.</p>
+
+        <h2>Step 1: Input & Translate (입력 및 번역)</h2>
+        <label for="input-text">📝 Input Text (Korean or English)</label>
+        <textarea id="input-text" rows="5" placeholder="예: '내일 오후 2시에 강남역에서 회의하자'"></textarea>
+
+        <button id="extract-button" class="btn-secondary" onclick="handleExtract()">1. Translate & Extract</button>
+
+        <label for="translated-output">Result (Translated to English)</label>
+        <textarea id="translated-output" rows="2" readonly></textarea>
+
+        <hr>
+
+        <h2>✏️ Step 2: Review, Edit, and Generate Link</h2>
+
+        <label for="date-box">📅 Date (Edit here)</label>
+        <input type="text" id="date-box">
+
+        <label for="time-box">⏰ Time (Edit here)</label>
+        <input type="text" id="time-box">
+
+        <label for="loc-box">📍 Location (Edit here)</label>
+        <input type="text" id="loc-box">
+
+        <label for="event-box">🎉 Event (Edit here)</label>
+        <input type="text" id="event-box">
+
+        <button id="generate-button" class="btn-primary" onclick="handleGenerateLink()">2. Generate Calendar Link</button>
+
+        <div class="loading" id="loading-spinner">🔄 Generating Link...</div>
+        <div id="link-output"></div>
+    </div>
+
+    <script>
+        // 이 변수들은 1단계가 끝나고 채워집니다.
+        // These variables will be filled after Step 1.
+        let originalText = "";
+        let translatedText = "";
+
+        // 1. "Translate & Extract" 버튼 클릭 시
+        // 1. When "Translate & Extract" button is clicked
+        async function handleExtract() {
+            const inputText = document.getElementById('input-text').value;
+            const extractButton = document.getElementById('extract-button');
+            extractButton.disabled = true; // 버튼 비활성화 / Disable button
+            extractButton.innerText = "🔄 Processing...";
+
+            try {
+                // FastAPI의 /extract 엔드포인트 호출
+                // Call FastAPI's /extract endpoint
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: inputText })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Server error');
+                }
+
+                const data = await response.json(); // JSON 응답 받기 / Get JSON response
+
+                // 전역 변수에 저장 (2단계에서 사용)
+                // Save to global variables (for use in Step 2)
+                originalText = data.original_text;
+                translatedText = data.translated_text;
+
+                // UI의 텍스트 상자 채우기
+                // Fill in the UI text boxes
+                document.getElementById('translated-output').value = data.translated_text;
+                document.getElementById('date-box').value = data.date;
+                document.getElementById('time-box').value = data.time;
+                document.getElementById('loc-box').value = data.loc;
+                document.getElementById('event-box').value = data.event;
+
+            } catch (error) {
+                console.error('Error during extraction:', error);
+                alert('An error occurred. Please check the console.');
+            } finally {
+                extractButton.disabled = false; // 버튼 다시 활성화 / Re-enable button
+                extractButton.innerText = "1. Translate & Extract";
+            }
+        }
+
+        // 2. "Generate Calendar Link" 버튼 클릭 시
+        // 2. When "Generate Calendar Link" button is clicked
+        async function handleGenerateLink() {
+            const generateButton = document.getElementById('generate-button');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const linkOutput = document.getElementById('link-output');
+
+            generateButton.disabled = true;
+            loadingSpinner.style.display = 'block'; // 로딩 스피너 표시 / Show loading spinner
+            linkOutput.innerHTML = '';
+
+            try {
+                // 사용자가 수정한 값들을 가져옴
+                // Get the user-edited values
+                const linkRequest = {
+                    date_str: document.getElementById('date-box').value,
+                    time_str: document.getElementById('time-box').value,
+                    loc_str: document.getElementById('loc-box').value,
+                    event_str: document.getElementById('event-box').value,
+                    original_text: originalText,     // 1단계에서 저장한 값
+                    translated_text: translatedText  // 1단계에서 저장한 값
+                };
+
+                // FastAPI의 /generate-link 엔드포인트 호출
+                // Call FastAPI's /generate-link endpoint
+                const response = await fetch('/generate-link', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(linkRequest)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Server error');
+                }
+
+                const data = await response.json();
+
+                if (data.google_calendar_url) {
+                    // 성공: 클릭 가능한 링크 생성
+                    // Success: Create a clickable link
+                    linkOutput.innerHTML = `✅ <a href="${data.google_calendar_url}" target="_blank"><b>Click here to add to your Google Calendar</b></a>`;
+                } else {
+                    throw new Error('Link generation failed.');
+                }
+
+            } catch (error) {
+                console.error('Error generating link:', error);
+                linkOutput.innerHTML = '❌ (Link generation failed. Check date/time format.)';
+            } finally {
+                generateButton.disabled = false;
+                loadingSpinner.style.display = 'none'; // 로딩 스피너 숨김 / Hide loading spinner
+            }
+        }
+    </script>
+
+</body>
+</html>

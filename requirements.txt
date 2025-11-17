@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+spacy
+transformers
+torch
+dateparser
+spacy-transformers
+sentencepiece

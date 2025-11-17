@@ -1,0 +1,9 @@
+# Windows
+echo ".venv/
+.idea/
+__pycache__/" > .gitignore
+
+# macOS/Linux
+echo ".venv/
+.idea/
+__pycache__/" >> .gitignore
