@@ -13,154 +13,129 @@
         button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; margin-top: 20px; }
         .btn-secondary { background-color: #e5e7eb; color: #1f2937; }
         .btn-primary { background-color: #2563eb; color: white; font-weight: 600; }
-        #link-output { margin-top: 20px; font-size: 1.1rem; }
+        .btn-google { background-color: #DB4437; color: white; font-weight: bold; float: right; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-size: 0.9rem; }
         #translated-output { background-color: #f3f4f6; border: none; }
         hr { border: none; border-top: 1px solid #e5e7eb; margin: 25px 0; }
-        .loading { display: none; text-align: center; font-size: 1.2rem; color: #374151; }
+        .loading { display: none; text-align: center; font-size: 1.2rem; color: #374151; margin-top: 10px;}
+        #user-status { float: right; font-size: 0.9rem; color: #374151; margin-top: 10px; margin-right: 10px; }
     </style>
 </head>
 <body>
 
     <div class="container">
+        <div id="login-area">
+            <a href="/login" class="btn-google">📅 Login with Google</a>
+        </div>
+        <div id="user-status"></div>
+        <div style="clear: both;"></div>
+
         <h1>AI Smart Schedule Extractor 🤖</h1>
         <p>Supports both Korean (auto-translate) and English inputs.</p>
 
-        <h2>Step 1: Input & Translate (입력 및 번역)</h2>
-        <label for="input-text">📝 Input Text (Korean or English)</label>
+        <h2>Step 1: Input & Translate</h2>
+        <label for="input-text">📝 Input Text</label>
         <textarea id="input-text" rows="5" placeholder="예: '내일 오후 2시에 강남역에서 회의하자'"></textarea>
-
         <button id="extract-button" class="btn-secondary" onclick="handleExtract()">1. Translate & Extract</button>
 
-        <label for="translated-output">Result (Translated to English)</label>
+        <label for="translated-output">Result (Translated)</label>
         <textarea id="translated-output" rows="2" readonly></textarea>
 
         <hr>
 
-        <h2>✏️ Step 2: Review, Edit, and Generate Link</h2>
+        <h2>✏️ Step 2: Review & Add to Calendar</h2>
+        <label>📅 Date</label> <input type="text" id="date-box">
+        <label>⏰ Time</label> <input type="text" id="time-box">
+        <label>📍 Location</label> <input type="text" id="loc-box">
+        <label>🎉 Event</label> <input type="text" id="event-box">
 
-        <label for="date-box">📅 Date (Edit here)</label>
-        <input type="text" id="date-box">
-
-        <label for="time-box">⏰ Time (Edit here)</label>
-        <input type="text" id="time-box">
-
-        <label for="loc-box">📍 Location (Edit here)</label>
-        <input type="text" id="loc-box">
-
-        <label for="event-box">🎉 Event (Edit here)</label>
-        <input type="text" id="event-box">
-
-        <button id="generate-button" class="btn-primary" onclick="handleGenerateLink()">2. Generate Calendar Link</button>
-
-        <div class="loading" id="loading-spinner">🔄 Generating Link...</div>
-        <div id="link-output"></div>
+        <button id="add-calendar-btn" class="btn-primary" onclick="handleAddToCalendar()">📅 Add to Google Calendar (Direct)</button>
+        <div class="loading" id="loading-spinner">🔄 Processing...</div>
+        <div id="result-output" style="margin-top: 20px; font-weight: bold;"></div>
     </div>
 
     <script>
-        // 이 변수들은 1단계가 끝나고 채워집니다.
-        // These variables will be filled after Step 1.
         let originalText = "";
         let translatedText = "";
+        let isLoggedIn = false;
 
-        // 1. "Translate & Extract" 버튼 클릭 시
-        // 1. When "Translate & Extract" button is clicked
+        // Check login status on load
+        checkLogin();
+
+        async function checkLogin() {
+            try {
+                const res = await fetch('/user-info');
+                const data = await res.json();
+                const loginArea = document.getElementById('login-area');
+                const userStatus = document.getElementById('user-status');
+
+                if (data.user) {
+                    isLoggedIn = true;
+                    loginArea.innerHTML = `<a href="/logout" class="btn-secondary" style="font-size:0.9rem; text-decoration:none;">Logout</a>`;
+                    userStatus.innerText = `Welcome, ${data.user.name}`;
+                } else {
+                    isLoggedIn = false;
+                }
+            } catch (e) { console.error(e); }
+        }
+
         async function handleExtract() {
             const inputText = document.getElementById('input-text').value;
-            const extractButton = document.getElementById('extract-button');
-            extractButton.disabled = true; // 버튼 비활성화 / Disable button
-            extractButton.innerText = "🔄 Processing...";
+            const btn = document.getElementById('extract-button');
+            btn.innerText = "🔄 Processing..."; btn.disabled = true;
 
             try {
-                // FastAPI의 /extract 엔드포인트 호출
-                // Call FastAPI's /extract endpoint
                 const response = await fetch('/extract', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ text: inputText })
                 });
-
-                if (!response.ok) {
-                    throw new Error('Server error');
-                }
-
-                const data = await response.json(); // JSON 응답 받기 / Get JSON response
-
-                // 전역 변수에 저장 (2단계에서 사용)
-                // Save to global variables (for use in Step 2)
+                const data = await response.json();
                 originalText = data.original_text;
                 translatedText = data.translated_text;
 
-                // UI의 텍스트 상자 채우기
-                // Fill in the UI text boxes
                 document.getElementById('translated-output').value = data.translated_text;
                 document.getElementById('date-box').value = data.date;
                 document.getElementById('time-box').value = data.time;
                 document.getElementById('loc-box').value = data.loc;
                 document.getElementById('event-box').value = data.event;
-
-            } catch (error) {
-                console.error('Error during extraction:', error);
-                alert('An error occurred. Please check the console.');
-            } finally {
-                extractButton.disabled = false; // 버튼 다시 활성화 / Re-enable button
-                extractButton.innerText = "1. Translate & Extract";
-            }
+            } catch (error) { alert('Error processing text.'); }
+            finally { btn.innerText = "1. Translate & Extract"; btn.disabled = false; }
         }
 
-        // 2. "Generate Calendar Link" 버튼 클릭 시
-        // 2. When "Generate Calendar Link" button is clicked
-        async function handleGenerateLink() {
-            const generateButton = document.getElementById('generate-button');
-            const loadingSpinner = document.getElementById('loading-spinner');
-            const linkOutput = document.getElementById('link-output');
+        async function handleAddToCalendar() {
+            if (!isLoggedIn) {
+                alert("Please login with Google first!");
+                return;
+            }
 
-            generateButton.disabled = true;
-            loadingSpinner.style.display = 'block'; // 로딩 스피너 표시 / Show loading spinner
-            linkOutput.innerHTML = '';
+            const btn = document.getElementById('add-calendar-btn');
+            const spinner = document.getElementById('loading-spinner');
+            const output = document.getElementById('result-output');
+
+            btn.disabled = true; spinner.style.display = 'block'; output.innerHTML = "";
+
+            const eventData = {
+                date_str: document.getElementById('date-box').value,
+                time_str: document.getElementById('time-box').value,
+                loc_str: document.getElementById('loc-box').value,
+                event_str: document.getElementById('event-box').value,
+                description: `Original: ${originalText}\nTranslated: ${translatedText}`
+            };
 
             try {
-                // 사용자가 수정한 값들을 가져옴
-                // Get the user-edited values
-                const linkRequest = {
-                    date_str: document.getElementById('date-box').value,
-                    time_str: document.getElementById('time-box').value,
-                    loc_str: document.getElementById('loc-box').value,
-                    event_str: document.getElementById('event-box').value,
-                    original_text: originalText,     // 1단계에서 저장한 값
-                    translated_text: translatedText  // 1단계에서 저장한 값
-                };
-
-                // FastAPI의 /generate-link 엔드포인트 호출
-                // Call FastAPI's /generate-link endpoint
-                const response = await fetch('/generate-link', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(linkRequest)
+                const response = await fetch('/add-to-calendar', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(eventData)
                 });
-
-                if (!response.ok) {
-                    throw new Error('Server error');
-                }
-
                 const data = await response.json();
 
-                if (data.google_calendar_url) {
-                    // 성공: 클릭 가능한 링크 생성
-                    // Success: Create a clickable link
-                    linkOutput.innerHTML = `✅ <a href="${data.google_calendar_url}" target="_blank"><b>Click here to add to your Google Calendar</b></a>`;
+                if (response.ok) {
+                    output.innerHTML = `✅ Added Successfully! <a href="${data.link}" target="_blank">View on Calendar</a>`;
                 } else {
-                    throw new Error('Link generation failed.');
+                    output.innerHTML = `❌ Error: ${data.error}`;
                 }
-
-            } catch (error) {
-                console.error('Error generating link:', error);
-                linkOutput.innerHTML = '❌ (Link generation failed. Check date/time format.)';
-            } finally {
-                generateButton.disabled = false;
-                loadingSpinner.style.display = 'none'; // 로딩 스피너 숨김 / Hide loading spinner
-            }
+            } catch (error) { output.innerHTML = `❌ Error: ${error}`; }
+            finally { btn.disabled = false; spinner.style.display = 'none'; }
         }
     </script>
-
 </body>
 </html>
