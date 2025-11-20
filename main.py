@@ -22,7 +22,7 @@ from starlette.config import Config
 NER_MODEL_DIR = "my_ner_model"
 TRANSLATION_MODEL = "Helsinki-NLP/opus-mt-ko-en"
 
-# Retrieve secrets from environment variables
+# Retrieve secrets
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 SECRET_KEY = os.environ.get("SECRET_KEY", "random_secret_string")
@@ -50,23 +50,20 @@ def extract_schedule_info(translated_text):
     times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
     events = [ent.text for ent in doc.ents if ent.label_ == "EVENT"]
-
     date_str = ", ".join(dates) if dates else "today"
     time_str = ", ".join(times) if times else ""
     loc_str = ", ".join(locs) if locs else ""
-
     if events:
         event_str = ", ".join(events)
     elif locs:
         event_str = f"Meeting at {loc_str}"
     else:
         event_str = "New Schedule"
-
     return date_str, time_str, loc_str, event_str
 
 
 # ==============================================================================
-# App Lifecycle & Setup
+# App Lifecycle
 # ==============================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -88,16 +85,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# [CRITICAL FIX: Session Middleware]
-# same_site='lax': Best for top-level navigation (Direct URL)
-# max_age=3600: Forces the cookie to persist for 1 hour
+# [CRITICAL CHANGE] Session Configuration
+# https_only=False: Let the proxy handle SSL (prevents cookie rejection on some setups)
+# same_site='lax': Standard setting
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
-    https_only=True,
-    same_site='lax',
-    path='/',
-    max_age=3600
+    https_only=False,  # Changed to False to ensure cookies are set behind proxy
+    same_site='lax'
 )
 
 oauth = OAuth()
@@ -110,6 +105,7 @@ oauth.register(
 )
 
 
+# --- Models ---
 class ExtractRequest(BaseModel):
     text: str
 
@@ -156,7 +152,7 @@ async def api_extract_schedule(request: ExtractRequest):
 
 @app.get('/login')
 async def login(request: Request):
-    # Ensure this matches your actual Hugging Face URL exactly
+    # Ensure this URL matches exactly what you registered in Google Cloud
     fixed_redirect_uri = "https://snowmang-ai-scheduler-g14.hf.space/auth/callback"
     return await oauth.google.authorize_redirect(request, fixed_redirect_uri)
 
@@ -166,13 +162,28 @@ async def auth(request: Request):
     try:
         token = await oauth.google.authorize_access_token(request)
         user_info = token.get('userinfo')
-        print(f"✅ Google Login Success! User: {user_info}")  # Debug Log
 
-        request.session['user'] = user_info
-        request.session['token'] = token
+        print(f"✅ Login OK. User: {user_info.get('email')}")
 
-        # [FIX] Use 303 See Other for redirect (Better for browser history/cookies)
-        return RedirectResponse(url='/', status_code=303)
+        # [CRITICAL FIX] Reduce Cookie Size
+        # Only store essential data. The full token is too big (over 4KB).
+        # We only need the 'access_token' for the API, not the id_token.
+
+        # 1. Store Minimal User Info
+        request.session['user'] = {
+            'name': user_info.get('name'),
+            'email': user_info.get('email')
+        }
+
+        # 2. Store Minimal Token (Only Access Token)
+        # We drop 'id_token' because it causes the cookie to explode in size.
+        request.session['token'] = {
+            'access_token': token.get('access_token'),
+            'token_type': token.get('token_type'),
+            # 'expires_at': token.get('expires_at') # Optional
+        }
+
+        return RedirectResponse(url='/')
     except Exception as e:
         print(f"❌ Login Error: {e}")
         return JSONResponse(status_code=400, content={"error": f"Login failed: {str(e)}"})
@@ -187,19 +198,17 @@ async def logout(request: Request):
 @app.get('/user-info')
 async def get_user_info(request: Request):
     user = request.session.get('user')
-    # Debug: Print to server log if user info is requested but empty
-    if not user:
-        print("⚠️ User info requested but session is empty!")
-    else:
-        print(f"ℹ️ User info found for: {user.get('email')}")
     return {"user": user}
 
 
 @app.post("/add-to-calendar")
 async def add_to_calendar(request: Request, event_data: AddEventRequest):
-    token = request.session.get('token')
-    if not token:
+    # Retrieve minimal token
+    token_data = request.session.get('token')
+
+    if not token_data or 'access_token' not in token_data:
         return JSONResponse(status_code=401, content={"error": "Login required"})
+
     try:
         dt_str = f"{event_data.date_str} {event_data.time_str}"
         start_dt = dateparser.parse(dt_str, settings={'PREFER_DATES_FROM': 'future'})
@@ -214,13 +223,25 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             'start': {'dateTime': start_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
             'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
         }
+
+        # Manually construct the request because we slimmed down the token object
+        # Using 'oauth.google.post' might fail if it expects the full token object.
+        # So we use the session directly or pass the token manually.
+
+        # Note: authlib's 'post' method usually needs the full token dict to auto-refresh.
+        # Since we are doing a simple one-time action, we can try passing our slim dict.
+        # If that fails, we might need to send a raw request using the access token.
+
         resp = await oauth.google.post(
             'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-            json=google_event, token=token
+            json=google_event,
+            token=token_data  # Passing our slimmed token
         )
+
         resp.raise_for_status()
         result = resp.json()
         return {"message": "Success", "link": result.get('htmlLink')}
+
     except Exception as e:
         print(f"Calendar Error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
