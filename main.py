@@ -85,13 +85,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# [New] 세션 설정 (로그인 정보 저장용)
-# https_only=True와 same_site='lax'를 명시적으로 추가합니다.
-# Hugging Face는 https를 쓰므로 secure 쿠키가 필요합니다.
+# [New] Session Middleware Configuration (Stores login info)
+# [신규] 세션 미들웨어 설정 (로그인 정보 저장)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
+    # Essential for Hugging Face Spaces (HTTPS environment)
+    # Hugging Face Spaces(HTTPS 환경)에서는 필수입니다.
     https_only=True,
+
+    # Allows cookies to be sent when redirecting from Google
+    # 구글에서 리다이렉트될 때 쿠키가 전송되도록 허용합니다 ('lax' 권장).
     same_site='lax'
 )
 
