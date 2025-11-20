@@ -6,3 +6,4 @@ torch
 dateparser
 spacy-transformers
 sentencepiece
+sacremoses
