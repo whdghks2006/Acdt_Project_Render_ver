@@ -1,9 +1,11 @@
 fastapi
 uvicorn[standard]
 spacy
-transformers
+transformers>=4.34.0
+huggingface-hub>=0.16.0
 torch
 dateparser
-spacy-transformers
 sentencepiece
 sacremoses
+protobuf
+accelerate
