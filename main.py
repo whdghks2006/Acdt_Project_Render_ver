@@ -244,4 +244,12 @@ if __name__ == "__main__":
     import uvicorn
 
     port = int(os.environ.get('PORT', 7860))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+
+    # [중요] 프록시 헤더 설정 추가 (HTTPS 인식 문제 해결)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        proxy_headers=True,  # 프록시 헤더 신뢰
+        forwarded_allow_ips="*"  # 모든 IP에서의 포워딩 허용
+    )
