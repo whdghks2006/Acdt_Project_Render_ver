@@ -86,7 +86,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # [New] 세션 설정 (로그인 정보 저장용)
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+# https_only=True와 same_site='lax'를 명시적으로 추가합니다.
+# Hugging Face는 https를 쓰므로 secure 쿠키가 필요합니다.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    https_only=True,
+    same_site='lax'
+)
 
 # [New] 구글 로그인 설정
 oauth = OAuth()
