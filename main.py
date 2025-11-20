@@ -11,29 +11,30 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
-# --- [New] Auth & Session Libraries ---
+# --- Auth & Session Libraries ---
 from starlette.middleware.sessions import SessionMiddleware
 from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config
 
 # ==============================================================================
-# Configuration / 설정
+# Configuration
 # ==============================================================================
 NER_MODEL_DIR = "my_ner_model"
 TRANSLATION_MODEL = "Helsinki-NLP/opus-mt-ko-en"
 
-# Hugging Face Secrets에서 열쇠를 가져옵니다.
+# Retrieve secrets from environment variables
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
-SECRET_KEY = os.environ.get("SECRET_KEY", "random_secret_string")  # 세션 암호화용
+SECRET_KEY = os.environ.get("SECRET_KEY", "random_secret_string")
 
 models = {}
 
 
 # ==============================================================================
-# AI Functions (번역, 추출 - 기존과 동일)
+# AI Functions (Translation & Extraction)
 # ==============================================================================
 def translate_korean_to_english(text):
+    # Check if text contains Korean characters
     is_korean = any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
     if is_korean:
         translated = models["translator"](text, max_length=512)
@@ -45,20 +46,26 @@ def translate_korean_to_english(text):
 def extract_schedule_info(translated_text):
     if not translated_text or not translated_text.strip():
         return "Please enter text.", "", "", ""
+
+    # Run NER model
     doc = models["nlp"](translated_text)
+
     dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
     times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
     events = [ent.text for ent in doc.ents if ent.label_ == "EVENT"]
+
     date_str = ", ".join(dates) if dates else "today"
     time_str = ", ".join(times) if times else ""
     loc_str = ", ".join(locs) if locs else ""
+
     if events:
         event_str = ", ".join(events)
     elif locs:
         event_str = f"Meeting at {loc_str}"
     else:
         event_str = "New Schedule"
+
     return date_str, time_str, loc_str, event_str
 
 
@@ -85,21 +92,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# [New] Session Middleware Configuration (Stores login info)
-# [신규] 세션 미들웨어 설정 (로그인 정보 저장)
+# [Session Middleware]
+# https_only=True: Essential for Hugging Face (HTTPS)
+# same_site='lax': Recommended for OAuth redirects
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
-    # Essential for Hugging Face Spaces (HTTPS environment)
-    # Hugging Face Spaces(HTTPS 환경)에서는 필수입니다.
     https_only=True,
-
-    # Allows cookies to be sent when redirecting from Google
-    # 구글에서 리다이렉트될 때 쿠키가 전송되도록 허용합니다 ('lax' 권장).
     same_site='lax'
 )
 
-# [New] 구글 로그인 설정
+# [Google OAuth Setup]
 oauth = OAuth()
 oauth.register(
     name='google',
@@ -155,17 +158,15 @@ async def api_extract_schedule(request: ExtractRequest):
     )
 
 
-# --- [New] Login Endpoints ---
+# --- Login Endpoints ---
 
 @app.get('/login')
 async def login(request: Request):
-    # 현재 주소를 기반으로 callback 주소 생성 (https 강제)
-    redirect_uri = str(request.url_for('auth')).replace('http://', 'https://')
-    # 로컬 테스트용 (localhost일 땐 http 유지)
-    if "localhost" in redirect_uri or "127.0.0.1" in redirect_uri:
-        redirect_uri = str(request.url_for('auth'))
+    # [FIX] Hardcoded Redirect URI to prevent mismatch errors
+    # Ensure the username is 'snowmang' (ending with g)
+    fixed_redirect_uri = "https://snowmang-ai-scheduler-g14.hf.space/auth/callback"
 
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    return await oauth.google.authorize_redirect(request, fixed_redirect_uri)
 
 
 @app.get('/auth/callback')
@@ -192,7 +193,7 @@ async def get_user_info(request: Request):
     return {"user": user}
 
 
-# --- [New] Add to Calendar Endpoint ---
+# --- Calendar Endpoint ---
 
 @app.post("/add-to-calendar")
 async def add_to_calendar(request: Request, event_data: AddEventRequest):
@@ -201,7 +202,7 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=401, content={"error": "Login required"})
 
     try:
-        # 날짜/시간 파싱
+        # Parse date/time
         dt_str = f"{event_data.date_str} {event_data.time_str}"
         start_dt = dateparser.parse(dt_str, settings={'PREFER_DATES_FROM': 'future'})
         if not start_dt:
@@ -209,7 +210,7 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
 
         end_dt = start_dt + datetime.timedelta(hours=1)
 
-        # 구글 API에 보낼 데이터
+        # Data for Google Calendar API
         google_event = {
             'summary': event_data.event_str,
             'location': event_data.loc_str,
@@ -224,7 +225,7 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             },
         }
 
-        # 구글 캘린더 API 호출
+        # Call Google API
         resp = await oauth.google.post(
             'https://www.googleapis.com/calendar/v3/calendars/primary/events',
             json=google_event,
@@ -245,11 +246,13 @@ if __name__ == "__main__":
 
     port = int(os.environ.get('PORT', 7860))
 
-    # [중요] 프록시 헤더 설정 추가 (HTTPS 인식 문제 해결)
+    # [CRITICAL FIX] Proxy Headers for HTTPS
+    # This tells Uvicorn to trust that it's running behind a proxy (Hugging Face),
+    # ensuring cookies are handled correctly as HTTPS.
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=port,
-        proxy_headers=True,  # 프록시 헤더 신뢰
-        forwarded_allow_ips="*"  # 모든 IP에서의 포워딩 허용
+        proxy_headers=True,
+        forwarded_allow_ips="*"
     )
