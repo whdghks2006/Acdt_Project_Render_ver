@@ -94,12 +94,12 @@ app = FastAPI(lifespan=lifespan)
 
 # [Session Middleware]
 # https_only=True: Essential for Hugging Face (HTTPS)
-# same_site='lax': Recommended for OAuth redirects
+# same_site='none': Allows cookies in Iframe (Critical for Hugging Face default view)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     https_only=True,
-    same_site='lax'
+    same_site='none'  # <--- 'lax'를 'none'으로 변경!
 )
 
 # [Google OAuth Setup]
@@ -173,10 +173,17 @@ async def login(request: Request):
 async def auth(request: Request):
     try:
         token = await oauth.google.authorize_access_token(request)
-        request.session['user'] = token.get('userinfo')
+        user_info = token.get('userinfo')
+
+        # [DEBUG LOG] Print user info to server logs
+        print(f"✅ Google Login Success! User: {user_info}")
+
+        request.session['user'] = user_info
         request.session['token'] = token
         return RedirectResponse(url='/')
     except Exception as e:
+        # [DEBUG LOG] Print error
+        print(f"❌ Login Error: {e}")
         return JSONResponse(status_code=400, content={"error": f"Login failed: {str(e)}"})
 
 
