@@ -8,7 +8,7 @@ from transformers import pipeline
 from huggingface_hub import HfApi  # [New]
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, HTMLResponse # HTMLResponse 추가!
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
@@ -274,6 +274,91 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         print(f"Calendar Error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+# ==============================================================================
+# [New] Admin Dashboard Endpoint
+# ==============================================================================
+@app.get("/admin", response_class=HTMLResponse)  # HTMLResponse 필요
+async def admin_dashboard(request: Request):
+    # 비밀번호 체크 (간단하게 쿼리 파라미터로 구현)
+    # 실제 서비스에선 더 강력한 보안이 필요하지만, 데모용으로는 충분합니다.
+    # 사용법: /admin?key=1234
+    key = request.query_params.get("key")
+    if key != "1234":  # 원하는 비밀번호로 바꾸세요
+        return HTMLResponse("<h1>🚫 Access Denied</h1><p>Incorrect admin key.</p>", status_code=403)
+
+    try:
+        if not HF_TOKEN:
+            return HTMLResponse("<h1>⚠️ HF_TOKEN not set. Cannot fetch data.</h1>")
+
+        # Hugging Face 데이터셋에서 파일 목록 가져오기
+        api = HfApi(token=HF_TOKEN)
+        files = api.list_repo_files(repo_id=DATASET_REPO_ID, repo_type="dataset")
+
+        # CSV 파일만 필터링
+        csv_files = [f for f in files if f.endswith('.csv')]
+
+        if not csv_files:
+            return HTMLResponse("<h1>📭 No feedback data found yet.</h1>")
+
+        # 모든 CSV 다운로드 및 병합 (최근 데이터 순)
+        dfs = []
+        for file in csv_files:
+            # 캐시 없이 직접 다운로드 URL 사용 (가장 간단한 방법)
+            url = f"https://huggingface.co/datasets/{DATASET_REPO_ID}/resolve/main/{file}"
+            # Pandas로 읽기 (storage_options로 인증 토큰 전달)
+            try:
+                df = pd.read_csv(url, storage_options={"token": HF_TOKEN})
+                dfs.append(df)
+            except Exception as e:
+                print(f"Error reading {file}: {e}")
+                continue
+
+        if not dfs:
+            return HTMLResponse("<h1>❌ Error loading CSV files.</h1>")
+
+        final_df = pd.concat(dfs, ignore_index=True)
+
+        # 최신순 정렬 (timestamp 기준)
+        if 'timestamp' in final_df.columns:
+            final_df = final_df.sort_values(by='timestamp', ascending=False)
+
+        # HTML Table로 변환
+        table_html = final_df.to_html(classes="table table-striped", index=False)
+
+        # 예쁜 디자인을 위한 HTML 템플릿
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Admin Dashboard - AI Scheduler</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+            <style>
+                body {{ padding: 20px; background-color: #f8f9fa; }}
+                .container {{ background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                h1 {{ color: #0d6efd; margin-bottom: 20px; }}
+                .badge {{ font-size: 1rem; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1>📊 Feedback Data Log</h1>
+                    <span class="badge bg-success">Total Records: {len(final_df)}</span>
+                </div>
+                <p>This data is collected from user corrections (Human-in-the-Loop) for future fine-tuning.</p>
+                <div class="table-responsive">
+                    {table_html}
+                </div>
+                <hr>
+                <a href="/" class="btn btn-secondary">🏠 Back to App</a>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
+
+    except Exception as e:
+        return HTMLResponse(f"<h1>❌ System Error: {str(e)}</h1>")
 
 if __name__ == "__main__":
     import uvicorn
