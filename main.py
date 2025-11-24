@@ -5,7 +5,7 @@ import datetime
 import pandas as pd  # [New]
 from urllib.parse import quote_plus
 from transformers import pipeline
-from huggingface_hub import HfApi  # [New]
+from huggingface_hub import HfApi, hf_hub_download
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, HTMLResponse # HTMLResponse 추가!
