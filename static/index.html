@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Smart Scheduler</title>
+    <title>AI Smart Scheduler (HITL)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0 auto; max-width: 800px; padding: 20px; background-color: #f9fafb; }
         .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -31,6 +31,7 @@
 
         <h1>AI Smart Schedule Extractor 🤖</h1>
         <p>Supports both Korean (auto-translate) and English inputs.</p>
+        <p style="font-size: 0.8rem; color: #666;">* Your corrections help the AI learn! (Data is saved for training)</p>
 
         <h2>Step 1: Input & Translate</h2>
         <label for="input-text">📝 Input Text</label>
@@ -48,7 +49,7 @@
         <label>📍 Location</label> <input type="text" id="loc-box">
         <label>🎉 Event</label> <input type="text" id="event-box">
 
-        <button id="add-calendar-btn" class="btn-primary" onclick="handleAddToCalendar()">📅 Add to Google Calendar (Direct)</button>
+        <button id="add-calendar-btn" class="btn-primary" onclick="handleAddToCalendar()">📅 Add to Google Calendar & Save Data</button>
         <div class="loading" id="loading-spinner">🔄 Processing...</div>
         <div id="result-output" style="margin-top: 20px; font-weight: bold;"></div>
     </div>
@@ -58,7 +59,6 @@
         let translatedText = "";
         let isLoggedIn = false;
 
-        // Check login status on load
         checkLogin();
 
         async function checkLogin() {
@@ -118,7 +118,10 @@
                 time_str: document.getElementById('time-box').value,
                 loc_str: document.getElementById('loc-box').value,
                 event_str: document.getElementById('event-box').value,
-                description: `Original: ${originalText}\nTranslated: ${translatedText}`
+                description: `Original: ${originalText}\nTranslated: ${translatedText}`,
+                // [New] Sending source text for HITL
+                original_text: originalText,
+                translated_text: translatedText
             };
 
             try {
@@ -129,7 +132,7 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    output.innerHTML = `✅ Added Successfully! <a href="${data.link}" target="_blank">View on Calendar</a>`;
+                    output.innerHTML = `✅ Added Successfully! <a href="${data.link}" target="_blank">View on Calendar</a><br><small>✅ Data saved for training.</small>`;
                 } else {
                     output.innerHTML = `❌ Error: ${data.error}`;
                 }
