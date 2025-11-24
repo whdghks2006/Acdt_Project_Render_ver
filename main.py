@@ -22,7 +22,7 @@ from authlib.integrations.starlette_client import OAuth
 NER_MODEL_DIR = "my_ner_model"
 TRANSLATION_MODEL = "Helsinki-NLP/opus-mt-ko-en"
 # [New] Dataset Configuration
-DATASET_REPO_ID = "snowmanq/scheduler-feedback-data"  # 본인의 데이터셋 이름으로 변경하세요!
+DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 DATA_FILENAME = "feedback_log.csv"
 
 # Secrets
