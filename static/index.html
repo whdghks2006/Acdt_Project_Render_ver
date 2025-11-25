@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Smart Scheduler (Ethical AI)</title>
+    <title>AI Smart Scheduler (Enhanced)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0 auto; max-width: 800px; padding: 20px; background-color: #f9fafb; }
         .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -18,28 +18,22 @@
         hr { border: none; border-top: 1px solid #e5e7eb; margin: 25px 0; }
         .loading { display: none; text-align: center; font-size: 1.2rem; color: #374151; margin-top: 10px;}
         #user-status { float: right; font-size: 0.9rem; color: #374151; margin-top: 10px; margin-right: 10px; }
-
-        /* [New] Consent Checkbox Style */
         .consent-box { margin-top: 20px; padding: 10px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px; }
-        .consent-box input { width: auto; margin-right: 10px; }
-        .consent-box label { display: inline; font-weight: normal; font-size: 0.9rem; color: #166534; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <div id="login-area">
-            <a href="/login" class="btn-google">📅 Login with Google</a>
-        </div>
+        <div id="login-area"><a href="/login" class="btn-google">📅 Login with Google</a></div>
         <div id="user-status"></div>
         <div style="clear: both;"></div>
 
         <h1>AI Smart Schedule Extractor 🤖</h1>
-        <p>Supports both Korean (auto-translate) and English inputs.</p>
+        <p>Supports both Korean (via Google Translate) and English inputs.</p>
 
         <h2>Step 1: Input & Translate</h2>
         <label for="input-text">📝 Input Text</label>
-        <textarea id="input-text" rows="5" placeholder="예: '내일 오후 2시에 강남역에서 회의하자'"></textarea>
+        <textarea id="input-text" rows="5" placeholder="예: '내일 오후 7시에 홍대입구역에서 회식'"></textarea>
         <button id="extract-button" class="btn-secondary" onclick="handleExtract()">1. Translate & Extract</button>
 
         <label for="translated-output">Result (Translated)</label>
@@ -55,10 +49,7 @@
 
         <div class="consent-box">
             <input type="checkbox" id="data-consent" checked>
-            <label for="data-consent">
-                (Optional) I agree to provide this data to help improve the AI model.
-                <br><small style="color:#666;">* Your original text and corrections will be saved anonymously.</small>
-            </label>
+            <label for="data-consent">(Optional) I agree to donate data for AI training.</label>
         </div>
 
         <button id="add-calendar-btn" class="btn-primary" onclick="handleAddToCalendar()">📅 Add to Google Calendar</button>
@@ -79,14 +70,11 @@
                 const data = await res.json();
                 const loginArea = document.getElementById('login-area');
                 const userStatus = document.getElementById('user-status');
-
                 if (data.user) {
                     isLoggedIn = true;
                     loginArea.innerHTML = `<a href="/logout" class="btn-secondary" style="font-size:0.9rem; text-decoration:none;">Logout</a>`;
                     userStatus.innerText = `Welcome, ${data.user.name}`;
-                } else {
-                    isLoggedIn = false;
-                }
+                } else { isLoggedIn = false; }
             } catch (e) { console.error(e); }
         }
 
@@ -107,22 +95,22 @@
                 document.getElementById('translated-output').value = data.translated_text;
                 document.getElementById('date-box').value = data.date;
                 document.getElementById('time-box').value = data.time;
+
+                // [IMPROVED] Use Original Korean text for Event Name if possible
+                // This makes the calendar event look much better for Korean users
+                document.getElementById('event-box').value = data.original_text;
                 document.getElementById('loc-box').value = data.loc;
-                document.getElementById('event-box').value = data.event;
+
             } catch (error) { alert('Error processing text.'); }
             finally { btn.innerText = "1. Translate & Extract"; btn.disabled = false; }
         }
 
         async function handleAddToCalendar() {
-            if (!isLoggedIn) {
-                alert("Please login with Google first!");
-                return;
-            }
+            if (!isLoggedIn) { alert("Please login with Google first!"); return; }
 
             const btn = document.getElementById('add-calendar-btn');
             const spinner = document.getElementById('loading-spinner');
             const output = document.getElementById('result-output');
-            // [New] Get checkbox status
             const consent = document.getElementById('data-consent').checked;
 
             btn.disabled = true; spinner.style.display = 'block'; output.innerHTML = "";
@@ -135,7 +123,7 @@
                 description: `Original: ${originalText}\nTranslated: ${translatedText}`,
                 original_text: originalText,
                 translated_text: translatedText,
-                consent: consent // [New] Send consent status
+                consent: consent
             };
 
             try {
@@ -144,13 +132,9 @@
                     body: JSON.stringify(eventData)
                 });
                 const data = await response.json();
-
                 if (response.ok) {
-                    // Show saved message based on consent
                     output.innerHTML = `✅ Added Successfully! <a href="${data.link}" target="_blank">View on Calendar</a><br><small>${data.saved_msg}</small>`;
-                } else {
-                    output.innerHTML = `❌ Error: ${data.error}`;
-                }
+                } else { output.innerHTML = `❌ Error: ${data.error}`; }
             } catch (error) { output.innerHTML = `❌ Error: ${error}`; }
             finally { btn.disabled = false; spinner.style.display = 'none'; }
         }
