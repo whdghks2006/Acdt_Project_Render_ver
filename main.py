@@ -67,7 +67,8 @@ def extract_schedule_info(translated_text):
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
     events = [ent.text for ent in doc.ents if ent.label_ == "EVENT"]
 
-    date_str = ", ".join(dates) if dates else "today"
+    # [FIX] If no date is found, leave it empty instead of defaulting to "today"
+    date_str = ", ".join(dates) if dates else ""
     time_str = ", ".join(times) if times else ""
     loc_str = ", ".join(locs) if locs else ""
 
