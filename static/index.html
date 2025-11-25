@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Smart Scheduler (HITL)</title>
+    <title>AI Smart Scheduler (Ethical AI)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0 auto; max-width: 800px; padding: 20px; background-color: #f9fafb; }
         .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -18,6 +18,11 @@
         hr { border: none; border-top: 1px solid #e5e7eb; margin: 25px 0; }
         .loading { display: none; text-align: center; font-size: 1.2rem; color: #374151; margin-top: 10px;}
         #user-status { float: right; font-size: 0.9rem; color: #374151; margin-top: 10px; margin-right: 10px; }
+
+        /* [New] Consent Checkbox Style */
+        .consent-box { margin-top: 20px; padding: 10px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px; }
+        .consent-box input { width: auto; margin-right: 10px; }
+        .consent-box label { display: inline; font-weight: normal; font-size: 0.9rem; color: #166534; }
     </style>
 </head>
 <body>
@@ -31,7 +36,6 @@
 
         <h1>AI Smart Schedule Extractor 🤖</h1>
         <p>Supports both Korean (auto-translate) and English inputs.</p>
-        <p style="font-size: 0.8rem; color: #666;">* Your corrections help the AI learn! (Data is saved for training)</p>
 
         <h2>Step 1: Input & Translate</h2>
         <label for="input-text">📝 Input Text</label>
@@ -49,7 +53,15 @@
         <label>📍 Location</label> <input type="text" id="loc-box">
         <label>🎉 Event</label> <input type="text" id="event-box">
 
-        <button id="add-calendar-btn" class="btn-primary" onclick="handleAddToCalendar()">📅 Add to Google Calendar & Save Data</button>
+        <div class="consent-box">
+            <input type="checkbox" id="data-consent" checked>
+            <label for="data-consent">
+                (Optional) I agree to provide this data to help improve the AI model.
+                <br><small style="color:#666;">* Your original text and corrections will be saved anonymously.</small>
+            </label>
+        </div>
+
+        <button id="add-calendar-btn" class="btn-primary" onclick="handleAddToCalendar()">📅 Add to Google Calendar</button>
         <div class="loading" id="loading-spinner">🔄 Processing...</div>
         <div id="result-output" style="margin-top: 20px; font-weight: bold;"></div>
     </div>
@@ -110,6 +122,8 @@
             const btn = document.getElementById('add-calendar-btn');
             const spinner = document.getElementById('loading-spinner');
             const output = document.getElementById('result-output');
+            // [New] Get checkbox status
+            const consent = document.getElementById('data-consent').checked;
 
             btn.disabled = true; spinner.style.display = 'block'; output.innerHTML = "";
 
@@ -119,9 +133,9 @@
                 loc_str: document.getElementById('loc-box').value,
                 event_str: document.getElementById('event-box').value,
                 description: `Original: ${originalText}\nTranslated: ${translatedText}`,
-                // [New] Sending source text for HITL
                 original_text: originalText,
-                translated_text: translatedText
+                translated_text: translatedText,
+                consent: consent // [New] Send consent status
             };
 
             try {
@@ -132,7 +146,8 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    output.innerHTML = `✅ Added Successfully! <a href="${data.link}" target="_blank">View on Calendar</a><br><small>✅ Data saved for training.</small>`;
+                    // Show saved message based on consent
+                    output.innerHTML = `✅ Added Successfully! <a href="${data.link}" target="_blank">View on Calendar</a><br><small>${data.saved_msg}</small>`;
                 } else {
                     output.innerHTML = `❌ Error: ${data.error}`;
                 }

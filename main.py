@@ -2,13 +2,14 @@ import os
 import spacy
 import dateparser
 import datetime
-import pandas as pd  # [New]
+import pandas as pd
 from urllib.parse import quote_plus
 from transformers import pipeline
+# [Important] hf_hub_download is required for accessing private datasets securely
 from huggingface_hub import HfApi, hf_hub_download
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, HTMLResponse # HTMLResponse 추가!
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
@@ -21,15 +22,12 @@ from authlib.integrations.starlette_client import OAuth
 # ==============================================================================
 NER_MODEL_DIR = "my_ner_model"
 TRANSLATION_MODEL = "Helsinki-NLP/opus-mt-ko-en"
-# [New] Dataset Configuration
-DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
-DATA_FILENAME = "feedback_log.csv"
+DATASET_REPO_ID = "snowmang/scheduler-feedback-data"  # Ensure this ID is correct
 
-# Secrets
+# Retrieve secrets from environment variables
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 SECRET_KEY = os.environ.get("SECRET_KEY", "random_secret_string")
-# [New] Hugging Face Token for uploading data (Must be in Secrets)
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 models = {}
@@ -39,6 +37,10 @@ models = {}
 # AI Functions
 # ==============================================================================
 def translate_korean_to_english(text):
+    """
+    Detects if the text contains Korean characters.
+    If yes, translates to English using the loaded model.
+    """
     is_korean = any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
     if is_korean:
         translated = models["translator"](text, max_length=512)
@@ -48,9 +50,14 @@ def translate_korean_to_english(text):
 
 
 def extract_schedule_info(translated_text):
+    """
+    Extracts Date, Time, Location, and Event entities using spaCy NER.
+    """
     if not translated_text or not translated_text.strip():
         return "Please enter text.", "", "", ""
+
     doc = models["nlp"](translated_text)
+
     dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
     times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
@@ -59,6 +66,7 @@ def extract_schedule_info(translated_text):
     date_str = ", ".join(dates) if dates else "today"
     time_str = ", ".join(times) if times else ""
     loc_str = ", ".join(locs) if locs else ""
+
     if events:
         event_str = ", ".join(events)
     elif locs:
@@ -69,14 +77,16 @@ def extract_schedule_info(translated_text):
     return date_str, time_str, loc_str, event_str
 
 
-# [New] Function to save feedback
 def save_feedback_to_hub(original_text, translated_text, final_data):
+    """
+    Saves user corrections to Hugging Face Dataset (Human-in-the-Loop).
+    Uses HF_TOKEN to authenticate.
+    """
     try:
         if not HF_TOKEN:
             print("⚠️ HF_TOKEN not found. Skipping data logging.")
             return
 
-        # Prepare new data row
         new_row = {
             "timestamp": datetime.datetime.now().isoformat(),
             "original_text": original_text,
@@ -88,23 +98,12 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
         }
         df = pd.DataFrame([new_row])
 
-        # Initialize API
-        api = HfApi(token=HF_TOKEN)
-
-        # Pull existing file if possible (Append mode)
-        # For simplicity in this demo, we just append to a local file and upload
-        # In production, you might want to load the existing CSV first.
-
-        # Local save
-        local_path = "/tmp/" + DATA_FILENAME
-
-        # Check if file exists in repo (Simple Logic: just upload new file with timestamp in name to avoid conflict)
-        # Or simpler: Upload one consolidated file.
-        # Let's use a unique filename per entry for safety in this demo to avoid overwrite issues concurrently
+        # Create a unique filename based on timestamp to prevent overwrites
         unique_filename = f"feedback_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         df.to_csv(unique_filename, index=False)
 
         # Upload to Hugging Face Dataset
+        api = HfApi(token=HF_TOKEN)
         api.upload_file(
             path_or_fileobj=unique_filename,
             path_in_repo=unique_filename,
@@ -118,7 +117,7 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
 
 
 # ==============================================================================
-# App Lifecycle
+# App Lifecycle & Setup
 # ==============================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -134,31 +133,40 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"❌ Failed to load models: {e}")
     yield
+    # Cleanup on shutdown
     models.clear()
     print("✅ Models cleared.")
 
 
 app = FastAPI(lifespan=lifespan)
 
+# [Session Middleware Configuration]
+# This handles the user session (login cookies).
+# https_only=False: Allows cookies to work behind the Hugging Face proxy (SSL handled by proxy)
+# same_site='lax': Recommended setting for OAuth flows to allow redirects
+# max_age=3600: Forces the session to expire after 1 hour (Security best practice)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
-    https_only=True,
-    same_site='none',
+    https_only=False,
+    same_site='lax',
     path='/',
     max_age=3600
 )
 
+# [Google OAuth Configuration]
 oauth = OAuth()
 oauth.register(
     name='google',
     client_id=GOOGLE_CLIENT_ID,
     client_secret=GOOGLE_CLIENT_SECRET,
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    # Scopes: Request permission for Email, Profile, and Calendar Events (Read/Write)
     client_kwargs={'scope': 'openid email profile https://www.googleapis.com/auth/calendar.events'},
 )
 
 
+# --- Pydantic Models for API Requests ---
 class ExtractRequest(BaseModel):
     text: str
 
@@ -172,30 +180,35 @@ class ExtractResponse(BaseModel):
     event: str
 
 
-# [New] Added original_text and translated_text to capture full context
 class AddEventRequest(BaseModel):
     date_str: str
     time_str: str
     loc_str: str
     event_str: str
     description: str
-    original_text: str  # [New]
-    translated_text: str  # [New]
+    original_text: str
+    translated_text: str
+    consent: bool = False  # Field for Ethical Data Collection (Opt-in)
 
 
 # ==============================================================================
-# Endpoints
+# API Endpoints
 # ==============================================================================
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/")
 async def read_index():
+    """Serves the main frontend HTML file."""
     return FileResponse('static/index.html')
 
 
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
+    """
+    Step 1: Receives text, translates it, and extracts entities using NER.
+    """
     original_text = request.text
     translated_text = translate_korean_to_english(original_text)
     date, time, loc, event = extract_schedule_info(translated_text)
@@ -207,17 +220,36 @@ async def api_extract_schedule(request: ExtractRequest):
 
 @app.get('/login')
 async def login(request: Request):
+    """
+    Initiates the Google Login flow.
+    Uses a hardcoded redirect URI to avoid 'redirect_uri_mismatch' errors.
+    """
+    # Ensure this URL exactly matches the one registered in Google Cloud Console
     fixed_redirect_uri = "https://snowmang-ai-scheduler-g14.hf.space/auth/callback"
     return await oauth.google.authorize_redirect(request, fixed_redirect_uri)
 
 
 @app.get('/auth/callback')
 async def auth(request: Request):
+    """
+    Handles the callback from Google after successful login.
+    Stores the access token in the session cookie.
+    """
     try:
         token = await oauth.google.authorize_access_token(request)
         user_info = token.get('userinfo')
+
+        # Store minimal user info
         request.session['user'] = {'name': user_info.get('name'), 'email': user_info.get('email')}
-        request.session['token'] = {'access_token': token.get('access_token'), 'token_type': token.get('token_type')}
+
+        # [Cookie Optimization] Store only the Access Token
+        # Storing the full token (including id_token) can exceed the 4KB cookie limit.
+        request.session['token'] = {
+            'access_token': token.get('access_token'),
+            'token_type': token.get('token_type')
+        }
+
+        # Use status code 303 (See Other) for a clean redirect
         return RedirectResponse(url='/', status_code=303)
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Login failed: {str(e)}"})
@@ -225,27 +257,35 @@ async def auth(request: Request):
 
 @app.get('/logout')
 async def logout(request: Request):
+    """Clears the session cookie to log the user out."""
     request.session.clear()
     return RedirectResponse(url='/')
 
 
 @app.get('/user-info')
 async def get_user_info(request: Request):
+    """Returns the currently logged-in user's info."""
     return {"user": request.session.get('user')}
 
 
 @app.post("/add-to-calendar")
 async def add_to_calendar(request: Request, event_data: AddEventRequest):
+    """
+    Step 2: Adds the event to Google Calendar and optionally saves data (HITL).
+    """
     token_data = request.session.get('token')
     if not token_data or 'access_token' not in token_data:
         return JSONResponse(status_code=401, content={"error": "Login required"})
 
     try:
+        # Parse Date and Time
         dt_str = f"{event_data.date_str} {event_data.time_str}"
         start_dt = dateparser.parse(dt_str, settings={'PREFER_DATES_FROM': 'future'})
-        if not start_dt: start_dt = datetime.datetime.now() + datetime.timedelta(hours=1)
+        if not start_dt:
+            start_dt = datetime.datetime.now() + datetime.timedelta(hours=1)
         end_dt = start_dt + datetime.timedelta(hours=1)
 
+        # Prepare Google Calendar Event Object
         google_event = {
             'summary': event_data.event_str,
             'location': event_data.loc_str,
@@ -254,6 +294,7 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
         }
 
+        # Send Request to Google Calendar API
         resp = await oauth.google.post(
             'https://www.googleapis.com/calendar/v3/calendars/primary/events',
             json=google_event, token=token_data
@@ -261,26 +302,32 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         resp.raise_for_status()
         result = resp.json()
 
-        # [New] Save User Feedback for future training (HITL)
-        save_feedback_to_hub(
-            event_data.original_text,
-            event_data.translated_text,
-            event_data
-        )
+        # [Human-in-the-Loop] Save feedback if user consented
+        if event_data.consent:
+            save_feedback_to_hub(
+                event_data.original_text,
+                event_data.translated_text,
+                event_data
+            )
+            saved_msg = "✅ Data saved for AI training (Thanks!)"
+        else:
+            saved_msg = "ℹ️ Data NOT saved (User opted out)"
 
-        return {"message": "Success", "link": result.get('htmlLink')}
+        return {"message": "Success", "link": result.get('htmlLink'), "saved_msg": saved_msg}
 
     except Exception as e:
         print(f"Calendar Error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-# ==============================================================================
-# Admin Dashboard Endpoint (Improved)
-# ==============================================================================
+
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):
+    """
+    Admin Dashboard to monitor collected data.
+    Access: /admin?key=1234
+    """
     key = request.query_params.get("key")
-    if key != "1234":  # [변경 가능] 비밀번호
+    if key != "1234":  # Change this password as needed
         return HTMLResponse("<h1>🚫 Access Denied</h1><p>Incorrect admin key.</p>", status_code=403)
 
     try:
@@ -288,7 +335,6 @@ async def admin_dashboard(request: Request):
             return HTMLResponse("<h1>⚠️ HF_TOKEN not set. Cannot fetch data.</h1>")
 
         api = HfApi(token=HF_TOKEN)
-        # 파일 목록 가져오기
         try:
             files = api.list_repo_files(repo_id=DATASET_REPO_ID, repo_type="dataset")
         except Exception as e:
@@ -305,7 +351,7 @@ async def admin_dashboard(request: Request):
 
         for file in csv_files:
             try:
-                # [개선됨] hf_hub_download를 사용하여 안전하게 다운로드
+                # [Robust Download] Use hf_hub_download to handle private dataset authentication
                 local_filename = hf_hub_download(
                     repo_id=DATASET_REPO_ID,
                     filename=file,
@@ -324,35 +370,26 @@ async def admin_dashboard(request: Request):
             error_html = "<br>".join(error_log)
             return HTMLResponse(f"<h1>❌ Error loading CSV files.</h1><h3>Detailed Errors:</h3><pre>{error_html}</pre>")
 
+        # Merge all dataframes
         final_df = pd.concat(dfs, ignore_index=True)
-
         if 'timestamp' in final_df.columns:
             final_df = final_df.sort_values(by='timestamp', ascending=False)
 
+        # Render Table
         table_html = final_df.to_html(classes="table table-striped", index=False)
-
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Admin Dashboard - AI Scheduler</title>
+            <title>Admin Dashboard</title>
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-            <style>
-                body {{ padding: 20px; background-color: #f8f9fa; }}
-                .container {{ background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-                h1 {{ color: #0d6efd; margin-bottom: 20px; }}
-            </style>
+            <style>body {{ padding: 20px; }}</style>
         </head>
         <body>
             <div class="container">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h1>📊 Feedback Data Log</h1>
-                    <span class="badge bg-success">Total Records: {len(final_df)}</span>
-                </div>
-                <p>repo_id: {DATASET_REPO_ID}</p>
+                <h1>📊 Feedback Data Log</h1>
+                <p>Repo: {DATASET_REPO_ID} | Total Records: {len(final_df)}</p>
                 <div class="table-responsive">{table_html}</div>
-                <hr>
-                <a href="/" class="btn btn-secondary">🏠 Back to App</a>
             </div>
         </body>
         </html>
@@ -362,8 +399,12 @@ async def admin_dashboard(request: Request):
     except Exception as e:
         return HTMLResponse(f"<h1>❌ System Error: {str(e)}</h1>")
 
+
 if __name__ == "__main__":
     import uvicorn
 
     port = int(os.environ.get('PORT', 7860))
+    # [Critical] Proxy configuration for Hugging Face Spaces
+    # proxy_headers=True: Trusts the headers sent by the HF proxy
+    # forwarded_allow_ips="*": Allows forwarding from any IP
     uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, forwarded_allow_ips="*")
