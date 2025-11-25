@@ -285,16 +285,52 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=401, content={"error": "Login required"})
 
     try:
-        # [Smart Date Parsing]
-        # If input was Korean, dateparser handles '내일' well.
-        # If input was English, dateparser handles 'tomorrow' well.
-        dt_str = f"{event_data.date_str} {event_data.time_str}"
-        start_dt = dateparser.parse(dt_str, settings={'PREFER_DATES_FROM': 'future'})
+        # [DEBUG] Check what the user actually sent
+        print(f"📥 User Input - Date: '{event_data.date_str}', Time: '{event_data.time_str}'")
 
+        # 1. Define KST Timezone
+        kst = pytz.timezone('Asia/Seoul')
+        now_kst = datetime.datetime.now(kst)
+
+        # 2. Settings
+        settings = {
+            'PREFER_DATES_FROM': 'future',
+            'RELATIVE_BASE': now_kst.replace(tzinfo=None),
+            'TIMEZONE': 'Asia/Seoul',
+            'TO_TIMEZONE': 'Asia/Seoul',
+            'RETURN_AS_TIMEZONE_AWARE': True
+        }
+
+        # 3. [PRIORITY 1] Parse User Edited Boxes First!
+        # 사용자가 박스에 적은 내용을 최우선으로 해석합니다.
+        dt_str = f"{event_data.date_str} {event_data.time_str}".strip()
+        start_dt = None
+
+        if dt_str:
+            # Try parsing user input explicitly as Korean/English
+            start_dt = dateparser.parse(dt_str, settings=settings, languages=['ko', 'en'])
+            if start_dt:
+                print(f"✅ Parsed from User Input: {start_dt}")
+
+        # 4. [PRIORITY 2] Smart Fallback (Only if User Input failed or was empty)
+        # 사용자가 시간을 안 적었거나, AI가 놓쳤을 때만 원본을 봅니다.
+        if not start_dt and event_data.original_text:
+            print("⚠️ User input parsing failed/empty. Trying original text...")
+            start_dt = dateparser.parse(event_data.original_text, settings=settings, languages=['ko'])
+            if start_dt:
+                print(f"✅ Recovered from Original Text: {start_dt}")
+
+        # 5. [PRIORITY 3] Final Safety Net (Next Hour)
+        # 도저히 날짜를 알 수 없을 때만 현재 시간을 씁니다.
         if not start_dt:
-            start_dt = datetime.datetime.now() + datetime.timedelta(hours=1)
+            print("❌ All parsing failed. Defaulting to next hour.")
+            start_dt = now_kst + datetime.timedelta(hours=1)
+            start_dt = start_dt.replace(minute=0, second=0, microsecond=0)
+
         end_dt = start_dt + datetime.timedelta(hours=1)
 
+        # 6. Use User Edited Title & Location directly
+        # 제목과 장소는 사용자가 수정한 그대로(event_str, loc_str) 넣습니다.
         google_event = {
             'summary': event_data.event_str,
             'location': event_data.loc_str,
@@ -303,18 +339,29 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
         }
 
+        access_token = token_data['access_token']
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json'
+        }
+
         resp = await oauth.google.post(
             'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-            json=google_event, token=token_data
+            json=google_event, headers=headers
         )
-        resp.raise_for_status()
+
+        if resp.status_code != 200:
+            if resp.status_code == 401:
+                return JSONResponse(status_code=401, content={"error": "Token expired. Login again."})
+            resp.raise_for_status()
+
         result = resp.json()
 
         if event_data.consent:
             save_feedback_to_hub(event_data.original_text, event_data.translated_text, event_data)
-            saved_msg = "✅ Data saved for AI training (Thanks!)"
+            saved_msg = "✅ Data saved."
         else:
-            saved_msg = "ℹ️ Data NOT saved (User opted out)"
+            saved_msg = "ℹ️ Data NOT saved."
 
         return {"message": "Success", "link": result.get('htmlLink'), "saved_msg": saved_msg}
 
