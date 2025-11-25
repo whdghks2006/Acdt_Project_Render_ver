@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Smart Scheduler (Enhanced)</title>
+    <title>AI Smart Scheduler (Google Translate)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0 auto; max-width: 800px; padding: 20px; background-color: #f9fafb; }
         .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -28,15 +28,15 @@
         <div id="user-status"></div>
         <div style="clear: both;"></div>
 
-        <h1>AI Smart Schedule Extractor 🤖</h1>
-        <p>Supports both Korean (via Google Translate) and English inputs.</p>
+        <h1>AI Smart Scheduler 📅</h1>
+        <p>Type a schedule in Korean (or English). We use Google Translate AI!</p>
 
         <h2>Step 1: Input & Translate</h2>
         <label for="input-text">📝 Input Text</label>
         <textarea id="input-text" rows="5" placeholder="예: '내일 오후 7시에 홍대입구역에서 회식'"></textarea>
         <button id="extract-button" class="btn-secondary" onclick="handleExtract()">1. Translate & Extract</button>
 
-        <label for="translated-output">Result (Translated)</label>
+        <label for="translated-output">Result (Google Translated)</label>
         <textarea id="translated-output" rows="2" readonly></textarea>
 
         <hr>
@@ -96,8 +96,8 @@
                 document.getElementById('date-box').value = data.date;
                 document.getElementById('time-box').value = data.time;
 
-                // [IMPROVED] Use Original Korean text for Event Name if possible
-                // This makes the calendar event look much better for Korean users
+                // [SMART FIX] Use original Korean text for Title & Location
+                // This ensures the calendar event is readable for Korean users.
                 document.getElementById('event-box').value = data.original_text;
                 document.getElementById('loc-box').value = data.loc;
 

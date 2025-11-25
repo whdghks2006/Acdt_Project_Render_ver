@@ -4,8 +4,8 @@ import dateparser
 import datetime
 import pandas as pd
 from urllib.parse import quote_plus
-# [Changed] Use Google Translator instead of Hugging Face pipeline
-from googletrans import Translator
+# [Changed] Use deep_translator (Google API Wrapper) for stability
+from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
 
 from fastapi import FastAPI, Request
@@ -21,7 +21,6 @@ from authlib.integrations.starlette_client import OAuth
 # Configuration
 # ==============================================================================
 NER_MODEL_DIR = "my_ner_model"
-# We don't need TRANSLATION_MODEL anymore
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
 # Secrets
@@ -38,22 +37,20 @@ models = {}
 # ==============================================================================
 def translate_korean_to_english(text):
     """
-    [UPGRADE] Uses Google Translate API for better accuracy.
+    [UPGRADE] Uses Google Translate (via deep_translator) for high accuracy.
     """
     try:
         # Check if text has Korean characters
         is_korean = any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
 
         if is_korean:
-            translator = Translator()
-            # Translate directly to English
-            result = translator.translate(text, dest='en')
-            return result.text
+            # Use Google Translate Engine
+            return GoogleTranslator(source='auto', target='en').translate(text)
         else:
             return text
     except Exception as e:
         print(f"Translation Error: {e}")
-        return text  # Fallback to original if Google fails
+        return text
 
 
 def extract_schedule_info(translated_text):
@@ -72,8 +69,6 @@ def extract_schedule_info(translated_text):
 
     date_str = ", ".join(dates) if dates else "today"
     time_str = ", ".join(times) if times else ""
-    # Note: We extract English locations/events here for date parsing context,
-    # but the final calendar event will use the Korean original text (handled in /add-to-calendar).
     loc_str = ", ".join(locs) if locs else ""
 
     if events:
@@ -133,7 +128,6 @@ async def lifespan(app: FastAPI):
     try:
         models["nlp"] = spacy.load(NER_MODEL_DIR)
         print("✅ NER Model loaded successfully!")
-        # Google Translator is initialized on demand, so no heavy model loading here!
     except Exception as e:
         print(f"❌ Failed to load models: {e}")
     yield
@@ -146,8 +140,8 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
-    https_only=False,  # Keep False for now to ensure stability
-    same_site='lax',
+    https_only=True,
+    same_site='none',
     path='/',
     max_age=3600
 )
@@ -252,7 +246,7 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         end_dt = start_dt + datetime.timedelta(hours=1)
 
         google_event = {
-            # [UPDATE] Use the data sent from Frontend (which prioritizes Korean)
+            # [IMPORTANT] Save the Korean text (event_str) to the calendar!
             'summary': event_data.event_str,
             'location': event_data.loc_str,
             'description': event_data.description,
