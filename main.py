@@ -4,6 +4,7 @@ import dateparser
 import datetime
 import pandas as pd
 import pytz
+import httpx  # [NEW] Direct HTTP client
 from urllib.parse import quote_plus
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
@@ -36,16 +37,10 @@ models = {}
 # AI Functions
 # ==============================================================================
 def check_is_korean(text):
-    """
-    Helper function to detect if text contains Korean characters.
-    """
     return any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
 
 
 def translate_korean_to_english(text):
-    """
-    [UPGRADE] Uses Google Translate (via deep_translator).
-    """
     try:
         if check_is_korean(text):
             return GoogleTranslator(source='auto', target='en').translate(text)
@@ -57,11 +52,7 @@ def translate_korean_to_english(text):
 
 
 def translate_english_to_korean(text):
-    """
-    Converts English text back to Korean.
-    """
-    if not text or not text.strip():
-        return ""
+    if not text or not text.strip(): return ""
     try:
         return GoogleTranslator(source='en', target='ko').translate(text)
     except Exception as e:
@@ -70,20 +61,15 @@ def translate_english_to_korean(text):
 
 
 def extract_schedule_info(translated_text):
-    """
-    Extracts entities using spaCy NER (English).
-    """
     if not translated_text or not translated_text.strip():
         return "Please enter text.", "", "", ""
 
     doc = models["nlp"](translated_text)
-
     dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
     times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
     events = [ent.text for ent in doc.ents if ent.label_ == "EVENT"]
 
-    # Return empty string if not found
     date_str = ", ".join(dates) if dates else ""
     time_str = ", ".join(times) if times else ""
     loc_str = ", ".join(locs) if locs else ""
@@ -99,12 +85,8 @@ def extract_schedule_info(translated_text):
 
 
 def save_feedback_to_hub(original_text, translated_text, final_data):
-    """
-    Saves user corrections to Hugging Face Dataset.
-    """
     try:
-        if not HF_TOKEN:
-            return
+        if not HF_TOKEN: return
 
         new_row = {
             "timestamp": datetime.datetime.now().isoformat(),
@@ -116,7 +98,6 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
             "final_event": final_data.event_str
         }
         df = pd.DataFrame([new_row])
-
         unique_filename = f"feedback_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         df.to_csv(unique_filename, index=False)
 
@@ -128,7 +109,6 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
             repo_type="dataset"
         )
         print(f"✅ Feedback data saved.")
-
     except Exception as e:
         print(f"❌ Failed to save feedback: {e}")
 
@@ -200,7 +180,6 @@ class AddEventRequest(BaseModel):
 # ==============================================================================
 # Endpoints
 # ==============================================================================
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -211,42 +190,28 @@ async def read_index():
 
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
-    """
-    Step 1: Translate -> Extract -> (Optional) Back Translate
-    """
     original_text = request.text
-
-    # 1. Check Language
     is_korean_input = check_is_korean(original_text)
 
-    # 2. Translate Ko -> En (if needed)
     if is_korean_input:
         translated_text = translate_korean_to_english(original_text)
     else:
-        translated_text = original_text  # English stays English
+        translated_text = original_text
 
-    # 3. Extract Entities (NER works on English text)
     date_en, time_en, loc_en, event_en = extract_schedule_info(translated_text)
 
-    # 4. Determine Output Language
     if is_korean_input:
-        # If input was Korean, show results in Korean (Back Translation)
         date_final = translate_english_to_korean(date_en)
         time_final = translate_english_to_korean(time_en)
         loc_final = translate_english_to_korean(loc_en)
     else:
-        # If input was English, show results in English
         date_final = date_en
         time_final = time_en
         loc_final = loc_en
 
     return ExtractResponse(
-        original_text=original_text,
-        translated_text=translated_text,
-        date=date_final,
-        time=time_final,
-        loc=loc_final,
-        event=event_en
+        original_text=original_text, translated_text=translated_text,
+        date=date_final, time=time_final, loc=loc_final, event=event_en
     )
 
 
@@ -286,14 +251,11 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=401, content={"error": "Login required"})
 
     try:
-        # [DEBUG] Check what the user actually sent
         print(f"📥 User Input - Date: '{event_data.date_str}', Time: '{event_data.time_str}'")
 
-        # 1. Define KST Timezone
         kst = pytz.timezone('Asia/Seoul')
         now_kst = datetime.datetime.now(kst)
 
-        # 2. Settings
         settings = {
             'PREFER_DATES_FROM': 'future',
             'RELATIVE_BASE': now_kst.replace(tzinfo=None),
@@ -302,27 +264,31 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             'RETURN_AS_TIMEZONE_AWARE': True
         }
 
-        # 3. [PRIORITY 1] Parse User Edited Boxes First!
-        # 사용자가 박스에 적은 내용을 최우선으로 해석합니다.
-        dt_str = f"{event_data.date_str} {event_data.time_str}".strip()
+        # [Pre-processing] Replace ambiguous Korean time words with clearer ones
+        # "밤 7시" -> "오후 7시" (Better for parser)
+        def sanitize_time(text):
+            if not text: return ""
+            t = text.replace("밤", "오후").replace("저녁", "오후")
+            t = t.replace("아침", "오전").replace("새벽", "오전")
+            return t
+
+        clean_time_str = sanitize_time(event_data.time_str)
+        clean_original_text = sanitize_time(event_data.original_text)
+
+        # 1. Parse User Edited Boxes
+        dt_str = f"{event_data.date_str} {clean_time_str}".strip()
         start_dt = None
-
         if dt_str:
-            # Try parsing user input explicitly as Korean/English
             start_dt = dateparser.parse(dt_str, settings=settings, languages=['ko', 'en'])
-            if start_dt:
-                print(f"✅ Parsed from User Input: {start_dt}")
+            if start_dt: print(f"✅ Parsed from User Input: {start_dt}")
 
-        # 4. [PRIORITY 2] Smart Fallback (Only if User Input failed or was empty)
-        # 사용자가 시간을 안 적었거나, AI가 놓쳤을 때만 원본을 봅니다.
-        if not start_dt and event_data.original_text:
-            print("⚠️ User input parsing failed/empty. Trying original text...")
-            start_dt = dateparser.parse(event_data.original_text, settings=settings, languages=['ko'])
-            if start_dt:
-                print(f"✅ Recovered from Original Text: {start_dt}")
+        # 2. Smart Fallback (Original Text)
+        if not start_dt and clean_original_text:
+            print("⚠️ Parsing failed. Trying original text...")
+            start_dt = dateparser.parse(clean_original_text, settings=settings, languages=['ko'])
+            if start_dt: print(f"✅ Recovered from Original Text: {start_dt}")
 
-        # 5. [PRIORITY 3] Final Safety Net (Next Hour)
-        # 도저히 날짜를 알 수 없을 때만 현재 시간을 씁니다.
+        # 3. Final Safety
         if not start_dt:
             print("❌ All parsing failed. Defaulting to next hour.")
             start_dt = now_kst + datetime.timedelta(hours=1)
@@ -330,8 +296,6 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
 
         end_dt = start_dt + datetime.timedelta(hours=1)
 
-        # 6. Use User Edited Title & Location directly
-        # 제목과 장소는 사용자가 수정한 그대로(event_str, loc_str) 넣습니다.
         google_event = {
             'summary': event_data.event_str,
             'location': event_data.loc_str,
@@ -341,19 +305,19 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         }
 
         access_token = token_data['access_token']
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json'
-        }
+        headers = {'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}
 
-        resp = await oauth.google.post(
-            'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-            json=google_event, headers=headers
-        )
+        # [FIX] Use httpx.AsyncClient directly to avoid authlib 'missing_token' error
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                json=google_event, headers=headers
+            )
 
         if resp.status_code != 200:
-            if resp.status_code == 401:
-                return JSONResponse(status_code=401, content={"error": "Token expired. Login again."})
+            if resp.status_code == 401: return JSONResponse(status_code=401, content={"error": "Token expired."})
+            # print response text for debugging
+            print(f"Google API Error: {resp.text}")
             resp.raise_for_status()
 
         result = resp.json()
@@ -374,13 +338,10 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):
     key = request.query_params.get("key")
-    if key != "1234":
-        return HTMLResponse("<h1>🚫 Access Denied</h1>", status_code=403)
+    if key != "1234": return HTMLResponse("<h1>🚫 Access Denied</h1>", status_code=403)
 
     try:
-        if not HF_TOKEN:
-            return HTMLResponse("<h1>⚠️ HF_TOKEN not set.</h1>")
-
+        if not HF_TOKEN: return HTMLResponse("<h1>⚠️ HF_TOKEN not set.</h1>")
         api = HfApi(token=HF_TOKEN)
         try:
             files = api.list_repo_files(repo_id=DATASET_REPO_ID, repo_type="dataset")
@@ -388,8 +349,7 @@ async def admin_dashboard(request: Request):
             return HTMLResponse(f"<h1>❌ Failed to list files.</h1><pre>{str(e)}</pre>")
 
         csv_files = [f for f in files if f.endswith('.csv')]
-        if not csv_files:
-            return HTMLResponse("<h1>📭 No feedback data found yet.</h1>")
+        if not csv_files: return HTMLResponse("<h1>📭 No data found.</h1>")
 
         dfs = []
         for file in csv_files:
@@ -401,25 +361,15 @@ async def admin_dashboard(request: Request):
             except Exception:
                 continue
 
-        if not dfs:
-            return HTMLResponse("<h1>❌ Error loading CSV files.</h1>")
-
+        if not dfs: return HTMLResponse("<h1>❌ Error loading CSV.</h1>")
         final_df = pd.concat(dfs, ignore_index=True)
-        if 'timestamp' in final_df.columns:
-            final_df = final_df.sort_values(by='timestamp', ascending=False)
-
+        if 'timestamp' in final_df.columns: final_df = final_df.sort_values(by='timestamp', ascending=False)
         table_html = final_df.to_html(classes="table table-striped", index=False)
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head><title>Admin Dashboard</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"><style>body {{ padding: 20px; }}</style></head>
-        <body><div class="container"><h1>📊 Feedback Data Log</h1><p>Total Records: {len(final_df)}</p><div class="table-responsive">{table_html}</div></div></body>
-        </html>
-        """
-        return HTMLResponse(content=html_content)
+        return HTMLResponse(
+            f"<html><head><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'></head><body><div class='container mt-4'><h1>📊 Feedback Log</h1><p>Total: {len(final_df)}</p>{table_html}</div></body></html>")
 
     except Exception as e:
-        return HTMLResponse(f"<h1>❌ System Error: {str(e)}</h1>")
+        return HTMLResponse(f"<h1>❌ Error: {str(e)}</h1>")
 
 
 if __name__ == "__main__":
