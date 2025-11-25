@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Smart Scheduler (Google Translate)</title>
+    <title>AI Smart Scheduler</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0 auto; max-width: 800px; padding: 20px; background-color: #f9fafb; }
         .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -19,6 +19,7 @@
         .loading { display: none; text-align: center; font-size: 1.2rem; color: #374151; margin-top: 10px;}
         #user-status { float: right; font-size: 0.9rem; color: #374151; margin-top: 10px; margin-right: 10px; }
         .consent-box { margin-top: 20px; padding: 10px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px; }
+        .tip-text { font-size: 0.85rem; color: #666; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -29,11 +30,13 @@
         <div style="clear: both;"></div>
 
         <h1>AI Smart Scheduler 📅</h1>
-        <p>Type a schedule in Korean (or English). We use Google Translate AI!</p>
+        <p>Type a schedule in Korean or English. We use AI to extract details!</p>
 
         <h2>Step 1: Input & Translate</h2>
         <label for="input-text">📝 Input Text</label>
         <textarea id="input-text" rows="5" placeholder="예: '내일 오후 7시에 홍대입구역에서 회식'"></textarea>
+        <p class="tip-text">💡 Tip: AI가 한국어를 놓칠 수 있습니다. 결과가 이상하면 <b>번역문(Translated)</b>을 참고하거나 <b>Step 2</b>에서 직접 수정해 주세요!</p>
+
         <button id="extract-button" class="btn-secondary" onclick="handleExtract()">1. Translate & Extract</button>
 
         <label for="translated-output">Result (Google Translated)</label>
@@ -96,8 +99,6 @@
                 document.getElementById('date-box').value = data.date;
                 document.getElementById('time-box').value = data.time;
 
-                // [SMART FIX] Use original Korean text for Title & Location
-                // This ensures the calendar event is readable for Korean users.
                 document.getElementById('event-box').value = data.original_text;
                 document.getElementById('loc-box').value = data.loc;
 

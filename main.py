@@ -4,7 +4,7 @@ import dateparser
 import datetime
 import pandas as pd
 import pytz
-import httpx  # [NEW] Direct HTTP client
+import httpx  # [중요] 구글과 직접 통신하기 위한 도구
 from urllib.parse import quote_plus
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
@@ -264,8 +264,6 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             'RETURN_AS_TIMEZONE_AWARE': True
         }
 
-        # [Pre-processing] Replace ambiguous Korean time words with clearer ones
-        # "밤 7시" -> "오후 7시" (Better for parser)
         def sanitize_time(text):
             if not text: return ""
             t = text.replace("밤", "오후").replace("저녁", "오후")
@@ -275,20 +273,17 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         clean_time_str = sanitize_time(event_data.time_str)
         clean_original_text = sanitize_time(event_data.original_text)
 
-        # 1. Parse User Edited Boxes
         dt_str = f"{event_data.date_str} {clean_time_str}".strip()
         start_dt = None
         if dt_str:
             start_dt = dateparser.parse(dt_str, settings=settings, languages=['ko', 'en'])
             if start_dt: print(f"✅ Parsed from User Input: {start_dt}")
 
-        # 2. Smart Fallback (Original Text)
         if not start_dt and clean_original_text:
             print("⚠️ Parsing failed. Trying original text...")
             start_dt = dateparser.parse(clean_original_text, settings=settings, languages=['ko'])
             if start_dt: print(f"✅ Recovered from Original Text: {start_dt}")
 
-        # 3. Final Safety
         if not start_dt:
             print("❌ All parsing failed. Defaulting to next hour.")
             start_dt = now_kst + datetime.timedelta(hours=1)
@@ -307,7 +302,7 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         access_token = token_data['access_token']
         headers = {'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}
 
-        # [FIX] Use httpx.AsyncClient directly to avoid authlib 'missing_token' error
+        # [FIX] Use httpx to send the request directly (Bypass authlib strict check)
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 'https://www.googleapis.com/calendar/v3/calendars/primary/events',
@@ -316,7 +311,6 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
 
         if resp.status_code != 200:
             if resp.status_code == 401: return JSONResponse(status_code=401, content={"error": "Token expired."})
-            # print response text for debugging
             print(f"Google API Error: {resp.text}")
             resp.raise_for_status()
 
