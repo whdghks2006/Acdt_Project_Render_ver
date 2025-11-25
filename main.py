@@ -4,7 +4,6 @@ import dateparser
 import datetime
 import pandas as pd
 from urllib.parse import quote_plus
-# [Changed] Use deep_translator (Google API Wrapper) for stability
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
 
@@ -37,19 +36,30 @@ models = {}
 # ==============================================================================
 def translate_korean_to_english(text):
     """
-    [UPGRADE] Uses Google Translate (via deep_translator) for high accuracy.
+    Uses Google Translate to convert Korean input to English for NER processing.
     """
     try:
-        # Check if text has Korean characters
         is_korean = any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
-
         if is_korean:
-            # Use Google Translate Engine
             return GoogleTranslator(source='auto', target='en').translate(text)
         else:
             return text
     except Exception as e:
-        print(f"Translation Error: {e}")
+        print(f"Ko->En Translation Error: {e}")
+        return text
+
+
+def translate_english_to_korean(text):
+    """
+    [NEW] Converts extracted English entities back to Korean for better UX.
+    """
+    if not text or not text.strip():
+        return ""
+    try:
+        # Translate English result back to Korean
+        return GoogleTranslator(source='en', target='ko').translate(text)
+    except Exception as e:
+        print(f"En->Ko Translation Error: {e}")
         return text
 
 
@@ -67,7 +77,7 @@ def extract_schedule_info(translated_text):
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
     events = [ent.text for ent in doc.ents if ent.label_ == "EVENT"]
 
-    # [FIX] If no date is found, leave it empty instead of defaulting to "today"
+    # Return empty string if not found, instead of "today"
     date_str = ", ".join(dates) if dates else ""
     time_str = ", ".join(times) if times else ""
     loc_str = ", ".join(locs) if locs else ""
@@ -84,7 +94,7 @@ def extract_schedule_info(translated_text):
 
 def save_feedback_to_hub(original_text, translated_text, final_data):
     """
-    Saves user corrections to Hugging Face Dataset.
+    Saves user corrections to Hugging Face Dataset (HITL).
     """
     try:
         if not HF_TOKEN:
@@ -195,12 +205,30 @@ async def read_index():
 
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
+    """
+    Step 1: Translate -> Extract -> Back Translate to Korean
+    """
     original_text = request.text
+    # 1. Translate Ko -> En
     translated_text = translate_korean_to_english(original_text)
-    date, time, loc, event = extract_schedule_info(translated_text)
+
+    # 2. Extract Entities (in English)
+    date_en, time_en, loc_en, event_en = extract_schedule_info(translated_text)
+
+    # 3. [NEW] Translate Extracted Entities En -> Ko for Display
+    # This makes the UX consistent for Korean users
+    date_ko = translate_english_to_korean(date_en)
+    time_ko = translate_english_to_korean(time_en)
+    loc_ko = translate_english_to_korean(loc_en)
+    # We don't translate event_en because the frontend uses original_text for the title
+
     return ExtractResponse(
-        original_text=original_text, translated_text=translated_text,
-        date=date, time=time, loc=loc, event=event
+        original_text=original_text,
+        translated_text=translated_text,
+        date=date_ko,
+        time=time_ko,
+        loc=loc_ko,
+        event=event_en
     )
 
 
@@ -240,14 +268,17 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=401, content={"error": "Login required"})
 
     try:
+        # [Improved] Dateparser handles Korean very well ("내일", "오후 2시")
         dt_str = f"{event_data.date_str} {event_data.time_str}"
-        start_dt = dateparser.parse(dt_str, settings={'PREFER_DATES_FROM': 'future'})
+
+        # Enable Korean language support explicitly for safety
+        start_dt = dateparser.parse(dt_str, languages=['ko', 'en'], settings={'PREFER_DATES_FROM': 'future'})
+
         if not start_dt:
             start_dt = datetime.datetime.now() + datetime.timedelta(hours=1)
         end_dt = start_dt + datetime.timedelta(hours=1)
 
         google_event = {
-            # [IMPORTANT] Save the Korean text (event_str) to the calendar!
             'summary': event_data.event_str,
             'location': event_data.loc_str,
             'description': event_data.description,
