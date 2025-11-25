@@ -34,29 +34,34 @@ models = {}
 # ==============================================================================
 # AI Functions
 # ==============================================================================
+def check_is_korean(text):
+    """
+    Helper function to detect if text contains Korean characters.
+    """
+    return any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
+
+
 def translate_korean_to_english(text):
     """
-    Uses Google Translate to convert Korean input to English for NER processing.
+    [UPGRADE] Uses Google Translate (via deep_translator).
     """
     try:
-        is_korean = any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
-        if is_korean:
+        if check_is_korean(text):
             return GoogleTranslator(source='auto', target='en').translate(text)
         else:
             return text
     except Exception as e:
-        print(f"Ko->En Translation Error: {e}")
+        print(f"Translation Error: {e}")
         return text
 
 
 def translate_english_to_korean(text):
     """
-    [NEW] Converts extracted English entities back to Korean for better UX.
+    Converts English text back to Korean.
     """
     if not text or not text.strip():
         return ""
     try:
-        # Translate English result back to Korean
         return GoogleTranslator(source='en', target='ko').translate(text)
     except Exception as e:
         print(f"En->Ko Translation Error: {e}")
@@ -65,7 +70,7 @@ def translate_english_to_korean(text):
 
 def extract_schedule_info(translated_text):
     """
-    Extracts Date, Time, Location, and Event entities using spaCy NER (English).
+    Extracts entities using spaCy NER (English).
     """
     if not translated_text or not translated_text.strip():
         return "Please enter text.", "", "", ""
@@ -77,7 +82,7 @@ def extract_schedule_info(translated_text):
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
     events = [ent.text for ent in doc.ents if ent.label_ == "EVENT"]
 
-    # Return empty string if not found, instead of "today"
+    # Return empty string if not found
     date_str = ", ".join(dates) if dates else ""
     time_str = ", ".join(times) if times else ""
     loc_str = ", ".join(locs) if locs else ""
@@ -94,7 +99,7 @@ def extract_schedule_info(translated_text):
 
 def save_feedback_to_hub(original_text, translated_text, final_data):
     """
-    Saves user corrections to Hugging Face Dataset (HITL).
+    Saves user corrections to Hugging Face Dataset.
     """
     try:
         if not HF_TOKEN:
@@ -206,28 +211,40 @@ async def read_index():
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
     """
-    Step 1: Translate -> Extract -> Back Translate to Korean
+    Step 1: Translate -> Extract -> (Optional) Back Translate
     """
     original_text = request.text
-    # 1. Translate Ko -> En
-    translated_text = translate_korean_to_english(original_text)
 
-    # 2. Extract Entities (in English)
+    # 1. Check Language
+    is_korean_input = check_is_korean(original_text)
+
+    # 2. Translate Ko -> En (if needed)
+    if is_korean_input:
+        translated_text = translate_korean_to_english(original_text)
+    else:
+        translated_text = original_text  # English stays English
+
+    # 3. Extract Entities (NER works on English text)
     date_en, time_en, loc_en, event_en = extract_schedule_info(translated_text)
 
-    # 3. [NEW] Translate Extracted Entities En -> Ko for Display
-    # This makes the UX consistent for Korean users
-    date_ko = translate_english_to_korean(date_en)
-    time_ko = translate_english_to_korean(time_en)
-    loc_ko = translate_english_to_korean(loc_en)
-    # We don't translate event_en because the frontend uses original_text for the title
+    # 4. Determine Output Language
+    if is_korean_input:
+        # If input was Korean, show results in Korean (Back Translation)
+        date_final = translate_english_to_korean(date_en)
+        time_final = translate_english_to_korean(time_en)
+        loc_final = translate_english_to_korean(loc_en)
+    else:
+        # If input was English, show results in English
+        date_final = date_en
+        time_final = time_en
+        loc_final = loc_en
 
     return ExtractResponse(
         original_text=original_text,
         translated_text=translated_text,
-        date=date_ko,
-        time=time_ko,
-        loc=loc_ko,
+        date=date_final,
+        time=time_final,
+        loc=loc_final,
         event=event_en
     )
 
@@ -268,11 +285,11 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=401, content={"error": "Login required"})
 
     try:
-        # [Improved] Dateparser handles Korean very well ("내일", "오후 2시")
+        # [Smart Date Parsing]
+        # If input was Korean, dateparser handles '내일' well.
+        # If input was English, dateparser handles 'tomorrow' well.
         dt_str = f"{event_data.date_str} {event_data.time_str}"
-
-        # Enable Korean language support explicitly for safety
-        start_dt = dateparser.parse(dt_str, languages=['ko', 'en'], settings={'PREFER_DATES_FROM': 'future'})
+        start_dt = dateparser.parse(dt_str, settings={'PREFER_DATES_FROM': 'future'})
 
         if not start_dt:
             start_dt = datetime.datetime.now() + datetime.timedelta(hours=1)
