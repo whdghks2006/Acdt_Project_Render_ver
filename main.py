@@ -4,7 +4,7 @@ import dateparser
 import datetime
 import pandas as pd
 import pytz
-import httpx  # [중요] 구글과 직접 통신하기 위한 도구
+import httpx  # Direct HTTP client for robust API calls
 from urllib.parse import quote_plus
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
@@ -251,8 +251,23 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=401, content={"error": "Login required"})
 
     try:
-        print(f"📥 User Input - Date: '{event_data.date_str}', Time: '{event_data.time_str}'")
+        print(f"📥 User Input (Ko) - Date: '{event_data.date_str}', Time: '{event_data.time_str}'")
 
+        # 1. [Strategy] Translate Inputs to English for robust parsing
+        # 한글 "내일", "밤 10시" -> 영어 "Tomorrow", "10 PM"으로 변환하여 계산합니다.
+        # This solves the issue where '밤 10시' is not parsed correctly by some libraries.
+        try:
+            date_for_parsing = GoogleTranslator(source='auto', target='en').translate(
+                event_data.date_str) if event_data.date_str else ""
+            time_for_parsing = GoogleTranslator(source='auto', target='en').translate(
+                event_data.time_str) if event_data.time_str else ""
+            print(f"🔄 Converted for Parsing: Date='{date_for_parsing}', Time='{time_for_parsing}'")
+        except:
+            # If translation fails, fallback to original inputs
+            date_for_parsing = event_data.date_str
+            time_for_parsing = event_data.time_str
+
+        # 2. Define KST
         kst = pytz.timezone('Asia/Seoul')
         now_kst = datetime.datetime.now(kst)
 
@@ -264,26 +279,23 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             'RETURN_AS_TIMEZONE_AWARE': True
         }
 
-        def sanitize_time(text):
-            if not text: return ""
-            t = text.replace("밤", "오후").replace("저녁", "오후")
-            t = t.replace("아침", "오전").replace("새벽", "오전")
-            return t
-
-        clean_time_str = sanitize_time(event_data.time_str)
-        clean_original_text = sanitize_time(event_data.original_text)
-
-        dt_str = f"{event_data.date_str} {clean_time_str}".strip()
+        # 3. Parse the English-converted string
+        dt_str = f"{date_for_parsing} {time_for_parsing}".strip()
         start_dt = None
         if dt_str:
-            start_dt = dateparser.parse(dt_str, settings=settings, languages=['ko', 'en'])
-            if start_dt: print(f"✅ Parsed from User Input: {start_dt}")
+            # Use 'en' language since we translated it
+            start_dt = dateparser.parse(dt_str, settings=settings, languages=['en'])
+            if start_dt: print(f"✅ Parsed from Translated Input: {start_dt}")
 
-        if not start_dt and clean_original_text:
-            print("⚠️ Parsing failed. Trying original text...")
-            start_dt = dateparser.parse(clean_original_text, settings=settings, languages=['ko'])
-            if start_dt: print(f"✅ Recovered from Original Text: {start_dt}")
+        # 4. Smart Fallback (Use the fully translated English sentence from Step 1)
+        # Instead of original Korean text, we use the English translation from Step 1
+        # because English parsing is 100x more reliable for times like "10 PM".
+        if not start_dt and event_data.translated_text:
+            print("⚠️ Parsing failed. Trying full translated text...")
+            start_dt = dateparser.parse(event_data.translated_text, settings=settings, languages=['en'])
+            if start_dt: print(f"✅ Recovered from Translated Text: {start_dt}")
 
+        # 5. Final Safety
         if not start_dt:
             print("❌ All parsing failed. Defaulting to next hour.")
             start_dt = now_kst + datetime.timedelta(hours=1)
@@ -291,9 +303,10 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
 
         end_dt = start_dt + datetime.timedelta(hours=1)
 
+        # 6. Construct Google Event (Using Original Korean Text for Display)
         google_event = {
-            'summary': event_data.event_str,
-            'location': event_data.loc_str,
+            'summary': event_data.event_str,  # Korean Title
+            'location': event_data.loc_str,  # Korean Location
             'description': event_data.description,
             'start': {'dateTime': start_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
             'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
@@ -302,7 +315,6 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         access_token = token_data['access_token']
         headers = {'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}
 
-        # [FIX] Use httpx to send the request directly (Bypass authlib strict check)
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 'https://www.googleapis.com/calendar/v3/calendars/primary/events',
