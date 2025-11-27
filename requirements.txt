@@ -1,7 +1,9 @@
 fastapi
 uvicorn[standard]
 spacy
-transformers>=4.34.0
+spacy-transformers
+torch
+transformers
 huggingface-hub>=0.16.0
 dateparser
 authlib
@@ -11,3 +13,5 @@ pandas
 deep_translator
 pytz
 google-generativeai>=0.7.2
+https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.7.3/en_core_web_trf-3.7.3-py3-none-any.whl
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl

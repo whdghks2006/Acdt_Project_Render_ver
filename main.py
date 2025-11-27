@@ -6,7 +6,6 @@ import pandas as pd
 import pytz
 import httpx
 import google.generativeai as genai
-from urllib.parse import quote_plus
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
 
@@ -22,7 +21,6 @@ from authlib.integrations.starlette_client import OAuth
 # ==============================================================================
 # Configuration
 # ==============================================================================
-NER_MODEL_DIR = "my_ner_model"
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -64,11 +62,23 @@ def translate_english_to_korean(text):
         return text
 
 
-def extract_schedule_info(translated_text):
+def extract_schedule_info(translated_text, model_mode='speed'):
+    """
+    Extracts entities using the selected spaCy model (sm or trf).
+    """
     if not translated_text or not translated_text.strip():
         return "", "", "", ""
 
-    doc = models["nlp"](translated_text)
+    # [DUAL ENGINE] Select Model based on user choice
+    if model_mode == 'accuracy':
+        print("🧠 Using Accuracy Mode (TRF Model)")
+        nlp = models["nlp_trf"]
+    else:
+        print("⚡ Using Speed Mode (SM Model)")
+        nlp = models["nlp_sm"]
+
+    doc = nlp(translated_text)
+
     dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
     times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
@@ -89,44 +99,29 @@ def extract_schedule_info(translated_text):
 
 
 def ask_gemini_for_missing_info(text, current_data, lang='ko'):
-    """
-    Generates a question using Gemini if info is missing.
-    Adapts language based on 'lang' parameter.
-    """
-    if not GEMINI_API_KEY:
-        return ""
-
-    # Determine language instruction
+    if not GEMINI_API_KEY: return ""
     lang_instruction = "in Korean" if lang == 'ko' else "in English"
-
     prompt = f"""
     You are a helpful scheduler assistant.
     User Input: "{text}"
     Extracted Info:
     - Date: {current_data.get('date', 'Missing')}
     - Time: {current_data.get('time', 'Missing')}
-
-    Task:
-    If 'Date' or 'Time' is MISSING (empty), write a polite 1-sentence question {lang_instruction} asking for it.
-    If both Date and Time are present, ONLY reply with "OK".
+    Task: If Date or Time is MISSING, ask a polite 1-sentence question {lang_instruction}. If present, reply "OK".
     """
-
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(prompt)
         answer = response.text.strip()
-
         if "OK" in answer: return ""
         return answer
-    except Exception as e:
-        print(f"Gemini Error: {e}")
+    except:
         return ""
 
 
 def save_feedback_to_hub(original_text, translated_text, final_data):
     try:
         if not HF_TOKEN: return
-
         new_row = {
             "timestamp": datetime.datetime.now().isoformat(),
             "original_text": original_text,
@@ -139,31 +134,35 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
         df = pd.DataFrame([new_row])
         unique_filename = f"feedback_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         df.to_csv(unique_filename, index=False)
-
         api = HfApi(token=HF_TOKEN)
-        api.upload_file(
-            path_or_fileobj=unique_filename,
-            path_in_repo=unique_filename,
-            repo_id=DATASET_REPO_ID,
-            repo_type="dataset"
-        )
+        api.upload_file(path_or_fileobj=unique_filename, path_in_repo=unique_filename, repo_id=DATASET_REPO_ID,
+                        repo_type="dataset")
         print(f"✅ Feedback data saved.")
     except Exception as e:
         print(f"❌ Failed to save feedback: {e}")
 
 
 # ==============================================================================
-# App Lifecycle
+# App Lifecycle (Load BOTH models)
 # ==============================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🔄 Loading AI Models...")
-    if not os.path.exists(NER_MODEL_DIR):
-        print(f"❌ Error: NER Model folder not found at {NER_MODEL_DIR}")
-        exit()
     try:
-        models["nlp"] = spacy.load(NER_MODEL_DIR)
-        print("✅ NER Model loaded successfully!")
+        # Load Speed Model (SM)
+        print("⚡ Loading Speed Model (en_core_web_sm)...")
+        models["nlp_sm"] = spacy.load("en_core_web_sm")
+
+        # Load Accuracy Model (TRF) - This takes time!
+        print("🧠 Loading Accuracy Model (en_core_web_trf)...")
+        # Try importing direct package name first (common in requirements install)
+        try:
+            import en_core_web_trf
+            models["nlp_trf"] = en_core_web_trf.load()
+        except ImportError:
+            models["nlp_trf"] = spacy.load("en_core_web_trf")
+
+        print("✅ All Models loaded successfully!")
     except Exception as e:
         print(f"❌ Failed to load models: {e}")
     yield
@@ -194,7 +193,8 @@ oauth.register(
 
 class ExtractRequest(BaseModel):
     text: str
-    lang: str = 'ko'  # [NEW] Receive UI language
+    lang: str = 'ko'
+    model_mode: str = 'speed'  # [NEW] speed or accuracy
 
 
 class ExtractResponse(BaseModel):
@@ -239,13 +239,12 @@ async def api_extract_schedule(request: ExtractRequest):
     else:
         translated_text = original_text
 
-    date_en, time_en, loc_en, event_en = extract_schedule_info(translated_text)
+    # Pass model_mode to extractor
+    date_en, time_en, loc_en, event_en = extract_schedule_info(translated_text, request.model_mode)
 
-    # Gemini Check with Language
     ai_message = ""
     if not date_en or not time_en:
         extracted_data = {'date': date_en, 'time': time_en, 'loc': loc_en}
-        # Pass the language from the frontend to Gemini
         ai_message = ask_gemini_for_missing_info(original_text, extracted_data, lang=request.lang)
 
     if is_korean_input:
@@ -302,14 +301,8 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
     try:
         kst = pytz.timezone('Asia/Seoul')
         now_kst = datetime.datetime.now(kst)
-
-        settings = {
-            'PREFER_DATES_FROM': 'future',
-            'RELATIVE_BASE': now_kst.replace(tzinfo=None),
-            'TIMEZONE': 'Asia/Seoul',
-            'TO_TIMEZONE': 'Asia/Seoul',
-            'RETURN_AS_TIMEZONE_AWARE': True
-        }
+        settings = {'PREFER_DATES_FROM': 'future', 'RELATIVE_BASE': now_kst.replace(tzinfo=None),
+                    'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul', 'RETURN_AS_TIMEZONE_AWARE': True}
 
         def sanitize_time(text):
             if not text: return ""
