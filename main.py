@@ -4,8 +4,8 @@ import dateparser
 import datetime
 import pandas as pd
 import pytz
-import httpx
-import google.generativeai as genai
+import httpx  # Direct HTTP client for robust API calls
+import google.generativeai as genai  # Gemini Library
 from urllib.parse import quote_plus
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
@@ -34,17 +34,9 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 models = {}
 
-# [DEBUG] Print Available Gemini Models on Startup
+# Initialize Gemini
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    try:
-        print("----------- [GEMINI MODEL LIST] -----------")
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                print(f"✅ Available Model: {m.name}")
-        print("-------------------------------------------")
-    except Exception as e:
-        print(f"⚠️ Failed to list models: {e}")
 
 
 # ==============================================================================
@@ -99,9 +91,14 @@ def extract_schedule_info(translated_text):
 
 
 def ask_gemini_for_missing_info(text, current_data):
+    """
+    Generates a question using Gemini if info is missing.
+    """
     if not GEMINI_API_KEY:
+        print("❌ Gemini Logic Skipped: No API Key found.")
         return ""
 
+    # Prompt
     prompt = f"""
     You are a helpful scheduler assistant.
     User Input: "{text}"
@@ -116,8 +113,9 @@ def ask_gemini_for_missing_info(text, current_data):
     """
 
     try:
-        # [FIX] Use the standard model name often supported
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # [FIX] Use the exact model name from your list!
+        # 'gemini-2.5-flash' is available and very fast.
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(prompt)
         answer = response.text.strip()
 
@@ -250,6 +248,7 @@ async def api_extract_schedule(request: ExtractRequest):
     ai_message = ""
     if not date_en or not time_en:
         extracted_data = {'date': date_en, 'time': time_en, 'loc': loc_en}
+        # Use Gemini 2.5 Flash
         ai_message = ask_gemini_for_missing_info(original_text, extracted_data)
 
     if is_korean_input:
@@ -330,7 +329,11 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             start_dt = dateparser.parse(dt_str, settings=settings, languages=['ko', 'en'])
 
         if not start_dt and clean_original_text:
-            start_dt = dateparser.parse(clean_original_text, settings=settings, languages=['ko'])
+            try:
+                trans_full = GoogleTranslator(source='auto', target='en').translate(clean_original_text)
+                start_dt = dateparser.parse(trans_full, settings=settings, languages=['en'])
+            except:
+                start_dt = dateparser.parse(clean_original_text, settings=settings, languages=['ko'])
 
         if not start_dt:
             start_dt = now_kst + datetime.timedelta(hours=1)
