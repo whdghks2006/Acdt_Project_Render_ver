@@ -4,8 +4,8 @@ import dateparser
 import datetime
 import pandas as pd
 import pytz
-import httpx  # Direct HTTP client for robust API calls
-import google.generativeai as genai  # Gemini Library
+import httpx
+import google.generativeai as genai
 from urllib.parse import quote_plus
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
@@ -25,7 +25,6 @@ from authlib.integrations.starlette_client import OAuth
 NER_MODEL_DIR = "my_ner_model"
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
-# Secrets
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 SECRET_KEY = os.environ.get("SECRET_KEY", "random_secret_string")
@@ -34,7 +33,6 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 models = {}
 
-# Initialize Gemini
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -90,15 +88,17 @@ def extract_schedule_info(translated_text):
     return date_str, time_str, loc_str, event_str
 
 
-def ask_gemini_for_missing_info(text, current_data):
+def ask_gemini_for_missing_info(text, current_data, lang='ko'):
     """
     Generates a question using Gemini if info is missing.
+    Adapts language based on 'lang' parameter.
     """
     if not GEMINI_API_KEY:
-        print("❌ Gemini Logic Skipped: No API Key found.")
         return ""
 
-    # Prompt
+    # Determine language instruction
+    lang_instruction = "in Korean" if lang == 'ko' else "in English"
+
     prompt = f"""
     You are a helpful scheduler assistant.
     User Input: "{text}"
@@ -107,23 +107,19 @@ def ask_gemini_for_missing_info(text, current_data):
     - Time: {current_data.get('time', 'Missing')}
 
     Task:
-    If 'Date' or 'Time' is MISSING (empty), write a polite 1-sentence question in Korean asking for it.
-    For example: "언제 만나시나요?" or "몇 시 일정인가요?"
+    If 'Date' or 'Time' is MISSING (empty), write a polite 1-sentence question {lang_instruction} asking for it.
     If both Date and Time are present, ONLY reply with "OK".
     """
 
     try:
-        # [FIX] Use the exact model name from your list!
-        # 'gemini-2.5-flash' is available and very fast.
         model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(prompt)
         answer = response.text.strip()
 
-        print(f"🤖 Gemini Reply: {answer}")
         if "OK" in answer: return ""
         return answer
     except Exception as e:
-        print(f"❌ Gemini API Error: {e}")
+        print(f"Gemini Error: {e}")
         return ""
 
 
@@ -198,6 +194,7 @@ oauth.register(
 
 class ExtractRequest(BaseModel):
     text: str
+    lang: str = 'ko'  # [NEW] Receive UI language
 
 
 class ExtractResponse(BaseModel):
@@ -244,12 +241,12 @@ async def api_extract_schedule(request: ExtractRequest):
 
     date_en, time_en, loc_en, event_en = extract_schedule_info(translated_text)
 
-    # Gemini Check
+    # Gemini Check with Language
     ai_message = ""
     if not date_en or not time_en:
         extracted_data = {'date': date_en, 'time': time_en, 'loc': loc_en}
-        # Use Gemini 2.5 Flash
-        ai_message = ask_gemini_for_missing_info(original_text, extracted_data)
+        # Pass the language from the frontend to Gemini
+        ai_message = ask_gemini_for_missing_info(original_text, extracted_data, lang=request.lang)
 
     if is_korean_input:
         date_final = translate_english_to_korean(date_en)
@@ -323,10 +320,19 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         clean_time_str = sanitize_time(event_data.time_str)
         clean_original_text = sanitize_time(event_data.original_text)
 
-        dt_str = f"{event_data.date_str} {clean_time_str}".strip()
+        try:
+            date_for_parsing = GoogleTranslator(source='auto', target='en').translate(
+                event_data.date_str) if event_data.date_str else ""
+            time_for_parsing = GoogleTranslator(source='auto', target='en').translate(
+                clean_time_str) if clean_time_str else ""
+        except:
+            date_for_parsing = event_data.date_str
+            time_for_parsing = clean_time_str
+
+        dt_str = f"{date_for_parsing} {time_for_parsing}".strip()
         start_dt = None
         if dt_str:
-            start_dt = dateparser.parse(dt_str, settings=settings, languages=['ko', 'en'])
+            start_dt = dateparser.parse(dt_str, settings=settings, languages=['en', 'ko'])
 
         if not start_dt and clean_original_text:
             try:

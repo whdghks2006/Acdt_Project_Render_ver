@@ -36,8 +36,11 @@
         .lang-btn.active { color: #2563eb; text-decoration: underline; }
         .lang-divider { color: #ddd; margin: 0 5px; }
 
-        /* [New] AI Message Box */
-        .ai-msg-box { background-color: #e0f2fe; border: 1px solid #7dd3fc; color: #0c4a6e; padding: 10px; border-radius: 5px; margin-top: 10px; display: none; }
+        /* [New] AI Chat UI */
+        .ai-msg-box { background-color: #e0f2fe; border: 1px solid #7dd3fc; color: #0c4a6e; padding: 15px; border-radius: 10px; margin-top: 10px; display: none; }
+        .ai-reply-container { display: flex; margin-top: 10px; gap: 5px; }
+        .ai-reply-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+        .ai-reply-btn { background-color: #0284c7; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 0; }
     </style>
 </head>
 <body>
@@ -60,7 +63,13 @@
         <label for="input-text" id="lbl-input">📝 Input Text</label>
         <textarea id="input-text" rows="5" placeholder="예: '내일 오후 7시에 홍대입구역에서 회식'"></textarea>
 
-        <div id="ai-message" class="ai-msg-box"></div>
+        <div id="ai-message" class="ai-msg-box">
+            <span id="ai-text"></span>
+            <div class="ai-reply-container">
+                <input type="text" id="ai-user-reply" class="ai-reply-input" placeholder="Missing info...">
+                <button onclick="handleAiReply()" class="ai-reply-btn" id="btn-reply">Send</button>
+            </div>
+        </div>
 
         <p class="tip-text" id="txt-tip">💡 Tip: AI might miss details. Check the <b>Translation</b> or edit manually in <b>Step 2</b>!</p>
 
@@ -122,7 +131,9 @@
                 processing: "🔄 처리 중...",
                 mapGoogle: "구글 지도",
                 mapNaver: "네이버 지도",
-                mapKakao: "카카오맵"
+                mapKakao: "카카오맵",
+                replyPlaceholder: "빠진 정보를 입력하세요...",
+                btnReply: "추가"
             },
             en: {
                 title: "AI Smart Scheduler 📅",
@@ -144,7 +155,9 @@
                 processing: "🔄 Processing...",
                 mapGoogle: "Google Maps",
                 mapNaver: "Naver Map",
-                mapKakao: "Kakao Map"
+                mapKakao: "Kakao Map",
+                replyPlaceholder: "Type missing info...",
+                btnReply: "Send"
             }
         };
 
@@ -172,6 +185,9 @@
             document.getElementById('link-google').innerText = t.mapGoogle;
             document.getElementById('link-naver').innerText = t.mapNaver;
             document.getElementById('link-kakao').innerText = t.mapKakao;
+
+            document.getElementById('ai-user-reply').placeholder = t.replyPlaceholder;
+            document.getElementById('btn-reply').innerText = t.btnReply;
 
             if (lang === 'ko') {
                 document.getElementById('btn-ko').classList.add('active');
@@ -216,12 +232,12 @@
 
             btn.innerText = translations[currentLang].processing;
             btn.disabled = true;
-            aiMsgBox.style.display = 'none'; // Hide previous msg
+            aiMsgBox.style.display = 'none';
 
             try {
                 const response = await fetch('/extract', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ text: inputText })
+                    body: JSON.stringify({ text: inputText, lang: currentLang })
                 });
                 const data = await response.json();
                 originalText = data.original_text;
@@ -234,14 +250,27 @@
                 document.getElementById('loc-box').value = data.loc;
                 updateMapLinks();
 
-                // [New] Show AI Message if exists
                 if (data.ai_message) {
-                    aiMsgBox.innerText = "🤖 AI: " + data.ai_message;
+                    document.getElementById('ai-text').innerText = "🤖 AI: " + data.ai_message;
                     aiMsgBox.style.display = 'block';
                 }
 
             } catch (error) { alert('Error processing text.'); }
             finally { btn.innerText = originalBtnText; btn.disabled = false; }
+        }
+
+        // [New] Handle AI Reply Interaction
+        function handleAiReply() {
+            const reply = document.getElementById('ai-user-reply').value.trim();
+            if (!reply) return;
+
+            // Append reply to original text
+            const inputField = document.getElementById('input-text');
+            inputField.value = inputField.value + " " + reply;
+
+            // Clear reply box and re-trigger extraction
+            document.getElementById('ai-user-reply').value = "";
+            handleExtract();
         }
 
         async function handleAddToCalendar() {
