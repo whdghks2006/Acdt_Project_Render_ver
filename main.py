@@ -118,7 +118,7 @@ def ask_gemini_for_missing_info(text, current_data):
     """
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-1.0-pro')
         response = model.generate_content(prompt)
         answer = response.text.strip()
 
