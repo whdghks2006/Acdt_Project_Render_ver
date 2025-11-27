@@ -7,7 +7,7 @@
     <style>
         /* Basic Styles */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0 auto; max-width: 800px; padding: 20px; background-color: #f9fafb; }
-        .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: relative; }
         h1, h2 { color: #111827; }
         label { display: block; margin-top: 15px; font-weight: 600; color: #374151; }
         textarea, input[type="text"] { width: 98%; padding: 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 1rem; margin-top: 5px; }
@@ -26,7 +26,7 @@
         .consent-box { margin-top: 20px; padding: 10px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px; }
         .tip-text { font-size: 0.85rem; color: #666; margin-top: 5px; }
 
-        /* [New] Map Button Styles */
+        /* Map Button Styles */
         .map-buttons { margin-top: 5px; margin-bottom: 15px; display: flex; gap: 10px; }
         .btn-map {
             flex: 1; padding: 8px; font-size: 0.85rem; border-radius: 5px;
@@ -38,35 +38,47 @@
         .map-naver { background-color: #03C75A; }
         .map-kakao { background-color: #FAE100; color: #3C1E1E; }
         .hidden { display: none; }
+
+        /* [New] Language Switcher */
+        .lang-switch { position: absolute; top: 20px; left: 25px; font-size: 0.9rem; }
+        .lang-btn { background: none; border: none; cursor: pointer; color: #666; font-weight: bold; padding: 0; }
+        .lang-btn.active { color: #2563eb; text-decoration: underline; }
+        .lang-divider { color: #ddd; margin: 0 5px; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <div id="login-area"><a href="/login" class="btn-google">📅 Login with Google</a></div>
+        <div class="lang-switch">
+            <button onclick="setLanguage('ko')" class="lang-btn active" id="btn-ko">한국어</button>
+            <span class="lang-divider">|</span>
+            <button onclick="setLanguage('en')" class="lang-btn" id="btn-en">English</button>
+        </div>
+
+        <div id="login-area"><a href="/login" class="btn-google" id="txt-login">📅 Login with Google</a></div>
         <div id="user-status"></div>
         <div style="clear: both;"></div>
 
-        <h1>AI Smart Scheduler 📅</h1>
-        <p>Type a schedule in Korean or English. We use AI to extract details!</p>
+        <h1 id="txt-title" style="margin-top: 40px;">AI Smart Scheduler 📅</h1>
+        <p id="txt-subtitle">Type a schedule in Korean or English. We use AI to extract details!</p>
 
-        <h2>Step 1: Input & Translate</h2>
-        <label for="input-text">📝 Input Text</label>
+        <h2 id="txt-step1">Step 1: Input & Translate</h2>
+        <label for="input-text" id="lbl-input">📝 Input Text</label>
         <textarea id="input-text" rows="5" placeholder="예: '내일 오후 7시에 홍대입구역에서 회식'"></textarea>
-        <p class="tip-text">💡 Tip: AI가 한국어를 놓칠 수 있습니다. 결과가 이상하면 <b>번역문(Translated)</b>을 참고하거나 <b>Step 2</b>에서 직접 수정해 주세요!</p>
+        <p class="tip-text" id="txt-tip">💡 Tip: AI가 한국어를 놓칠 수 있습니다. 결과가 이상하면 <b>번역문</b>을 참고하거나 <b>Step 2</b>에서 직접 수정해 주세요!</p>
 
         <button id="extract-button" class="btn-secondary" onclick="handleExtract()">1. Translate & Extract</button>
 
-        <label for="translated-output">Result (Google Translated)</label>
+        <label for="translated-output" id="lbl-result">Result (Google Translated)</label>
         <textarea id="translated-output" rows="2" readonly></textarea>
 
         <hr>
 
-        <h2>✏️ Step 2: Review & Add to Calendar</h2>
-        <label>📅 Date</label> <input type="text" id="date-box">
-        <label>⏰ Time</label> <input type="text" id="time-box">
+        <h2 id="txt-step2">✏️ Step 2: Review & Add to Calendar</h2>
+        <label id="lbl-date">📅 Date</label> <input type="text" id="date-box">
+        <label id="lbl-time">⏰ Time</label> <input type="text" id="time-box">
 
-        <label>📍 Location</label>
+        <label id="lbl-loc">📍 Location</label>
         <input type="text" id="loc-box" oninput="updateMapLinks()">
 
         <div id="map-links" class="map-buttons hidden">
@@ -75,11 +87,11 @@
             <a id="link-kakao" href="#" target="_blank" class="btn-map map-kakao">Kakao Map</a>
         </div>
 
-        <label>🎉 Event</label> <input type="text" id="event-box">
+        <label id="lbl-event">🎉 Event</label> <input type="text" id="event-box">
 
         <div class="consent-box">
             <input type="checkbox" id="data-consent" checked>
-            <label for="data-consent">(Optional) I agree to donate data for AI training.</label>
+            <label for="data-consent" id="lbl-consent">(Optional) I agree to donate data for AI training.</label>
         </div>
 
         <button id="add-calendar-btn" class="btn-primary" onclick="handleAddToCalendar()">📅 Add to Google Calendar</button>
@@ -92,6 +104,94 @@
         let translatedText = "";
         let isLoggedIn = false;
 
+        // [New] Translation Dictionary
+        const translations = {
+            ko: {
+                title: "AI 스마트 스케줄러 📅",
+                subtitle: "한글이나 영어로 일정을 입력하세요. AI가 자동으로 정리해줍니다!",
+                step1: "1단계: 입력 및 번역",
+                lblInput: "📝 입력 (텍스트)",
+                placeholder: "예: '내일 오후 7시에 홍대입구역에서 회식'",
+                tip: "💡 팁: AI가 완벽하지 않을 수 있습니다. 결과가 이상하면 <b>번역문</b>을 확인하거나 <b>2단계</b>에서 직접 수정해 주세요!",
+                btnExtract: "1. 번역 및 추출하기",
+                lblResult: "결과 (영어 번역)",
+                step2: "✏️ 2단계: 검토 및 캘린더 등록",
+                lblDate: "📅 날짜",
+                lblTime: "⏰ 시간",
+                lblLoc: "📍 장소",
+                lblEvent: "🎉 일정 제목",
+                lblConsent: "(선택) AI 학습을 위해 데이터를 기부하는 것에 동의합니다.",
+                btnAdd: "📅 구글 캘린더에 등록하기",
+                login: "📅 구글 로그인",
+                processing: "🔄 처리 중...",
+                mapGoogle: "구글 지도",
+                mapNaver: "네이버 지도",
+                mapKakao: "카카오맵"
+            },
+            en: {
+                title: "AI Smart Scheduler 📅",
+                subtitle: "Type a schedule in Korean or English. We use AI to extract details!",
+                step1: "Step 1: Input & Translate",
+                lblInput: "📝 Input Text",
+                placeholder: "Ex: 'Dinner at Hongdae station at 7pm tomorrow'",
+                tip: "💡 Tip: AI might miss details. Check the <b>Translation</b> or edit manually in <b>Step 2</b>!",
+                btnExtract: "1. Translate & Extract",
+                lblResult: "Result (Google Translated)",
+                step2: "✏️ Step 2: Review & Add to Calendar",
+                lblDate: "📅 Date",
+                lblTime: "⏰ Time",
+                lblLoc: "📍 Location",
+                lblEvent: "🎉 Event",
+                lblConsent: "(Optional) I agree to donate data for AI training.",
+                btnAdd: "📅 Add to Google Calendar",
+                login: "📅 Login with Google",
+                processing: "🔄 Processing...",
+                mapGoogle: "Google Maps",
+                mapNaver: "Naver Map",
+                mapKakao: "Kakao Map"
+            }
+        };
+
+        let currentLang = 'ko'; // Default Language
+
+        // [New] Function to set language
+        function setLanguage(lang) {
+            currentLang = lang;
+            const t = translations[lang];
+
+            // Update Text Content
+            document.getElementById('txt-title').innerText = t.title;
+            document.getElementById('txt-subtitle').innerText = t.subtitle;
+            document.getElementById('txt-step1').innerText = t.step1;
+            document.getElementById('lbl-input').innerText = t.lblInput;
+            document.getElementById('input-text').placeholder = t.placeholder;
+            document.getElementById('txt-tip').innerHTML = t.tip;
+            document.getElementById('extract-button').innerText = t.btnExtract;
+            document.getElementById('lbl-result').innerText = t.lblResult;
+            document.getElementById('txt-step2').innerText = t.step2;
+            document.getElementById('lbl-date').innerText = t.lblDate;
+            document.getElementById('lbl-time').innerText = t.lblTime;
+            document.getElementById('lbl-loc').innerText = t.lblLoc;
+            document.getElementById('lbl-event').innerText = t.lblEvent;
+            document.getElementById('lbl-consent').innerText = t.lblConsent;
+            document.getElementById('add-calendar-btn').innerText = t.btnAdd;
+            document.getElementById('txt-login').innerText = t.login;
+
+            // Update Map Buttons
+            document.getElementById('link-google').innerText = t.mapGoogle;
+            document.getElementById('link-naver').innerText = t.mapNaver;
+            document.getElementById('link-kakao').innerText = t.mapKakao;
+
+            // Update Active Button Style
+            if (lang === 'ko') {
+                document.getElementById('btn-ko').classList.add('active');
+                document.getElementById('btn-en').classList.remove('active');
+            } else {
+                document.getElementById('btn-ko').classList.remove('active');
+                document.getElementById('btn-en').classList.add('active');
+            }
+        }
+
         checkLogin();
 
         async function checkLogin() {
@@ -102,25 +202,18 @@
                 const userStatus = document.getElementById('user-status');
                 if (data.user) {
                     isLoggedIn = true;
+                    // Keep logout link simple
                     loginArea.innerHTML = `<a href="/logout" class="btn-secondary" style="font-size:0.9rem; text-decoration:none;">Logout</a>`;
                     userStatus.innerText = `Welcome, ${data.user.name}`;
                 } else { isLoggedIn = false; }
             } catch (e) { console.error(e); }
         }
 
-        // [New] Function to update map links
         function updateMapLinks() {
             const loc = document.getElementById('loc-box').value.trim();
             const mapContainer = document.getElementById('map-links');
-
-            if (!loc) {
-                mapContainer.classList.add('hidden');
-                return;
-            }
-
+            if (!loc) { mapContainer.classList.add('hidden'); return; }
             mapContainer.classList.remove('hidden');
-
-            // Update hrefs for each map service
             document.getElementById('link-google').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
             document.getElementById('link-naver').href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
             document.getElementById('link-kakao').href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
@@ -129,7 +222,10 @@
         async function handleExtract() {
             const inputText = document.getElementById('input-text').value;
             const btn = document.getElementById('extract-button');
-            btn.innerText = "🔄 Processing..."; btn.disabled = true;
+            const originalBtnText = btn.innerText;
+
+            btn.innerText = translations[currentLang].processing;
+            btn.disabled = true;
 
             try {
                 const response = await fetch('/extract', {
@@ -143,15 +239,12 @@
                 document.getElementById('translated-output').value = data.translated_text;
                 document.getElementById('date-box').value = data.date;
                 document.getElementById('time-box').value = data.time;
-
                 document.getElementById('event-box').value = data.original_text;
-
-                // Update Location and Map Links
                 document.getElementById('loc-box').value = data.loc;
-                updateMapLinks(); // <--- Trigger map update
+                updateMapLinks();
 
             } catch (error) { alert('Error processing text.'); }
-            finally { btn.innerText = "1. Translate & Extract"; btn.disabled = false; }
+            finally { btn.innerText = originalBtnText; btn.disabled = false; }
         }
 
         async function handleAddToCalendar() {
@@ -187,6 +280,9 @@
             } catch (error) { output.innerHTML = `❌ Error: ${error}`; }
             finally { btn.disabled = false; spinner.style.display = 'none'; }
         }
+
+        // Initialize default language (Korean)
+        setLanguage('ko');
     </script>
 </body>
 </html>
