@@ -5,21 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Smart Scheduler</title>
     <style>
+        /* Basic Styles */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0 auto; max-width: 800px; padding: 20px; background-color: #f9fafb; }
         .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         h1, h2 { color: #111827; }
         label { display: block; margin-top: 15px; font-weight: 600; color: #374151; }
         textarea, input[type="text"] { width: 98%; padding: 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 1rem; margin-top: 5px; }
+
+        /* Buttons */
         button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; margin-top: 20px; }
         .btn-secondary { background-color: #e5e7eb; color: #1f2937; }
         .btn-primary { background-color: #2563eb; color: white; font-weight: 600; }
         .btn-google { background-color: #DB4437; color: white; font-weight: bold; float: right; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-size: 0.9rem; }
+
+        /* Outputs & Helpers */
         #translated-output { background-color: #f3f4f6; border: none; }
         hr { border: none; border-top: 1px solid #e5e7eb; margin: 25px 0; }
         .loading { display: none; text-align: center; font-size: 1.2rem; color: #374151; margin-top: 10px;}
         #user-status { float: right; font-size: 0.9rem; color: #374151; margin-top: 10px; margin-right: 10px; }
         .consent-box { margin-top: 20px; padding: 10px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px; }
         .tip-text { font-size: 0.85rem; color: #666; margin-top: 5px; }
+
+        /* [New] Map Button Styles */
+        .map-buttons { margin-top: 5px; margin-bottom: 15px; display: flex; gap: 10px; }
+        .btn-map {
+            flex: 1; padding: 8px; font-size: 0.85rem; border-radius: 5px;
+            text-decoration: none; text-align: center; color: white; font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        .btn-map:hover { opacity: 0.8; }
+        .map-google { background-color: #4285F4; }
+        .map-naver { background-color: #03C75A; }
+        .map-kakao { background-color: #FAE100; color: #3C1E1E; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
@@ -47,7 +65,16 @@
         <h2>✏️ Step 2: Review & Add to Calendar</h2>
         <label>📅 Date</label> <input type="text" id="date-box">
         <label>⏰ Time</label> <input type="text" id="time-box">
-        <label>📍 Location</label> <input type="text" id="loc-box">
+
+        <label>📍 Location</label>
+        <input type="text" id="loc-box" oninput="updateMapLinks()">
+
+        <div id="map-links" class="map-buttons hidden">
+            <a id="link-google" href="#" target="_blank" class="btn-map map-google">Google Maps</a>
+            <a id="link-naver" href="#" target="_blank" class="btn-map map-naver">Naver Map</a>
+            <a id="link-kakao" href="#" target="_blank" class="btn-map map-kakao">Kakao Map</a>
+        </div>
+
         <label>🎉 Event</label> <input type="text" id="event-box">
 
         <div class="consent-box">
@@ -81,6 +108,24 @@
             } catch (e) { console.error(e); }
         }
 
+        // [New] Function to update map links
+        function updateMapLinks() {
+            const loc = document.getElementById('loc-box').value.trim();
+            const mapContainer = document.getElementById('map-links');
+
+            if (!loc) {
+                mapContainer.classList.add('hidden');
+                return;
+            }
+
+            mapContainer.classList.remove('hidden');
+
+            // Update hrefs for each map service
+            document.getElementById('link-google').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
+            document.getElementById('link-naver').href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
+            document.getElementById('link-kakao').href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
+        }
+
         async function handleExtract() {
             const inputText = document.getElementById('input-text').value;
             const btn = document.getElementById('extract-button');
@@ -100,7 +145,10 @@
                 document.getElementById('time-box').value = data.time;
 
                 document.getElementById('event-box').value = data.original_text;
+
+                // Update Location and Map Links
                 document.getElementById('loc-box').value = data.loc;
+                updateMapLinks(); // <--- Trigger map update
 
             } catch (error) { alert('Error processing text.'); }
             finally { btn.innerText = "1. Translate & Extract"; btn.disabled = false; }
