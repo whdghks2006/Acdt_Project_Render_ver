@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 spacy
+transformers>=4.34.0
 huggingface-hub>=0.16.0
 dateparser
 authlib
@@ -9,4 +10,4 @@ itsdangerous
 pandas
 deep_translator
 pytz
-google-generativeai
+google-generativeai>=0.7.2
