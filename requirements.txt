@@ -14,3 +14,4 @@ httpx==0.27.2
 itsdangerous
 pandas
 deep_translator
+google-generativeai
