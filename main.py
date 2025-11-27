@@ -4,9 +4,8 @@ import dateparser
 import datetime
 import pandas as pd
 import pytz
-import httpx  # Direct HTTP client for API calls
-import google.generativeai as genai  # [NEW] Gemini Library
-
+import httpx
+import google.generativeai as genai
 from urllib.parse import quote_plus
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
@@ -26,30 +25,36 @@ from authlib.integrations.starlette_client import OAuth
 NER_MODEL_DIR = "my_ner_model"
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
-# Secrets (Load from Environment Variables)
+# Secrets
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 SECRET_KEY = os.environ.get("SECRET_KEY", "random_secret_string")
 HF_TOKEN = os.environ.get("HF_TOKEN")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")  # [NEW] Gemini Key
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 models = {}
 
-# Configure Gemini if key is present
+# [DEBUG] Print Available Gemini Models on Startup
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+    try:
+        print("----------- [GEMINI MODEL LIST] -----------")
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                print(f"✅ Available Model: {m.name}")
+        print("-------------------------------------------")
+    except Exception as e:
+        print(f"⚠️ Failed to list models: {e}")
 
 
 # ==============================================================================
 # AI Functions
 # ==============================================================================
 def check_is_korean(text):
-    """Detects if the text contains Korean characters."""
     return any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
 
 
 def translate_korean_to_english(text):
-    """Translates Korean text to English using Google Translate (deep_translator)."""
     try:
         if check_is_korean(text):
             return GoogleTranslator(source='auto', target='en').translate(text)
@@ -61,7 +66,6 @@ def translate_korean_to_english(text):
 
 
 def translate_english_to_korean(text):
-    """Back-translates English text to Korean."""
     if not text or not text.strip(): return ""
     try:
         return GoogleTranslator(source='en', target='ko').translate(text)
@@ -71,7 +75,6 @@ def translate_english_to_korean(text):
 
 
 def extract_schedule_info(translated_text):
-    """Extracts Date, Time, Location, Event using spaCy (English model)."""
     if not translated_text or not translated_text.strip():
         return "", "", "", ""
 
@@ -96,41 +99,37 @@ def extract_schedule_info(translated_text):
 
 
 def ask_gemini_for_missing_info(text, current_data):
-    """
-    [NEW] Uses Gemini to generate a follow-up question if information is missing.
-    """
     if not GEMINI_API_KEY:
-        return ""  # Skip if no key
+        return ""
 
-    # Construct Prompt
     prompt = f"""
     You are a helpful scheduler assistant.
     User Input: "{text}"
     Extracted Info:
     - Date: {current_data.get('date', 'Missing')}
     - Time: {current_data.get('time', 'Missing')}
-    - Location: {current_data.get('loc', 'Missing')}
 
     Task:
-    If 'Date' or 'Time' is missing, write a polite 1-sentence question in Korean asking for the missing info.
-    If both are present, just reply with "OK".
-    Do not explain, just give the Korean sentence or "OK".
+    If 'Date' or 'Time' is MISSING (empty), write a polite 1-sentence question in Korean asking for it.
+    For example: "언제 만나시나요?" or "몇 시 일정인가요?"
+    If both Date and Time are present, ONLY reply with "OK".
     """
 
     try:
-        model = genai.GenerativeModel('gemini-1.0-pro')
+        # [FIX] Use the standard model name often supported
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         answer = response.text.strip()
 
+        print(f"🤖 Gemini Reply: {answer}")
         if "OK" in answer: return ""
         return answer
     except Exception as e:
-        print(f"Gemini Error: {e}")
+        print(f"❌ Gemini API Error: {e}")
         return ""
 
 
 def save_feedback_to_hub(original_text, translated_text, final_data):
-    """Saves user feedback to Hugging Face Dataset (HITL)."""
     try:
         if not HF_TOKEN: return
 
@@ -180,7 +179,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Session Configuration
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
@@ -190,7 +188,6 @@ app.add_middleware(
     max_age=3600
 )
 
-# OAuth Configuration
 oauth = OAuth()
 oauth.register(
     name='google',
@@ -201,7 +198,6 @@ oauth.register(
 )
 
 
-# --- Models ---
 class ExtractRequest(BaseModel):
     text: str
 
@@ -213,7 +209,7 @@ class ExtractResponse(BaseModel):
     time: str
     loc: str
     event: str
-    ai_message: str = ""  # [NEW] Field for Gemini's question
+    ai_message: str = ""
 
 
 class AddEventRequest(BaseModel):
@@ -240,28 +236,22 @@ async def read_index():
 
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
-    """
-    Step 1: Translate -> Extract -> Check Missing Info -> Response
-    """
     original_text = request.text
     is_korean_input = check_is_korean(original_text)
 
-    # 1. Translate
     if is_korean_input:
         translated_text = translate_korean_to_english(original_text)
     else:
         translated_text = original_text
 
-    # 2. Extract
     date_en, time_en, loc_en, event_en = extract_schedule_info(translated_text)
 
-    # 3. Check for missing slots using Gemini (Interactive Slot Filling)
+    # Gemini Check
     ai_message = ""
     if not date_en or not time_en:
         extracted_data = {'date': date_en, 'time': time_en, 'loc': loc_en}
         ai_message = ask_gemini_for_missing_info(original_text, extracted_data)
 
-    # 4. Prepare Output Language
     if is_korean_input:
         date_final = translate_english_to_korean(date_en)
         time_final = translate_english_to_korean(time_en)
@@ -272,13 +262,9 @@ async def api_extract_schedule(request: ExtractRequest):
         loc_final = loc_en
 
     return ExtractResponse(
-        original_text=original_text,
-        translated_text=translated_text,
-        date=date_final,
-        time=time_final,
-        loc=loc_final,
-        event=event_en,
-        ai_message=ai_message  # Send Gemini's question to frontend
+        original_text=original_text, translated_text=translated_text,
+        date=date_final, time=time_final, loc=loc_final, event=event_en,
+        ai_message=ai_message
     )
 
 
@@ -318,9 +304,6 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=401, content={"error": "Login required"})
 
     try:
-        print(f"📥 User Input: Date='{event_data.date_str}', Time='{event_data.time_str}'")
-
-        # Timezone Setup
         kst = pytz.timezone('Asia/Seoul')
         now_kst = datetime.datetime.now(kst)
 
@@ -332,7 +315,6 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             'RETURN_AS_TIMEZONE_AWARE': True
         }
 
-        # Helper: Clean up Korean time text
         def sanitize_time(text):
             if not text: return ""
             t = text.replace("밤", "오후").replace("저녁", "오후")
@@ -342,44 +324,20 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         clean_time_str = sanitize_time(event_data.time_str)
         clean_original_text = sanitize_time(event_data.original_text)
 
-        # 1. Translate Inputs to English for Robust Parsing
-        try:
-            date_for_parsing = GoogleTranslator(source='auto', target='en').translate(
-                event_data.date_str) if event_data.date_str else ""
-            time_for_parsing = GoogleTranslator(source='auto', target='en').translate(
-                clean_time_str) if clean_time_str else ""
-        except:
-            date_for_parsing = event_data.date_str
-            time_for_parsing = clean_time_str
-
-        # 2. Parse User Edited Boxes (English context)
-        dt_str = f"{date_for_parsing} {time_for_parsing}".strip()
+        dt_str = f"{event_data.date_str} {clean_time_str}".strip()
         start_dt = None
         if dt_str:
-            start_dt = dateparser.parse(dt_str, settings=settings, languages=['en', 'ko'])
-            if start_dt: print(f"✅ Parsed from Input: {start_dt}")
+            start_dt = dateparser.parse(dt_str, settings=settings, languages=['ko', 'en'])
 
-        # 3. Smart Fallback (Original Text)
         if not start_dt and clean_original_text:
-            print("⚠️ Parsing failed. Trying original text...")
-            # Translate full original text to English for parsing
-            try:
-                trans_full = GoogleTranslator(source='auto', target='en').translate(clean_original_text)
-                start_dt = dateparser.parse(trans_full, settings=settings, languages=['en'])
-            except:
-                start_dt = dateparser.parse(clean_original_text, settings=settings, languages=['ko'])
+            start_dt = dateparser.parse(clean_original_text, settings=settings, languages=['ko'])
 
-            if start_dt: print(f"✅ Recovered from Text: {start_dt}")
-
-        # 4. Final Safety (Next Hour)
         if not start_dt:
-            print("❌ All parsing failed. Defaulting to next hour.")
             start_dt = now_kst + datetime.timedelta(hours=1)
             start_dt = start_dt.replace(minute=0, second=0, microsecond=0)
 
         end_dt = start_dt + datetime.timedelta(hours=1)
 
-        # 5. Send to Google
         google_event = {
             'summary': event_data.event_str,
             'location': event_data.loc_str,
@@ -399,12 +357,10 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
 
         if resp.status_code != 200:
             if resp.status_code == 401: return JSONResponse(status_code=401, content={"error": "Token expired."})
-            print(f"Google API Error: {resp.text}")
             resp.raise_for_status()
 
         result = resp.json()
 
-        # 6. Save Data (HITL)
         if event_data.consent:
             save_feedback_to_hub(event_data.original_text, event_data.translated_text, event_data)
             saved_msg = "✅ Data saved."
