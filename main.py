@@ -193,8 +193,8 @@ oauth.register(
 
 class ExtractRequest(BaseModel):
     text: str
-    lang: str = 'ko'
-    model_mode: str = 'speed'  # [NEW] speed or accuracy
+    lang: str = 'en'  # [Changed] Default 'ko' -> 'en'
+    model_mode: str = 'speed'
 
 
 class ExtractResponse(BaseModel):
