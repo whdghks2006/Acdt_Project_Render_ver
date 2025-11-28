@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -40,15 +40,18 @@
         .ai-reply-container { display: flex; margin-top: 10px; gap: 5px; }
         .ai-reply-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
         .ai-reply-btn { background-color: #0284c7; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 0; }
+
+        /* [New] Model Indicator Style */
+        .model-indicator { text-align: right; font-size: 0.75rem; color: #999; margin-top: 5px; font-style: italic; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <div class="lang-switch">
-            <button onclick="setLanguage('ko')" class="lang-btn active" id="btn-ko">한국어</button>
+            <button onclick="setLanguage('ko')" class="lang-btn" id="btn-ko">한국어</button>
             <span class="lang-divider">|</span>
-            <button onclick="setLanguage('en')" class="lang-btn" id="btn-en">English</button>
+            <button onclick="setLanguage('en')" class="lang-btn active" id="btn-en">English</button>
         </div>
 
         <div id="login-area"><a href="/login" class="btn-google" id="txt-login">📅 Login with Google</a></div>
@@ -61,7 +64,7 @@
         <h2 id="txt-step1">Step 1: Input & Translate</h2>
 
         <label for="input-text" id="lbl-input">📝 Input Text</label>
-        <textarea id="input-text" rows="5" placeholder="예: '내일 오후 7시에 홍대입구역에서 회식'"></textarea>
+        <textarea id="input-text" rows="5" placeholder="Ex: 'Dinner at Hongdae station at 7pm tomorrow'"></textarea>
 
         <div id="ai-message" class="ai-msg-box">
             <span id="ai-text"></span>
@@ -77,6 +80,8 @@
 
         <label for="translated-output" id="lbl-result">Result (Google Translated)</label>
         <textarea id="translated-output" rows="2" readonly></textarea>
+
+        <div id="model-indicator" class="model-indicator"></div>
 
         <hr>
 
@@ -228,10 +233,12 @@
             const btn = document.getElementById('extract-button');
             const aiMsgBox = document.getElementById('ai-message');
             const originalBtnText = btn.innerText;
+            const modelIndicator = document.getElementById('model-indicator');
 
             btn.innerText = translations[currentLang].processing;
             btn.disabled = true;
             aiMsgBox.style.display = 'none';
+            modelIndicator.innerText = ""; // Reset
 
             try {
                 const response = await fetch('/extract', {
@@ -251,6 +258,11 @@
                 document.getElementById('event-box').value = data.original_text;
                 document.getElementById('loc-box').value = data.loc;
                 updateMapLinks();
+
+                // [New] Show which model was used
+                if (data.used_model) {
+                    modelIndicator.innerText = "⚙️ Processed by: " + data.used_model;
+                }
 
                 if (data.ai_message) {
                     document.getElementById('ai-text').innerText = "🤖 AI: " + data.ai_message;
