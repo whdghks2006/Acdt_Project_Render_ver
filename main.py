@@ -6,6 +6,7 @@ import pandas as pd
 import pytz
 import httpx
 import google.generativeai as genai
+from urllib.parse import quote_plus
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
 
@@ -62,23 +63,11 @@ def translate_english_to_korean(text):
         return text
 
 
-def extract_schedule_info(translated_text, model_mode='speed'):
+def run_ner_extraction(text, nlp_model):
     """
-    Extracts entities using the selected spaCy model (sm or trf).
+    Helper function to run NER with a specific model object.
     """
-    if not translated_text or not translated_text.strip():
-        return "", "", "", ""
-
-    # [DUAL ENGINE] Select Model based on user choice
-    if model_mode == 'accuracy':
-        print("🧠 Using Accuracy Mode (TRF Model)")
-        nlp = models["nlp_trf"]
-    else:
-        print("⚡ Using Speed Mode (SM Model)")
-        nlp = models["nlp_sm"]
-
-    doc = nlp(translated_text)
-
+    doc = nlp_model(text)
     dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
     times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
@@ -143,7 +132,7 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
 
 
 # ==============================================================================
-# App Lifecycle (Load BOTH models)
+# App Lifecycle
 # ==============================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -153,9 +142,8 @@ async def lifespan(app: FastAPI):
         print("⚡ Loading Speed Model (en_core_web_sm)...")
         models["nlp_sm"] = spacy.load("en_core_web_sm")
 
-        # Load Accuracy Model (TRF) - This takes time!
+        # Load Accuracy Model (TRF)
         print("🧠 Loading Accuracy Model (en_core_web_trf)...")
-        # Try importing direct package name first (common in requirements install)
         try:
             import en_core_web_trf
             models["nlp_trf"] = en_core_web_trf.load()
@@ -193,8 +181,8 @@ oauth.register(
 
 class ExtractRequest(BaseModel):
     text: str
-    lang: str = 'en'  # [Changed] Default 'ko' -> 'en'
-    model_mode: str = 'speed'
+    lang: str = 'ko'
+    # model_mode removed (Auto-switching now)
 
 
 class ExtractResponse(BaseModel):
@@ -205,6 +193,7 @@ class ExtractResponse(BaseModel):
     loc: str
     event: str
     ai_message: str = ""
+    used_model: str = ""  # [NEW] To show which model was used
 
 
 class AddEventRequest(BaseModel):
@@ -231,6 +220,9 @@ async def read_index():
 
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
+    """
+    Step 1: Fast Model -> Check Missing -> (If Missing) Accuracy Model
+    """
     original_text = request.text
     is_korean_input = check_is_korean(original_text)
 
@@ -239,27 +231,46 @@ async def api_extract_schedule(request: ExtractRequest):
     else:
         translated_text = original_text
 
-    # Pass model_mode to extractor
-    date_en, time_en, loc_en, event_en = extract_schedule_info(translated_text, request.model_mode)
+    # 1. Try Speed Model first
+    date, time, loc, event = run_ner_extraction(translated_text, models["nlp_sm"])
+    used_model = "Speed (SM)"
 
+    # 2. Check completeness (Are Date/Time/Loc missing?)
+    if not date or not time or not loc:
+        print(f"⚠️ Missing info in Speed mode. Switching to Accuracy mode...")
+        # Retry with Accuracy Model (TRF)
+        date_trf, time_trf, loc_trf, event_trf = run_ner_extraction(translated_text, models["nlp_trf"])
+
+        # If TRF found something new, use it!
+        # (Simple logic: If TRF result is not empty, overwrite)
+        if date_trf: date = date_trf
+        if time_trf: time = time_trf
+        if loc_trf: loc = loc_trf
+        if event_trf and event_trf != "New Schedule": event = event_trf
+
+        used_model = "Accuracy (TRF)"
+
+    print(f"✅ Final Extraction ({used_model}): D={date}, T={time}, L={loc}")
+
+    # 3. Gemini Check (If still missing)
     ai_message = ""
-    if not date_en or not time_en:
-        extracted_data = {'date': date_en, 'time': time_en, 'loc': loc_en}
+    if not date or not time:
+        extracted_data = {'date': date, 'time': time, 'loc': loc}
         ai_message = ask_gemini_for_missing_info(original_text, extracted_data, lang=request.lang)
 
     if is_korean_input:
-        date_final = translate_english_to_korean(date_en)
-        time_final = translate_english_to_korean(time_en)
-        loc_final = translate_english_to_korean(loc_en)
+        date_final = translate_english_to_korean(date)
+        time_final = translate_english_to_korean(time)
+        loc_final = translate_english_to_korean(loc)
     else:
-        date_final = date_en
-        time_final = time_en
-        loc_final = loc_en
+        date_final = date
+        time_final = time
+        loc_final = loc
 
     return ExtractResponse(
         original_text=original_text, translated_text=translated_text,
-        date=date_final, time=time_final, loc=loc_final, event=event_en,
-        ai_message=ai_message
+        date=date_final, time=time_final, loc=loc_final, event=event,
+        ai_message=ai_message, used_model=used_model
     )
 
 
