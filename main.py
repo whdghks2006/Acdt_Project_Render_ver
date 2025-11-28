@@ -22,6 +22,7 @@ from authlib.integrations.starlette_client import OAuth
 # ==============================================================================
 # Configuration
 # ==============================================================================
+NER_MODEL_DIR = "my_ner_model"
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -88,15 +89,27 @@ def run_ner_extraction(text, nlp_model):
 
 
 def ask_gemini_for_missing_info(text, current_data, lang='ko'):
+    """
+    [UPDATED] Checks for Date, Time, AND Location.
+    """
     if not GEMINI_API_KEY: return ""
+
     lang_instruction = "in Korean" if lang == 'ko' else "in English"
+
     prompt = f"""
-    You are a helpful scheduler assistant.
+    You are a smart scheduler assistant.
     User Input: "{text}"
     Extracted Info:
-    - Date: {current_data.get('date', 'Missing')}
-    - Time: {current_data.get('time', 'Missing')}
-    Task: If Date or Time is MISSING, ask a polite 1-sentence question {lang_instruction}. If present, reply "OK".
+    - Date: {current_data.get('date', '')}
+    - Time: {current_data.get('time', '')}
+    - Location: {current_data.get('loc', '')}
+
+    Task:
+    Check if 'Date', 'Time', or 'Location' is missing (empty).
+    If ANY of them are missing, write a natural, polite 1-sentence question {lang_instruction} asking for the specific missing fields.
+    Example: "When and where is the meeting?" or "What time should I schedule this?"
+
+    If ALL three (Date, Time, Location) are present, ONLY reply with "OK".
     """
     try:
         model = genai.GenerativeModel('gemini-2.0-flash')
@@ -181,8 +194,7 @@ oauth.register(
 
 class ExtractRequest(BaseModel):
     text: str
-    lang: str = 'ko'
-    # model_mode removed (Auto-switching now)
+    lang: str = 'en'  # Default language
 
 
 class ExtractResponse(BaseModel):
@@ -193,7 +205,7 @@ class ExtractResponse(BaseModel):
     loc: str
     event: str
     ai_message: str = ""
-    used_model: str = ""  # [NEW] To show which model was used
+    used_model: str = ""
 
 
 class AddEventRequest(BaseModel):
@@ -220,9 +232,6 @@ async def read_index():
 
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
-    """
-    Step 1: Fast Model -> Check Missing -> (If Missing) Accuracy Model
-    """
     original_text = request.text
     is_korean_input = check_is_korean(original_text)
 
@@ -231,33 +240,30 @@ async def api_extract_schedule(request: ExtractRequest):
     else:
         translated_text = original_text
 
-    # 1. Try Speed Model first
+    # 1. Auto-Switching Logic: Try Speed Model first
     date, time, loc, event = run_ner_extraction(translated_text, models["nlp_sm"])
     used_model = "Speed (SM)"
 
-    # 2. Check completeness (Are Date/Time/Loc missing?)
+    # 2. If critical info is missing, try Accuracy Model
     if not date or not time or not loc:
-        print(f"⚠️ Missing info in Speed mode. Switching to Accuracy mode...")
-        # Retry with Accuracy Model (TRF)
+        print(f"⚠️ Info missing ({date}, {time}, {loc}). Switching to Accuracy mode...")
         date_trf, time_trf, loc_trf, event_trf = run_ner_extraction(translated_text, models["nlp_trf"])
 
-        # If TRF found something new, use it!
-        # (Simple logic: If TRF result is not empty, overwrite)
+        # Overwrite if TRF found something new
         if date_trf: date = date_trf
         if time_trf: time = time_trf
         if loc_trf: loc = loc_trf
         if event_trf and event_trf != "New Schedule": event = event_trf
-
         used_model = "Accuracy (TRF)"
 
-    print(f"✅ Final Extraction ({used_model}): D={date}, T={time}, L={loc}")
-
-    # 3. Gemini Check (If still missing)
+    # 3. Gemini Logic (Interactive Slot Filling)
     ai_message = ""
-    if not date or not time:
+    # [UPDATED] Ask if Date OR Time OR Location is missing
+    if not date or not time or not loc:
         extracted_data = {'date': date, 'time': time, 'loc': loc}
         ai_message = ask_gemini_for_missing_info(original_text, extracted_data, lang=request.lang)
 
+    # 4. Localization
     if is_korean_input:
         date_final = translate_english_to_korean(date)
         time_final = translate_english_to_korean(time)
@@ -312,8 +318,14 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
     try:
         kst = pytz.timezone('Asia/Seoul')
         now_kst = datetime.datetime.now(kst)
-        settings = {'PREFER_DATES_FROM': 'future', 'RELATIVE_BASE': now_kst.replace(tzinfo=None),
-                    'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul', 'RETURN_AS_TIMEZONE_AWARE': True}
+
+        settings = {
+            'PREFER_DATES_FROM': 'future',
+            'RELATIVE_BASE': now_kst.replace(tzinfo=None),
+            'TIMEZONE': 'Asia/Seoul',
+            'TO_TIMEZONE': 'Asia/Seoul',
+            'RETURN_AS_TIMEZONE_AWARE': True
+        }
 
         def sanitize_time(text):
             if not text: return ""

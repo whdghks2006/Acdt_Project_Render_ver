@@ -40,9 +40,6 @@
         .ai-reply-container { display: flex; margin-top: 10px; gap: 5px; }
         .ai-reply-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
         .ai-reply-btn { background-color: #0284c7; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 0; }
-
-        .model-badge { display: inline-block; background-color: #f3f4f6; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; color: #555; margin-bottom: 10px; border: 1px solid #ddd; }
-        .badge-auto { color: #7c3aed; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -63,10 +60,6 @@
 
         <h2 id="txt-step1">Step 1: Input & Translate</h2>
 
-        <div class="model-badge">
-            🤖 Model: <span class="badge-auto">Auto-Switching (Fast ⇄ Accurate)</span>
-        </div>
-
         <label for="input-text" id="lbl-input">📝 Input Text</label>
         <textarea id="input-text" rows="5" placeholder="예: '내일 오후 7시에 홍대입구역에서 회식'"></textarea>
 
@@ -84,8 +77,6 @@
 
         <label for="translated-output" id="lbl-result">Result (Google Translated)</label>
         <textarea id="translated-output" rows="2" readonly></textarea>
-
-        <p style="text-align: right; font-size: 0.8rem; color: #888; margin-top: 5px;" id="model-indicator"></p>
 
         <hr>
 
@@ -194,7 +185,6 @@
             document.getElementById('link-google').innerText = t.mapGoogle;
             document.getElementById('link-naver').innerText = t.mapNaver;
             document.getElementById('link-kakao').innerText = t.mapKakao;
-
             document.getElementById('ai-user-reply').placeholder = t.replyPlaceholder;
             document.getElementById('btn-reply').innerText = t.btnReply;
 
@@ -238,12 +228,10 @@
             const btn = document.getElementById('extract-button');
             const aiMsgBox = document.getElementById('ai-message');
             const originalBtnText = btn.innerText;
-            const modelIndicator = document.getElementById('model-indicator');
 
             btn.innerText = translations[currentLang].processing;
             btn.disabled = true;
             aiMsgBox.style.display = 'none';
-            modelIndicator.innerText = "";
 
             try {
                 const response = await fetch('/extract', {
@@ -251,7 +239,6 @@
                     body: JSON.stringify({
                         text: inputText,
                         lang: currentLang
-                        // No model_mode needed
                     })
                 });
                 const data = await response.json();
@@ -264,11 +251,6 @@
                 document.getElementById('event-box').value = data.original_text;
                 document.getElementById('loc-box').value = data.loc;
                 updateMapLinks();
-
-                // Show which model was used
-                if (data.used_model) {
-                    modelIndicator.innerText = "⚡ Processed by: " + data.used_model;
-                }
 
                 if (data.ai_message) {
                     document.getElementById('ai-text').innerText = "🤖 AI: " + data.ai_message;
