@@ -4,142 +4,327 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Smart Scheduler</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
+
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0 auto; max-width: 800px; padding: 20px; background-color: #f9fafb; }
-        .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: relative; }
-        h1, h2 { color: #111827; }
-        label { display: block; margin-top: 15px; font-weight: 600; color: #374151; }
-        textarea, input[type="text"], input[type="date"] { width: 98%; padding: 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 1rem; margin-top: 5px; }
-        .row { display: flex; gap: 10px; }
-        .col { flex: 1; }
-        button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; margin-top: 20px; }
-        .btn-secondary { background-color: #e5e7eb; color: #1f2937; }
-        .btn-primary { background-color: #2563eb; color: white; font-weight: 600; }
-        .btn-google { background-color: #DB4437; color: white; font-weight: bold; float: right; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-size: 0.9rem; }
-        hr { border: none; border-top: 1px solid #e5e7eb; margin: 25px 0; }
-        .loading { display: none; text-align: center; margin-top: 10px;}
-        #user-status { float: right; font-size: 0.9rem; margin-top: 10px; margin-right: 10px; }
+        :root {
+            --primary-grad: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%); /* Purple to Blue */
+            --primary-shadow: rgba(139, 92, 246, 0.3);
+            --bg-grad: linear-gradient(120deg, #f3e8ff 0%, #e0f2fe 100%); /* Light Purple to Light Blue */
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --text-main: #1f2937;
+            --text-sub: #6b7280;
+            --border-radius: 24px;
+            --input-radius: 12px;
+        }
 
-        /* Updated AI Message Box Style */
-        .ai-msg-box { background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; padding: 15px; border-radius: 10px; margin-top: 10px; display: none; }
-        .ai-header { font-weight: bold; font-size: 0.9rem; margin-bottom: 5px; display: block; }
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background: var(--bg-grad);
+            background-attachment: fixed;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: var(--text-main);
+        }
 
-        .lang-switch { position: absolute; top: 20px; left: 25px; font-size: 0.9rem; }
-        .lang-btn { background: none; border: none; cursor: pointer; color: #666; font-weight: bold; padding: 0; }
-        .lang-btn.active { color: #2563eb; text-decoration: underline; }
-        .lang-divider { color: #ddd; margin: 0 5px; }
+        /* Main Card Container */
+        .app-container {
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 700px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
 
-        .model-indicator { text-align: right; font-size: 0.75rem; color: #999; margin-top: 5px; font-style: italic; }
+        /* Header */
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 25px 30px;
+            background: rgba(255,255,255,0.5);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .brand { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; background: var(--primary-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        /* Language Switcher */
+        .lang-switch { display: flex; background: #f3f4f6; padding: 4px; border-radius: 20px; }
+        .lang-btn { background: none; border: none; padding: 6px 12px; border-radius: 16px; font-size: 0.85rem; font-weight: 600; color: #6b7280; cursor: pointer; transition: 0.3s; }
+        .lang-btn.active { background: white; color: #3b82f6; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
+        /* Login Button */
+        .btn-login {
+            display: flex; align-items: center; gap: 8px;
+            background: #1f2937; color: white; padding: 8px 16px;
+            border-radius: 20px; text-decoration: none; font-size: 0.9rem; font-weight: 600;
+            transition: 0.2s;
+        }
+        .btn-login:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .user-name { font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
+        .btn-logout { margin-left: 10px; font-size: 0.8rem; color: #ef4444; text-decoration: none; font-weight: 600; }
+
+        /* Content Body */
+        .main-content { padding: 40px 30px; }
+
+        /* Typography */
+        .section-title { font-size: 1.1rem; font-weight: 800; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; color: #374151; }
+        .section-badge { background: #e0e7ff; color: #4f46e5; font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; font-weight: 800; }
+
+        /* Inputs */
+        label { display: block; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; color: #4b5563; }
+        textarea, input[type="text"] {
+            width: 100%; box-sizing: border-box;
+            padding: 15px; border: 1px solid #e5e7eb; border-radius: var(--input-radius);
+            font-size: 1rem; background: #f9fafb; font-family: inherit;
+            transition: 0.3s; resize: none;
+        }
+        textarea:focus, input:focus { outline: none; background: #fff; border-color: #8b5cf6; box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1); }
+        textarea { min-height: 120px; }
+
+        /* AI Chat Box (Modern Bubble Style) */
+        .ai-chat-container {
+            margin-top: 20px; background: #eff6ff;
+            border-radius: 16px; padding: 20px;
+            border: 1px solid #bfdbfe;
+            display: none; animation: slideDown 0.3s ease-out;
+        }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .ai-header { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #2563eb; font-size: 0.9rem; margin-bottom: 10px; }
+        .ai-text { font-size: 1rem; color: #1e40af; line-height: 1.5; }
+        .ai-input-group { display: flex; gap: 10px; margin-top: 15px; }
+        .ai-input-group input { background: white; border: 1px solid #bfdbfe; }
+        .ai-send-btn { background: #3b82f6; color: white; border: none; padding: 0 20px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+
+        /* Action Buttons (Gradient) */
+        .btn-main {
+            width: 100%; padding: 16px; border: none; border-radius: 16px;
+            background: var(--primary-grad); color: white;
+            font-size: 1.1rem; font-weight: 700; cursor: pointer;
+            margin-top: 30px;
+            box-shadow: 0 10px 20px -5px var(--primary-shadow);
+            transition: 0.3s; display: flex; justify-content: center; align-items: center; gap: 10px;
+        }
+        .btn-main:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -5px var(--primary-shadow); }
+        .btn-sub {
+            width: 100%; padding: 14px; border: none; border-radius: 14px;
+            background: #f3f4f6; color: #4b5563;
+            font-size: 1rem; font-weight: 700; cursor: pointer;
+            margin-top: 15px; transition: 0.2s;
+        }
+        .btn-sub:hover { background: #e5e7eb; color: #1f2937; }
+
+        /* Form Layout */
+        .form-row { display: flex; gap: 15px; margin-bottom: 20px; }
+        .form-col { flex: 1; }
+
+        /* Toggle Switch (iOS Style) */
+        .toggle-wrapper { display: flex; align-items: center; gap: 10px; margin-top: 35px; justify-content: flex-end; }
+        .toggle-switch { position: relative; width: 50px; height: 28px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        input:checked + .slider { background: var(--primary-grad); }
+        input:checked + .slider:before { transform: translateX(22px); }
+        .toggle-label { font-weight: 600; color: #4b5563; font-size: 0.9rem; }
+
+        /* Map Buttons (Pills) */
+        .map-group { display: flex; gap: 10px; margin-top: 10px; }
+        .map-link {
+            flex: 1; padding: 10px; font-size: 0.85rem; text-decoration: none;
+            color: white; font-weight: 700; text-align: center; border-radius: 12px;
+            transition: 0.2s; opacity: 0.9;
+        }
+        .map-link:hover { opacity: 1; transform: translateY(-1px); }
+        .bg-google { background: #4285F4; }
+        .bg-naver { background: #03C75A; }
+        .bg-kakao { background: #FEE500; color: #191919; }
+        .hidden { display: none !important; }
+
+        /* Utils */
+        .divider { height: 1px; background: #e5e7eb; margin: 40px 0; }
+        .model-indicator { text-align: right; font-size: 0.8rem; color: #9ca3af; font-weight: 500; margin-top: 5px; }
+        .consent-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 10px; margin-top: 10px;}
+        .consent-label { margin: 0; color: #166534; font-weight: 600; font-size: 0.9rem; }
+        input[type="checkbox"].simple-check { width: 18px; height: 18px; }
+
+        /* Result Box */
+        .result-box { background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div class="lang-switch">
-            <button onclick="setLanguage('ko')" class="lang-btn" id="btn-ko">한국어</button>
-            <span class="lang-divider">|</span>
-            <button onclick="setLanguage('en')" class="lang-btn active" id="btn-en">English</button>
-        </div>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="brand">AI Scheduler</div>
 
-        <div id="login-area"><a href="/login" class="btn-google" id="txt-login">📅 Login with Google</a></div>
-        <div id="user-status"></div>
-        <div style="clear: both;"></div>
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <div class="lang-switch">
+                    <button onclick="setLanguage('ko')" class="lang-btn" id="btn-ko">KO</button>
+                    <button onclick="setLanguage('en')" class="lang-btn active" id="btn-en">EN</button>
+                </div>
 
-        <h1 id="txt-title" style="margin-top: 40px;">AI Smart Scheduler 📅</h1>
-        <p id="txt-subtitle">Type a schedule. We use AI to extract details!</p>
-
-        <h2>Step 1: Input</h2>
-        <label id="lbl-input">📝 Input Text</label>
-        <textarea id="input-text" rows="3" placeholder="Ex: 'Trip to Jeju from Nov 20 to 23'"></textarea>
-
-        <div id="ai-message" class="ai-msg-box">
-            <span class="ai-header">🤖 AI Assistant:</span>
-            <span id="ai-text"></span>
-            <div style="display:flex; gap:5px; margin-top:10px;">
-                <input type="text" id="reply-input" style="flex:1; padding:5px;" placeholder="Type answer...">
-                <button onclick="sendReply()" style="margin:0; padding:5px 10px; font-size:0.9rem;" class="btn-primary">Send</button>
+                <div id="user-area">
+                    <a href="/login" class="btn-login" id="txt-login">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
+                        Sign in
+                    </a>
+                </div>
             </div>
-        </div>
+        </header>
 
-        <button id="extract-button" class="btn-secondary" onclick="handleExtract()">1. Extract Info</button>
-        <div id="model-indicator" class="model-indicator"></div>
-
-        <hr>
-
-        <h2>✏️ Step 2: Review</h2>
-        <label id="lbl-title">🎉 Event Title</label> <input type="text" id="summary-box">
-
-        <div class="row">
-            <div class="col">
-                <label id="lbl-start">📅 Start Date</label> <input type="text" id="start-date-box" placeholder="YYYY-MM-DD">
+        <div class="main-content">
+            <div style="text-align: center; margin-bottom: 40px;">
+                <h1 id="txt-title" style="font-size: 2.2rem; margin: 0 0 10px 0; background: var(--primary-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AI Smart Scheduler</h1>
+                <p id="txt-subtitle" style="color: #6b7280; font-size: 1.1rem; margin: 0;">Manage your time effortlessly with AI.</p>
             </div>
-            <div class="col">
-                <label id="lbl-end">📅 End Date</label> <input type="text" id="end-date-box" placeholder="YYYY-MM-DD">
+
+            <div class="section-title">
+                <span class="section-badge">Step 1</span> <span id="txt-step1">Input & Analysis</span>
             </div>
-        </div>
 
-        <div class="row">
-            <div class="col">
-                <label id="lbl-time">⏰ Time (Optional)</label> <input type="text" id="time-box" placeholder="HH:MM">
+            <label id="lbl-input">📝 What's your plan?</label>
+            <textarea id="input-text" placeholder="Example: 'Dinner at Hongdae station at 7pm tomorrow'"></textarea>
+
+            <div id="ai-message" class="ai-chat-container">
+                <div class="ai-header">
+                    <span>🤖 AI Assistant</span>
+                </div>
+                <div class="ai-text" id="ai-text"></div>
+                <div class="ai-input-group">
+                    <input type="text" id="ai-user-reply" placeholder="Type your answer...">
+                    <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
+                </div>
             </div>
-            <div class="col" style="display:flex; align-items:center; margin-top:35px;">
-                <input type="checkbox" id="allday-check" style="width:auto; margin-right:5px;">
-                <label for="allday-check" style="margin:0;" id="lbl-allday">All Day Event</label>
+
+            <button id="extract-button" class="action-btn btn-sub" onclick="handleExtract()">
+                <span id="btn-extract-text">✨ Analyze Text</span>
+            </button>
+
+            <div style="margin-top: 20px;">
+                <label id="lbl-result">Google Translation</label>
+                <textarea id="translated-output" class="result-box" rows="1" readonly></textarea>
+                <div id="model-indicator" class="model-indicator"></div>
             </div>
+
+            <div class="divider"></div>
+
+            <div class="section-title">
+                <span class="section-badge">Step 2</span> <span id="txt-step2">Confirm Details</span>
+            </div>
+
+            <label id="lbl-title">🎉 Event Title</label>
+            <input type="text" id="summary-box">
+
+            <div class="form-row" style="margin-top: 15px;">
+                <div class="form-col">
+                    <label id="lbl-start">📅 Start Date</label>
+                    <input type="text" id="start-date-box" placeholder="YYYY-MM-DD">
+                </div>
+                <div class="form-col">
+                    <label id="lbl-end">📅 End Date</label>
+                    <input type="text" id="end-date-box" placeholder="YYYY-MM-DD">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-col">
+                    <label id="lbl-time">⏰ Time</label>
+                    <input type="text" id="time-box" placeholder="HH:MM">
+                </div>
+                <div class="form-col toggle-wrapper">
+                    <span class="toggle-label" id="lbl-allday">All Day</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="allday-check">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <label id="lbl-loc">📍 Location</label>
+            <input type="text" id="loc-box" oninput="updateMapLinks()">
+
+            <div id="map-links" class="map-group hidden">
+                <a id="link-google" href="#" target="_blank" class="map-link bg-google">Google</a>
+                <a id="link-naver" href="#" target="_blank" class="map-link bg-naver">Naver</a>
+                <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao">Kakao</a>
+            </div>
+
+            <div class="consent-box">
+                <input type="checkbox" id="data-consent" checked class="simple-check">
+                <label for="data-consent" class="consent-label" id="lbl-consent">
+                    Contribute data for AI training
+                </label>
+            </div>
+
+            <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
+                <span id="btn-add-text">Add to Google Calendar</span> 📅
+            </button>
+
+            <div id="result-output" style="margin-top: 20px; text-align: center; color: #059669;"></div>
         </div>
-
-        <label id="lbl-loc">📍 Location</label> <input type="text" id="loc-box">
-
-        <div style="margin-top: 20px; padding: 10px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px;">
-            <input type="checkbox" id="data-consent" checked style="width:auto;">
-            <label for="data-consent" style="display:inline; font-weight:normal; color:#166534;" id="lbl-consent">
-                (Optional) I agree to donate data for AI training.
-            </label>
-        </div>
-
-        <button id="add-calendar-btn" class="btn-primary" onclick="handleAddToCalendar()">📅 Add to Google Calendar</button>
-        <div class="loading" id="loading-spinner">🔄 Processing...</div>
-        <div id="result-output" style="margin-top: 20px; font-weight: bold;"></div>
     </div>
 
     <script>
-        let isLoggedIn = false;
         let originalText = "";
+        let translatedText = "";
+        let isLoggedIn = false;
 
         const translations = {
             ko: {
-                title: "AI 스마트 스케줄러 📅",
-                subtitle: "일정을 입력하세요. AI가 자동으로 정리해줍니다!",
-                lblInput: "📝 입력 (텍스트)",
-                placeholder: "예: '11월 20일부터 23일까지 제주도 여행'",
-                btnExtract: "1. 정보 추출하기",
+                subtitle: "일정을 입력하면 AI가 자동으로 정리해드립니다.",
+                txtStep1: "입력 및 분석",
+                lblInput: "📝 일정 내용",
+                placeholder: "예: '내일 오후 7시에 홍대입구역에서 팀 회식'",
+                btnExtract: "✨ 분석 시작",
+                lblResult: "영어 번역 결과",
+                txtStep2: "내용 확인",
                 lblTitle: "🎉 일정 제목",
                 lblStart: "📅 시작 날짜",
                 lblEnd: "📅 종료 날짜",
-                lblTime: "⏰ 시간 (선택)",
+                lblTime: "⏰ 시간",
                 lblAllday: "종일 일정",
                 lblLoc: "📍 장소",
-                lblConsent: "(선택) AI 학습을 위해 데이터 기부에 동의합니다.",
-                btnAdd: "📅 구글 캘린더에 등록",
-                login: "📅 구글 로그인",
-                processing: "🔄 처리 중..."
+                lblConsent: "(선택) AI 학습을 위한 데이터 기부 동의",
+                btnAdd: "구글 캘린더에 등록하기",
+                login: "로그인",
+                logout: "로그아웃",
+                welcome: "님",
+                replyPlaceholder: "답변을 입력하세요...",
+                btnReply: "전송"
             },
             en: {
-                title: "AI Smart Scheduler 📅",
-                subtitle: "Type a schedule. We use AI to extract details!",
-                lblInput: "📝 Input Text",
-                placeholder: "Ex: 'Trip to Jeju from Nov 20 to 23'",
-                btnExtract: "1. Extract Info",
+                subtitle: "Manage your time effortlessly with AI.",
+                txtStep1: "Input & Analysis",
+                lblInput: "📝 What's your plan?",
+                placeholder: "Ex: 'Dinner at Hongdae station at 7pm tomorrow'",
+                btnExtract: "✨ Analyze Text",
+                lblResult: "Translation (EN)",
+                txtStep2: "Confirm Details",
                 lblTitle: "🎉 Event Title",
                 lblStart: "📅 Start Date",
                 lblEnd: "📅 End Date",
-                lblTime: "⏰ Time (Optional)",
-                lblAllday: "All Day Event",
+                lblTime: "⏰ Time",
+                lblAllday: "All Day",
                 lblLoc: "📍 Location",
-                lblConsent: "(Optional) I agree to donate data for AI training.",
-                btnAdd: "📅 Add to Google Calendar",
-                login: "📅 Login with Google",
-                processing: "🔄 Processing..."
+                lblConsent: "(Optional) Contribute data for AI training",
+                btnAdd: "Add to Google Calendar",
+                login: "Sign in",
+                logout: "Sign out",
+                welcome: "",
+                replyPlaceholder: "Type your answer...",
+                btnReply: "Send"
             }
         };
 
@@ -148,11 +333,14 @@
         function setLanguage(lang) {
             currentLang = lang;
             const t = translations[lang];
-            document.getElementById('txt-title').innerText = t.title;
+
             document.getElementById('txt-subtitle').innerText = t.subtitle;
+            document.getElementById('txt-step1').innerText = t.txtStep1;
             document.getElementById('lbl-input').innerText = t.lblInput;
             document.getElementById('input-text').placeholder = t.placeholder;
-            document.getElementById('extract-button').innerText = t.btnExtract;
+            document.getElementById('btn-extract-text').innerText = t.btnExtract;
+            document.getElementById('lbl-result').innerText = t.lblResult;
+            document.getElementById('txt-step2').innerText = t.txtStep2;
             document.getElementById('lbl-title').innerText = t.lblTitle;
             document.getElementById('lbl-start').innerText = t.lblStart;
             document.getElementById('lbl-end').innerText = t.lblEnd;
@@ -160,38 +348,68 @@
             document.getElementById('lbl-allday').innerText = t.lblAllday;
             document.getElementById('lbl-loc').innerText = t.lblLoc;
             document.getElementById('lbl-consent').innerText = t.lblConsent;
-            document.getElementById('add-calendar-btn').innerText = t.btnAdd;
-            document.getElementById('txt-login').innerText = t.login;
+            document.getElementById('btn-add-text').innerText = t.btnAdd;
+            document.getElementById('ai-user-reply').placeholder = t.replyPlaceholder;
+            document.getElementById('btn-reply').innerText = t.btnReply;
 
-            document.getElementById('btn-ko').className = lang==='ko' ? 'lang-btn active' : 'lang-btn';
-            document.getElementById('btn-en').className = lang==='en' ? 'lang-btn active' : 'lang-btn';
+            const loginBtn = document.getElementById('txt-login');
+            if (loginBtn && !isLoggedIn) {
+                loginBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="margin-right:6px"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg> ${t.login}`;
+            }
+
+            if (lang === 'ko') {
+                document.getElementById('btn-ko').classList.add('active');
+                document.getElementById('btn-en').classList.remove('active');
+            } else {
+                document.getElementById('btn-ko').classList.remove('active');
+                document.getElementById('btn-en').classList.add('active');
+            }
         }
 
-        fetch('/user-info').then(r=>r.json()).then(d=>{
-            if(d.user){
-                isLoggedIn=true;
-                document.getElementById('login-area').innerHTML=`<a href="/logout" class="btn-secondary" style="text-decoration:none">Logout</a>`;
-                document.getElementById('user-status').innerText=`Welcome, ${d.user.name}`;
+        fetch('/user-info').then(r => r.json()).then(d => {
+            const userArea = document.getElementById('user-area');
+            if (d.user) {
+                isLoggedIn = true;
+                userArea.innerHTML = `
+                    <span class="user-name">${d.user.name}${translations[currentLang].welcome}</span>
+                    <a href="/logout" class="btn-logout">${translations[currentLang].logout}</a>
+                `;
             }
         });
 
-        async function handleExtract() {
-            const text = document.getElementById('input-text').value;
-            const btn = document.getElementById('extract-button');
-            const aiMsg = document.getElementById('ai-message');
-            const indicator = document.getElementById('model-indicator');
+        function updateMapLinks() {
+            const loc = document.getElementById('loc-box').value.trim();
+            const mapContainer = document.getElementById('map-links');
+            if (!loc) { mapContainer.classList.add('hidden'); return; }
+            mapContainer.classList.remove('hidden');
+            document.getElementById('link-google').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
+            document.getElementById('link-naver').href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
+            document.getElementById('link-kakao').href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
+        }
 
-            btn.innerText = translations[currentLang].processing;
-            btn.disabled = true; aiMsg.style.display = 'none'; indicator.innerText = "";
+        async function handleExtract() {
+            const inputText = document.getElementById('input-text').value;
+            const btnText = document.getElementById('btn-extract-text');
+            const btn = document.getElementById('extract-button');
+            const aiMsgBox = document.getElementById('ai-message');
+            const indicator = document.getElementById('model-indicator');
+            const originalLabel = btnText.innerText;
+
+            btnText.innerText = "⏳ ...";
+            btn.disabled = true;
+            aiMsgBox.style.display = 'none';
+            indicator.innerText = "";
 
             try {
-                const res = await fetch('/extract', {
+                const response = await fetch('/extract', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ text: text, lang: currentLang })
+                    body: JSON.stringify({ text: inputText, lang: currentLang })
                 });
-                const data = await res.json();
-                originalText = text;
+                const data = await response.json();
+                originalText = data.original_text;
+                translatedText = data.translated_text;
 
+                document.getElementById('translated-output').value = data.translated_text;
                 document.getElementById('summary-box').value = data.summary;
                 document.getElementById('start-date-box').value = data.start_date;
                 document.getElementById('end-date-box').value = data.end_date;
@@ -199,23 +417,24 @@
                 document.getElementById('loc-box').value = data.location;
                 document.getElementById('allday-check').checked = data.is_allday;
 
-                if (data.used_model) {
-                    indicator.innerText = "⚙️ Processed by: " + data.used_model;
+                updateMapLinks();
+
+                if (data.used_model) indicator.innerText = "⚙️ Processed by: " + data.used_model;
+
+                if (data.ai_message) {
+                    document.getElementById('ai-text').innerText = data.ai_message;
+                    aiMsgBox.style.display = 'block';
                 }
 
-                if(data.ai_message) {
-                    document.getElementById('ai-text').innerText = data.ai_message;
-                    aiMsg.style.display = 'block';
-                }
-            } catch(e) { alert("Error: " + e); }
-            finally { btn.innerText = translations[currentLang].btnExtract; btn.disabled = false; }
+            } catch (error) { alert('Error processing text.'); }
+            finally { btnText.innerText = originalLabel; btn.disabled = false; }
         }
 
-        function sendReply() {
-            const reply = document.getElementById('reply-input').value;
-            if(!reply) return;
+        function handleAiReply() {
+            const reply = document.getElementById('ai-user-reply').value.trim();
+            if (!reply) return;
             document.getElementById('input-text').value += " " + reply;
-            document.getElementById('reply-input').value = "";
+            document.getElementById('ai-user-reply').value = "";
             handleExtract();
         }
 
@@ -223,31 +442,33 @@
             if (!isLoggedIn) { alert("Please login first!"); return; }
             const btn = document.getElementById('add-calendar-btn');
             const output = document.getElementById('result-output');
-            btn.disabled = true; output.innerHTML = "";
 
-            const payload = {
+            btn.style.opacity = "0.7"; btn.disabled = true; output.innerHTML = "";
+
+            const eventData = {
                 summary: document.getElementById('summary-box').value,
                 start_date: document.getElementById('start-date-box').value,
                 end_date: document.getElementById('end-date-box').value,
                 time: document.getElementById('time-box').value,
                 location: document.getElementById('loc-box').value,
-                is_allday: document.getElementById('allday-check').checked,
-                description: "Added via AI Scheduler",
+                description: `Original: ${originalText}\nTranslated: ${translatedText}`,
                 original_text: originalText,
-                translated_text: "",
+                translated_text: translatedText,
+                is_allday: document.getElementById('allday-check').checked,
                 consent: document.getElementById('data-consent').checked
             };
 
             try {
-                const res = await fetch('/add-to-calendar', {
+                const response = await fetch('/add-to-calendar', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(eventData)
                 });
-                const data = await res.json();
-                if(res.ok) output.innerHTML = `✅ Success! <a href="${data.link}" target="_blank">View</a>`;
-                else output.innerHTML = `❌ Error: ${data.error}`;
-            } catch(e) { output.innerHTML = `❌ Error: ${e}`; }
-            finally { btn.disabled = false; }
+                const data = await response.json();
+                if (response.ok) {
+                    output.innerHTML = `✅ Success! <a href="${data.link}" target="_blank" style="color:#2563eb; text-decoration:underline;">View on Calendar</a>`;
+                } else { output.innerHTML = `❌ Error: ${data.error}`; }
+            } catch (error) { output.innerHTML = `❌ Error: ${error}`; }
+            finally { btn.style.opacity = "1"; btn.disabled = false; }
         }
 
         setLanguage('en');
