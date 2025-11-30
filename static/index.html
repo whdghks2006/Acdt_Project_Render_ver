@@ -10,10 +10,10 @@
 
     <style>
         :root {
-            --primary-grad: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
+            --primary-grad: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%); /* Purple to Blue */
             --primary-shadow: rgba(139, 92, 246, 0.3);
-            --bg-grad: linear-gradient(120deg, #f3e8ff 0%, #e0f2fe 100%);
-            --card-bg: rgba(255, 255, 255, 0.85); /* slightly more transparent */
+            --bg-grad: linear-gradient(120deg, #f3e8ff 0%, #e0f2fe 100%); /* Light Purple to Light Blue */
+            --card-bg: rgba(255, 255, 255, 0.95);
             --text-main: #1f2937;
             --text-sub: #6b7280;
             --border-radius: 24px;
@@ -32,11 +32,11 @@
             color: var(--text-main);
         }
 
-        /* Main Container - Wider for PC */
+        /* Main Card Container */
         .app-container {
             background: var(--card-bg);
             width: 100%;
-            max-width: 1200px; /* Increased width for 2 columns */
+            max-width: 1200px; /* Wide for PC */
             border-radius: var(--border-radius);
             box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(20px);
@@ -72,25 +72,23 @@
         .user-name { font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
         .btn-logout { margin-left: 10px; font-size: 0.8rem; color: #ef4444; text-decoration: none; font-weight: 600; }
 
-        /* --- Layout Grid (The Key Change) --- */
+        /* --- Layout Grid --- */
         .main-content {
             padding: 40px;
         }
 
         .content-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr; /* Two equal columns */
+            grid-template-columns: 1fr 1fr;
             gap: 40px;
             align-items: start;
         }
 
-        /* Mobile Response: Stack vertically on smaller screens */
         @media (max-width: 900px) {
             .content-grid {
-                grid-template-columns: 1fr; /* Single column */
+                grid-template-columns: 1fr;
                 gap: 30px;
             }
-            .app-container { max-width: 700px; }
         }
 
         /* Hero Section */
@@ -106,7 +104,7 @@
             padding: 25px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.02);
             transition: box-shadow 0.3s;
-            height: 100%; /* Fill height */
+            height: 100%;
         }
         .section-card:hover { box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
 
@@ -220,7 +218,6 @@
             </div>
 
             <div class="content-grid">
-
                 <div class="section-card">
                     <div class="section-header">
                         <span class="section-badge">Step 1</span>
@@ -320,7 +317,6 @@
 
         const translations = {
             ko: {
-                title: "AI 스마트 스케줄러",
                 subtitle: "일정을 입력하면 AI가 자동으로 정리해드립니다.",
                 txtStep1: "입력 및 분석",
                 lblInput: "📝 일정 내용을 입력하세요",
@@ -328,12 +324,12 @@
                 tip: "💡 팁: AI가 놓친 정보가 있다면 오른쪽에서 직접 수정할 수 있습니다.",
                 btnExtract: "✨ 분석 시작",
                 lblResult: "영어 번역 결과",
-                txtStep2: "내용 확인 및 등록",
+                txtStep2: "내용 확인",
                 lblTitle: "🎉 일정 제목",
                 lblStart: "📅 시작 날짜",
                 lblEnd: "📅 종료 날짜",
                 lblTime: "⏰ 시간",
-                lblAllday: "종일",
+                lblAllday: "종일 일정",
                 lblLoc: "📍 장소",
                 lblConsent: "(선택) AI 학습을 위한 데이터 기부 동의",
                 btnAdd: "구글 캘린더에 등록하기",
@@ -344,7 +340,6 @@
                 btnReply: "전송"
             },
             en: {
-                title: "AI Smart Scheduler",
                 subtitle: "Manage your time effortlessly with AI.",
                 txtStep1: "Input & Analysis",
                 lblInput: "📝 What's your plan?",
@@ -352,7 +347,7 @@
                 tip: "💡 Tip: You can manually edit details on the right side.",
                 btnExtract: "✨ Analyze Text",
                 lblResult: "Translation (EN)",
-                txtStep2: "Review & Confirm",
+                txtStep2: "Confirm Details",
                 lblTitle: "🎉 Event Title",
                 lblStart: "📅 Start Date",
                 lblEnd: "📅 End Date",
@@ -375,12 +370,10 @@
             currentLang = lang;
             const t = translations[lang];
 
-            document.getElementById('txt-title').innerText = t.title;
             document.getElementById('txt-subtitle').innerText = t.subtitle;
             document.getElementById('txt-step1').innerText = t.txtStep1;
             document.getElementById('lbl-input').innerText = t.lblInput;
             document.getElementById('input-text').placeholder = t.placeholder;
-            document.getElementById('txt-tip').innerText = t.tip;
             document.getElementById('btn-extract-text').innerText = t.btnExtract;
             document.getElementById('lbl-result').innerText = t.lblResult;
             document.getElementById('txt-step2').innerText = t.txtStep2;
@@ -467,7 +460,9 @@
 
                 updateMapLinks();
 
-                if (data.used_model) indicator.innerText = "⚙️ Processed by: " + data.used_model;
+                if (data.used_model) {
+                    indicator.innerText = "⚙️ Processed by: " + data.used_model;
+                }
 
                 if (data.ai_message) {
                     document.getElementById('ai-text').innerText = data.ai_message;
@@ -486,6 +481,22 @@
             document.getElementById('ai-user-reply').value = "";
             handleExtract();
         }
+
+        // [New] Event Listener for Enter Key
+        document.getElementById('input-text').addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault(); // Prevent default new line behavior
+                handleExtract(); // Trigger extraction
+            }
+        });
+
+        // [New] Also add Enter key support for AI reply input
+        document.getElementById('ai-user-reply').addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleAiReply();
+            }
+        });
 
         async function handleAddToCalendar() {
             if (!isLoggedIn) { alert("Please login first!"); return; }
