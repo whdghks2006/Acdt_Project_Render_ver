@@ -358,9 +358,6 @@ async def admin_dashboard(request: Request):
 
 @app.get("/events")
 async def list_events(request: Request):
-    """
-    Fetches upcoming events from the user's Google Calendar.
-    """
     token_data = request.session.get('token')
     if not token_data or 'access_token' not in token_data:
         return JSONResponse(status_code=401, content={"error": "Login required"})
@@ -368,42 +365,46 @@ async def list_events(request: Request):
     access_token = token_data['access_token']
     headers = {'Authorization': f'Bearer {access_token}'}
 
-    # Get events starting from 'now'
-    now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
+    # Get events starting from 'now' - 30 days (to show recent past too)
+    # Let's just show from now to future to keep it simple, or adjust as needed.
+    now = datetime.datetime.utcnow().isoformat() + 'Z'
 
     try:
         async with httpx.AsyncClient() as client:
-            # Fetch up to 50 events
             resp = await client.get(
                 'https://www.googleapis.com/calendar/v3/calendars/primary/events',
                 headers=headers,
                 params={
                     'timeMin': now,
-                    'maxResults': 50,
+                    'maxResults': 100,
                     'singleEvents': True,
                     'orderBy': 'startTime'
                 }
             )
 
         if resp.status_code != 200:
-            print(f"Google API Error: {resp.text}")
             if resp.status_code == 401: return JSONResponse(status_code=401, content={"error": "Token expired."})
             return JSONResponse(status_code=500, content={"error": "Failed to fetch events"})
 
         data = resp.json()
         items = data.get('items', [])
 
-        # Format for FullCalendar
         calendar_events = []
         for event in items:
+            # Extract Date/Time
             start = event['start'].get('dateTime', event['start'].get('date'))
             end = event['end'].get('dateTime', event['end'].get('date'))
+
+            # [UPDATE] Pack detailed info into extendedProps
             calendar_events.append({
                 'title': event.get('summary', 'No Title'),
                 'start': start,
                 'end': end,
-                # Add color or url if needed
-                'url': event.get('htmlLink')
+                'url': event.get('htmlLink'),  # Keep URL but handle click in JS
+                'extendedProps': {
+                    'description': event.get('description', ''),
+                    'location': event.get('location', '')
+                }
             })
 
         return {"events": calendar_events}
