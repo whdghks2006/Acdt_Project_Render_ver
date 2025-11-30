@@ -9,39 +9,26 @@
         .container { background-color: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: relative; }
         h1, h2 { color: #111827; }
         label { display: block; margin-top: 15px; font-weight: 600; color: #374151; }
-        textarea, input[type="text"] { width: 98%; padding: 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 1rem; margin-top: 5px; }
-
+        textarea, input[type="text"], input[type="date"] { width: 98%; padding: 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 1rem; margin-top: 5px; }
+        .row { display: flex; gap: 10px; }
+        .col { flex: 1; }
         button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; margin-top: 20px; }
         .btn-secondary { background-color: #e5e7eb; color: #1f2937; }
         .btn-primary { background-color: #2563eb; color: white; font-weight: 600; }
         .btn-google { background-color: #DB4437; color: white; font-weight: bold; float: right; text-decoration: none; padding: 10px 15px; border-radius: 5px; font-size: 0.9rem; }
-
-        #translated-output { background-color: #f3f4f6; border: none; }
         hr { border: none; border-top: 1px solid #e5e7eb; margin: 25px 0; }
-        .loading { display: none; text-align: center; font-size: 1.2rem; color: #374151; margin-top: 10px;}
-        #user-status { float: right; font-size: 0.9rem; color: #374151; margin-top: 10px; margin-right: 10px; }
-        .consent-box { margin-top: 20px; padding: 10px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px; }
-        .tip-text { font-size: 0.85rem; color: #666; margin-top: 5px; }
+        .loading { display: none; text-align: center; margin-top: 10px;}
+        #user-status { float: right; font-size: 0.9rem; margin-top: 10px; margin-right: 10px; }
 
-        .map-buttons { margin-top: 5px; margin-bottom: 15px; display: flex; gap: 10px; }
-        .btn-map { flex: 1; padding: 8px; font-size: 0.85rem; border-radius: 5px; text-decoration: none; text-align: center; color: white; font-weight: bold; transition: opacity 0.2s; }
-        .btn-map:hover { opacity: 0.8; }
-        .map-google { background-color: #4285F4; }
-        .map-naver { background-color: #03C75A; }
-        .map-kakao { background-color: #FAE100; color: #3C1E1E; }
-        .hidden { display: none; }
+        /* Updated AI Message Box Style */
+        .ai-msg-box { background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; padding: 15px; border-radius: 10px; margin-top: 10px; display: none; }
+        .ai-header { font-weight: bold; font-size: 0.9rem; margin-bottom: 5px; display: block; }
 
         .lang-switch { position: absolute; top: 20px; left: 25px; font-size: 0.9rem; }
         .lang-btn { background: none; border: none; cursor: pointer; color: #666; font-weight: bold; padding: 0; }
         .lang-btn.active { color: #2563eb; text-decoration: underline; }
         .lang-divider { color: #ddd; margin: 0 5px; }
 
-        .ai-msg-box { background-color: #e0f2fe; border: 1px solid #7dd3fc; color: #0c4a6e; padding: 15px; border-radius: 10px; margin-top: 10px; display: none; }
-        .ai-reply-container { display: flex; margin-top: 10px; gap: 5px; }
-        .ai-reply-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
-        .ai-reply-btn { background-color: #0284c7; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 0; }
-
-        /* [New] Model Indicator Style */
         .model-indicator { text-align: right; font-size: 0.75rem; color: #999; margin-top: 5px; font-style: italic; }
     </style>
 </head>
@@ -61,48 +48,53 @@
         <h1 id="txt-title" style="margin-top: 40px;">AI Smart Scheduler 📅</h1>
         <p id="txt-subtitle">Type a schedule. We use AI to extract details!</p>
 
-        <h2 id="txt-step1">Step 1: Input & Translate</h2>
-
-        <label for="input-text" id="lbl-input">📝 Input Text</label>
-        <textarea id="input-text" rows="5" placeholder="Ex: 'Dinner at Hongdae station at 7pm tomorrow'"></textarea>
+        <h2>Step 1: Input</h2>
+        <label id="lbl-input">📝 Input Text</label>
+        <textarea id="input-text" rows="3" placeholder="Ex: 'Trip to Jeju from Nov 20 to 23'"></textarea>
 
         <div id="ai-message" class="ai-msg-box">
+            <span class="ai-header">🤖 AI Assistant:</span>
             <span id="ai-text"></span>
-            <div class="ai-reply-container">
-                <input type="text" id="ai-user-reply" class="ai-reply-input" placeholder="Missing info...">
-                <button onclick="handleAiReply()" class="ai-reply-btn" id="btn-reply">Send</button>
+            <div style="display:flex; gap:5px; margin-top:10px;">
+                <input type="text" id="reply-input" style="flex:1; padding:5px;" placeholder="Type answer...">
+                <button onclick="sendReply()" style="margin:0; padding:5px 10px; font-size:0.9rem;" class="btn-primary">Send</button>
             </div>
         </div>
 
-        <p class="tip-text" id="txt-tip">💡 Tip: AI might miss details. Check the <b>Translation</b> or edit manually in <b>Step 2</b>!</p>
-
-        <button id="extract-button" class="btn-secondary" onclick="handleExtract()">1. Translate & Extract</button>
-
-        <label for="translated-output" id="lbl-result">Result (Google Translated)</label>
-        <textarea id="translated-output" rows="2" readonly></textarea>
-
+        <button id="extract-button" class="btn-secondary" onclick="handleExtract()">1. Extract Info</button>
         <div id="model-indicator" class="model-indicator"></div>
 
         <hr>
 
-        <h2 id="txt-step2">✏️ Step 2: Review & Add to Calendar</h2>
-        <label id="lbl-date">📅 Date</label> <input type="text" id="date-box">
-        <label id="lbl-time">⏰ Time</label> <input type="text" id="time-box">
+        <h2>✏️ Step 2: Review</h2>
+        <label id="lbl-title">🎉 Event Title</label> <input type="text" id="summary-box">
 
-        <label id="lbl-loc">📍 Location</label>
-        <input type="text" id="loc-box" oninput="updateMapLinks()">
-
-        <div id="map-links" class="map-buttons hidden">
-            <a id="link-google" href="#" target="_blank" class="btn-map map-google">Google Maps</a>
-            <a id="link-naver" href="#" target="_blank" class="btn-map map-naver">Naver Map</a>
-            <a id="link-kakao" href="#" target="_blank" class="btn-map map-kakao">Kakao Map</a>
+        <div class="row">
+            <div class="col">
+                <label id="lbl-start">📅 Start Date</label> <input type="text" id="start-date-box" placeholder="YYYY-MM-DD">
+            </div>
+            <div class="col">
+                <label id="lbl-end">📅 End Date</label> <input type="text" id="end-date-box" placeholder="YYYY-MM-DD">
+            </div>
         </div>
 
-        <label id="lbl-event">🎉 Event</label> <input type="text" id="event-box">
+        <div class="row">
+            <div class="col">
+                <label id="lbl-time">⏰ Time (Optional)</label> <input type="text" id="time-box" placeholder="HH:MM">
+            </div>
+            <div class="col" style="display:flex; align-items:center; margin-top:35px;">
+                <input type="checkbox" id="allday-check" style="width:auto; margin-right:5px;">
+                <label for="allday-check" style="margin:0;" id="lbl-allday">All Day Event</label>
+            </div>
+        </div>
 
-        <div class="consent-box">
-            <input type="checkbox" id="data-consent" checked>
-            <label for="data-consent" id="lbl-consent">(Optional) I agree to donate data for AI training.</label>
+        <label id="lbl-loc">📍 Location</label> <input type="text" id="loc-box">
+
+        <div style="margin-top: 20px; padding: 10px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px;">
+            <input type="checkbox" id="data-consent" checked style="width:auto;">
+            <label for="data-consent" style="display:inline; font-weight:normal; color:#166534;" id="lbl-consent">
+                (Optional) I agree to donate data for AI training.
+            </label>
         </div>
 
         <button id="add-calendar-btn" class="btn-primary" onclick="handleAddToCalendar()">📅 Add to Google Calendar</button>
@@ -111,58 +103,43 @@
     </div>
 
     <script>
-        let originalText = "";
-        let translatedText = "";
         let isLoggedIn = false;
+        let originalText = "";
 
         const translations = {
             ko: {
                 title: "AI 스마트 스케줄러 📅",
-                subtitle: "한글이나 영어로 일정을 입력하세요. AI가 자동으로 정리해줍니다!",
-                step1: "1단계: 입력 및 번역",
+                subtitle: "일정을 입력하세요. AI가 자동으로 정리해줍니다!",
                 lblInput: "📝 입력 (텍스트)",
-                placeholder: "예: '내일 오후 7시에 홍대입구역에서 회식'",
-                tip: "💡 팁: 결과가 이상하면 <b>번역문</b>을 확인하거나 <b>2단계</b>에서 직접 수정해 주세요!",
-                btnExtract: "1. 번역 및 추출하기",
-                lblResult: "결과 (영어 번역)",
-                step2: "✏️ 2단계: 검토 및 캘린더 등록",
-                lblDate: "📅 날짜",
-                lblTime: "⏰ 시간",
+                placeholder: "예: '11월 20일부터 23일까지 제주도 여행'",
+                btnExtract: "1. 정보 추출하기",
+                lblTitle: "🎉 일정 제목",
+                lblStart: "📅 시작 날짜",
+                lblEnd: "📅 종료 날짜",
+                lblTime: "⏰ 시간 (선택)",
+                lblAllday: "종일 일정",
                 lblLoc: "📍 장소",
-                lblEvent: "🎉 일정 제목",
-                lblConsent: "(선택) AI 학습을 위해 데이터를 기부하는 것에 동의합니다.",
-                btnAdd: "📅 구글 캘린더에 등록하기",
+                lblConsent: "(선택) AI 학습을 위해 데이터 기부에 동의합니다.",
+                btnAdd: "📅 구글 캘린더에 등록",
                 login: "📅 구글 로그인",
-                processing: "🔄 처리 중...",
-                mapGoogle: "구글 지도",
-                mapNaver: "네이버 지도",
-                mapKakao: "카카오맵",
-                replyPlaceholder: "빠진 정보를 입력하세요...",
-                btnReply: "추가"
+                processing: "🔄 처리 중..."
             },
             en: {
                 title: "AI Smart Scheduler 📅",
-                subtitle: "Type a schedule in Korean or English. We use AI to extract details!",
-                step1: "Step 1: Input & Translate",
+                subtitle: "Type a schedule. We use AI to extract details!",
                 lblInput: "📝 Input Text",
-                placeholder: "Ex: 'Dinner at Hongdae station at 7pm tomorrow'",
-                tip: "💡 Tip: Check the <b>Translation</b> or edit manually in <b>Step 2</b>!",
-                btnExtract: "1. Translate & Extract",
-                lblResult: "Result (Google Translated)",
-                step2: "✏️ Step 2: Review & Add to Calendar",
-                lblDate: "📅 Date",
-                lblTime: "⏰ Time",
+                placeholder: "Ex: 'Trip to Jeju from Nov 20 to 23'",
+                btnExtract: "1. Extract Info",
+                lblTitle: "🎉 Event Title",
+                lblStart: "📅 Start Date",
+                lblEnd: "📅 End Date",
+                lblTime: "⏰ Time (Optional)",
+                lblAllday: "All Day Event",
                 lblLoc: "📍 Location",
-                lblEvent: "🎉 Event",
                 lblConsent: "(Optional) I agree to donate data for AI training.",
                 btnAdd: "📅 Add to Google Calendar",
                 login: "📅 Login with Google",
-                processing: "🔄 Processing...",
-                mapGoogle: "Google Maps",
-                mapNaver: "Naver Map",
-                mapKakao: "Kakao Map",
-                replyPlaceholder: "Type missing info...",
-                btnReply: "Send"
+                processing: "🔄 Processing..."
             }
         };
 
@@ -173,147 +150,104 @@
             const t = translations[lang];
             document.getElementById('txt-title').innerText = t.title;
             document.getElementById('txt-subtitle').innerText = t.subtitle;
-            document.getElementById('txt-step1').innerText = t.step1;
             document.getElementById('lbl-input').innerText = t.lblInput;
             document.getElementById('input-text').placeholder = t.placeholder;
-            document.getElementById('txt-tip').innerHTML = t.tip;
             document.getElementById('extract-button').innerText = t.btnExtract;
-            document.getElementById('lbl-result').innerText = t.lblResult;
-            document.getElementById('txt-step2').innerText = t.step2;
-            document.getElementById('lbl-date').innerText = t.lblDate;
+            document.getElementById('lbl-title').innerText = t.lblTitle;
+            document.getElementById('lbl-start').innerText = t.lblStart;
+            document.getElementById('lbl-end').innerText = t.lblEnd;
             document.getElementById('lbl-time').innerText = t.lblTime;
+            document.getElementById('lbl-allday').innerText = t.lblAllday;
             document.getElementById('lbl-loc').innerText = t.lblLoc;
-            document.getElementById('lbl-event').innerText = t.lblEvent;
             document.getElementById('lbl-consent').innerText = t.lblConsent;
             document.getElementById('add-calendar-btn').innerText = t.btnAdd;
             document.getElementById('txt-login').innerText = t.login;
-            document.getElementById('link-google').innerText = t.mapGoogle;
-            document.getElementById('link-naver').innerText = t.mapNaver;
-            document.getElementById('link-kakao').innerText = t.mapKakao;
-            document.getElementById('ai-user-reply').placeholder = t.replyPlaceholder;
-            document.getElementById('btn-reply').innerText = t.btnReply;
 
-            if (lang === 'ko') {
-                document.getElementById('btn-ko').classList.add('active');
-                document.getElementById('btn-en').classList.remove('active');
-            } else {
-                document.getElementById('btn-ko').classList.remove('active');
-                document.getElementById('btn-en').classList.add('active');
+            document.getElementById('btn-ko').className = lang==='ko' ? 'lang-btn active' : 'lang-btn';
+            document.getElementById('btn-en').className = lang==='en' ? 'lang-btn active' : 'lang-btn';
+        }
+
+        fetch('/user-info').then(r=>r.json()).then(d=>{
+            if(d.user){
+                isLoggedIn=true;
+                document.getElementById('login-area').innerHTML=`<a href="/logout" class="btn-secondary" style="text-decoration:none">Logout</a>`;
+                document.getElementById('user-status').innerText=`Welcome, ${d.user.name}`;
             }
-        }
-
-        checkLogin();
-
-        async function checkLogin() {
-            try {
-                const res = await fetch('/user-info');
-                const data = await res.json();
-                const loginArea = document.getElementById('login-area');
-                const userStatus = document.getElementById('user-status');
-                if (data.user) {
-                    isLoggedIn = true;
-                    loginArea.innerHTML = `<a href="/logout" class="btn-secondary" style="font-size:0.9rem; text-decoration:none;">Logout</a>`;
-                    userStatus.innerText = `Welcome, ${data.user.name}`;
-                } else { isLoggedIn = false; }
-            } catch (e) { console.error(e); }
-        }
-
-        function updateMapLinks() {
-            const loc = document.getElementById('loc-box').value.trim();
-            const mapContainer = document.getElementById('map-links');
-            if (!loc) { mapContainer.classList.add('hidden'); return; }
-            mapContainer.classList.remove('hidden');
-            document.getElementById('link-google').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
-            document.getElementById('link-naver').href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
-            document.getElementById('link-kakao').href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
-        }
+        });
 
         async function handleExtract() {
-            const inputText = document.getElementById('input-text').value;
+            const text = document.getElementById('input-text').value;
             const btn = document.getElementById('extract-button');
-            const aiMsgBox = document.getElementById('ai-message');
-            const originalBtnText = btn.innerText;
-            const modelIndicator = document.getElementById('model-indicator');
+            const aiMsg = document.getElementById('ai-message');
+            const indicator = document.getElementById('model-indicator');
 
             btn.innerText = translations[currentLang].processing;
-            btn.disabled = true;
-            aiMsgBox.style.display = 'none';
-            modelIndicator.innerText = ""; // Reset
+            btn.disabled = true; aiMsg.style.display = 'none'; indicator.innerText = "";
 
             try {
-                const response = await fetch('/extract', {
+                const res = await fetch('/extract', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        text: inputText,
-                        lang: currentLang
-                    })
+                    body: JSON.stringify({ text: text, lang: currentLang })
                 });
-                const data = await response.json();
-                originalText = data.original_text;
-                translatedText = data.translated_text;
+                const data = await res.json();
+                originalText = text;
 
-                document.getElementById('translated-output').value = data.translated_text;
-                document.getElementById('date-box').value = data.date;
+                document.getElementById('summary-box').value = data.summary;
+                document.getElementById('start-date-box').value = data.start_date;
+                document.getElementById('end-date-box').value = data.end_date;
                 document.getElementById('time-box').value = data.time;
-                document.getElementById('event-box').value = data.original_text;
-                document.getElementById('loc-box').value = data.loc;
-                updateMapLinks();
+                document.getElementById('loc-box').value = data.location;
+                document.getElementById('allday-check').checked = data.is_allday;
 
-                // [New] Show which model was used
                 if (data.used_model) {
-                    modelIndicator.innerText = "⚙️ Processed by: " + data.used_model;
+                    indicator.innerText = "⚙️ Processed by: " + data.used_model;
                 }
 
-                if (data.ai_message) {
-                    document.getElementById('ai-text').innerText = "🤖 AI: " + data.ai_message;
-                    aiMsgBox.style.display = 'block';
+                if(data.ai_message) {
+                    document.getElementById('ai-text').innerText = data.ai_message;
+                    aiMsg.style.display = 'block';
                 }
-
-            } catch (error) { alert('Error processing text.'); }
-            finally { btn.innerText = originalBtnText; btn.disabled = false; }
+            } catch(e) { alert("Error: " + e); }
+            finally { btn.innerText = translations[currentLang].btnExtract; btn.disabled = false; }
         }
 
-        function handleAiReply() {
-            const reply = document.getElementById('ai-user-reply').value.trim();
-            if (!reply) return;
-            const inputField = document.getElementById('input-text');
-            inputField.value = inputField.value + " " + reply;
-            document.getElementById('ai-user-reply').value = "";
+        function sendReply() {
+            const reply = document.getElementById('reply-input').value;
+            if(!reply) return;
+            document.getElementById('input-text').value += " " + reply;
+            document.getElementById('reply-input').value = "";
             handleExtract();
         }
 
         async function handleAddToCalendar() {
-            if (!isLoggedIn) { alert("Please login with Google first!"); return; }
-
+            if (!isLoggedIn) { alert("Please login first!"); return; }
             const btn = document.getElementById('add-calendar-btn');
-            const spinner = document.getElementById('loading-spinner');
             const output = document.getElementById('result-output');
-            const consent = document.getElementById('data-consent').checked;
+            btn.disabled = true; output.innerHTML = "";
 
-            btn.disabled = true; spinner.style.display = 'block'; output.innerHTML = "";
-
-            const eventData = {
-                date_str: document.getElementById('date-box').value,
-                time_str: document.getElementById('time-box').value,
-                loc_str: document.getElementById('loc-box').value,
-                event_str: document.getElementById('event-box').value,
-                description: `Original: ${originalText}\nTranslated: ${translatedText}`,
+            const payload = {
+                summary: document.getElementById('summary-box').value,
+                start_date: document.getElementById('start-date-box').value,
+                end_date: document.getElementById('end-date-box').value,
+                time: document.getElementById('time-box').value,
+                location: document.getElementById('loc-box').value,
+                is_allday: document.getElementById('allday-check').checked,
+                description: "Added via AI Scheduler",
                 original_text: originalText,
-                translated_text: translatedText,
-                consent: consent
+                translated_text: "",
+                consent: document.getElementById('data-consent').checked
             };
 
             try {
-                const response = await fetch('/add-to-calendar', {
+                const res = await fetch('/add-to-calendar', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(eventData)
+                    body: JSON.stringify(payload)
                 });
-                const data = await response.json();
-                if (response.ok) {
-                    output.innerHTML = `✅ Added Successfully! <a href="${data.link}" target="_blank">View on Calendar</a><br><small>${data.saved_msg}</small>`;
-                } else { output.innerHTML = `❌ Error: ${data.error}`; }
-            } catch (error) { output.innerHTML = `❌ Error: ${error}`; }
-            finally { btn.disabled = false; spinner.style.display = 'none'; }
+                const data = await res.json();
+                if(res.ok) output.innerHTML = `✅ Success! <a href="${data.link}" target="_blank">View</a>`;
+                else output.innerHTML = `❌ Error: ${data.error}`;
+            } catch(e) { output.innerHTML = `❌ Error: ${e}`; }
+            finally { btn.disabled = false; }
         }
 
         setLanguage('en');
