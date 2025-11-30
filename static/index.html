@@ -15,7 +15,7 @@
             --primary-hover: #4f46e5;
             --bg-grad: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%);
             --card-bg: rgba(255, 255, 255, 0.95);
-            --border-radius: 16px;
+            --border-radius: 24px;
             --text-main: #1e293b;
             --text-sub: #64748b;
             --border: #cbd5e1;
@@ -37,8 +37,8 @@
         .app-container {
             background: var(--card-bg);
             width: 100%;
-            max-width: 1200px; /* Wide layout for PC */
-            border-radius: 24px;
+            max-width: 1200px;
+            border-radius: var(--border-radius);
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.8);
@@ -48,11 +48,12 @@
             min-height: 800px;
         }
 
-        /* Header */
+        /* [Modified] Header rounded corners to match container */
         .app-header {
             display: flex; justify-content: space-between; align-items: center;
             padding: 20px 40px; background: rgba(255,255,255,0.6);
             border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; z-index: 100;
+            border-radius: 24px 24px 0 0;
         }
         .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer; }
 
@@ -88,7 +89,7 @@
         .hero-section h1 { font-size: 2.5rem; font-weight: 800; color: #1e293b; margin-bottom: 10px; letter-spacing: -1px; }
         .hero-section p { color: var(--text-sub); font-size: 1.1rem; margin: 0; }
 
-        /* Grid System (Side-by-Side on PC) */
+        /* Grid System */
         .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
         @media (max-width: 900px) { .content-grid { grid-template-columns: 1fr; gap: 30px; } }
 
@@ -100,7 +101,7 @@
 
         /* Inputs */
         label { display: block; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; color: #475569; }
-        textarea, input { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.95rem; background: #f8fafc; font-family: inherit; transition: all 0.2s ease; }
+        textarea, input { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.95rem; background: #f8fafc; font-family: inherit; transition: all 0.2s ease; margin-bottom: 0; }
         textarea:hover, input:hover { background: #fff; border-color: #94a3b8; }
         textarea:focus, input:focus { outline: none; background: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
         textarea { min-height: 150px; resize: none; }
@@ -123,25 +124,34 @@
         /* Helpers */
         .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
         .form-col { flex: 1; }
-        .toggle-wrapper { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 28px; }
-        .toggle-switch { position: relative; width: 50px; height: 28px; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        input:checked + .slider { background: var(--primary); }
-        input:checked + .slider:before { transform: translateX(22px); }
-        .toggle-label { font-weight: 600; color: #4b5563; font-size: 0.85rem; }
-        .map-group { display: flex; gap: 8px; margin-top: 5px; }
-        .map-link { flex: 1; padding: 10px; font-size: 0.8rem; text-decoration: none; color: white; font-weight: 600; text-align: center; border-radius: 10px; transition: 0.2s; opacity: 0.9; }
-        .map-link:hover { opacity: 1; transform: translateY(-1px); }
-        .bg-google { background: #4285F4; } .bg-naver { background: #03C75A; } .bg-kakao { background: #FEE500; color: #191919; }
         .hidden { display: none !important; }
         .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 8px; }
-        .consent-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; margin-top: 20px;}
-        .consent-label { margin: 0; color: #166534; font-weight: 600; font-size: 0.85rem; }
         .result-box { background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; min-height: auto; }
         .spinner { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* [Modified] Toggle Switch Styles */
+        .switch-container { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 10px; margin-bottom: 15px; }
+        .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        /* [Modified] Map Links: Disabled by default */
+        .map-group { display: flex; gap: 8px; margin-top: 10px; }
+        .map-link { flex: 1; padding: 12px; font-size: 0.85rem; text-decoration: none; color: white; font-weight: 600; text-align: center; border-radius: 12px; transition: all 0.3s ease; opacity: 1; transform: translateY(0); }
+        .map-link.disabled { background-color: #e2e8f0 !important; color: #94a3b8 !important; pointer-events: none; box-shadow: none; transform: none; }
+        .bg-google { background: #4285F4; }
+        .bg-naver { background: #03C75A; }
+        .bg-kakao { background: #FEE500; color: #191919 !important; }
+
+        /* [Modified] Clean Consent Box */
+        .consent-box { background: transparent; border: none; padding: 10px 0; margin-top: 15px; display: flex; align-items: center; gap: 10px; }
+        .consent-label { color: var(--text-sub); font-weight: 500; font-size: 0.9rem; cursor: pointer; margin: 0; }
+        .simple-check { width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary); }
+
 
         /* Calendar */
         #calendar { max-width: 100%; font-family: 'Inter', sans-serif; }
@@ -149,7 +159,7 @@
         .fc-button-primary { background-color: var(--primary) !important; border-color: var(--primary) !important; border-radius: 8px !important; }
         .fc-daygrid-event { border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
 
-        /* MODAL STYLES (Edit/Delete) */
+        /* MODAL STYLES */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
         .modal-card { background: white; width: 400px; padding: 25px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); animation: slideUp 0.3s; position: relative; }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -225,7 +235,8 @@
                         <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
                     </div>
 
-                    <label id="lbl-title">Event Title</label> <input type="text" id="summary-box">
+                    <label id="lbl-title">Event Title</label>
+                    <input type="text" id="summary-box" style="margin-bottom: 20px;">
 
                     <div class="form-row">
                         <div class="form-col"><label id="lbl-start">Start Date</label><input type="text" id="start-date-box" placeholder="YYYY-MM-DD"></div>
@@ -236,20 +247,26 @@
                         <div class="form-col"><label id="lbl-time-end">End Time</label><input type="text" id="end-time-box" placeholder="HH:MM"></div>
                     </div>
 
-                    <div style="display:flex; justify-content:flex-end; margin-bottom:15px; gap:8px;">
-                        <input type="checkbox" id="allday-check"><label for="allday-check" id="lbl-allday" style="margin:0; cursor:pointer;">All Day</label>
+                    <div class="switch-container">
+                        <span id="lbl-allday" style="font-size:0.9rem; font-weight:600; color:#475569;">All Day</span>
+                        <label class="switch">
+                            <input type="checkbox" id="allday-check">
+                            <span class="slider"></span>
+                        </label>
                     </div>
 
-                    <label id="lbl-loc">Location</label> <input type="text" id="loc-box" oninput="updateMapLinks()">
-                    <div id="map-links" class="map-group hidden">
-                        <a id="link-google" href="#" target="_blank" class="map-link bg-google">Google</a>
-                        <a id="link-naver" href="#" target="_blank" class="map-link bg-naver">Naver</a>
-                        <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao">Kakao</a>
+                    <label id="lbl-loc">Location</label>
+                    <input type="text" id="loc-box" oninput="updateMapLinks()" placeholder="Enter location...">
+
+                    <div id="map-links" class="map-group">
+                        <a id="link-google" href="#" target="_blank" class="map-link bg-google disabled">Google</a>
+                        <a id="link-naver" href="#" target="_blank" class="map-link bg-naver disabled">Naver</a>
+                        <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao disabled">Kakao</a>
                     </div>
 
                     <div class="consent-box">
                         <input type="checkbox" id="data-consent" checked class="simple-check">
-                        <label for="data-consent" class="consent-label" id="lbl-consent">Contribute data</label>
+                        <label for="data-consent" class="consent-label" id="lbl-consent">Contribute data for AI improvement</label>
                     </div>
 
                     <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
@@ -320,8 +337,8 @@
             if(dropdown) dropdown.classList.remove('show');
         }
 
-        // Calendar & Modal
         document.addEventListener('DOMContentLoaded', function() {
+            // Calendar Init
             calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
                 initialView: 'dayGridMonth',
                 height: 650,
@@ -333,7 +350,28 @@
                 }
             });
             calendar.render();
+
+            // [Modified] Initialize Map Links as disabled
+            updateMapLinks();
         });
+
+        // [Modified] Update Map Links logic
+        function updateMapLinks() {
+            const loc = document.getElementById('loc-box').value.trim();
+            const googleBtn = document.getElementById('link-google');
+            const naverBtn = document.getElementById('link-naver');
+            const kakaoBtn = document.getElementById('link-kakao');
+
+            if (!loc) {
+                [googleBtn, naverBtn, kakaoBtn].forEach(btn => btn.classList.add('disabled'));
+                return;
+            }
+
+            [googleBtn, naverBtn, kakaoBtn].forEach(btn => btn.classList.remove('disabled'));
+            googleBtn.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
+            naverBtn.href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
+            kakaoBtn.href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
+        }
 
         function openModal(event) {
             currentEventId = event.id;
@@ -413,8 +451,8 @@
         }
 
         const translations = {
-            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"데이터 기부 동의", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오" },
-            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao" }
+            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"AI 학습용 데이터 기부", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오" },
+            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data for AI improvement", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao" }
         };
 
         let currentLang = 'en';
@@ -456,16 +494,6 @@
 
             document.getElementById('btn-ko').className = lang==='ko'?'lang-btn active':'lang-btn';
             document.getElementById('btn-en').className = lang==='en'?'lang-btn active':'lang-btn';
-        }
-
-        function updateMapLinks() {
-            const loc = document.getElementById('loc-box').value.trim();
-            const mapContainer = document.getElementById('map-links');
-            if (!loc) { mapContainer.classList.add('hidden'); return; }
-            mapContainer.classList.remove('hidden');
-            document.getElementById('link-google').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
-            document.getElementById('link-naver').href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
-            document.getElementById('link-kakao').href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
         }
 
         async function handleExtract() {
