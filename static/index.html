@@ -6,80 +6,167 @@
     <title>AI Smart Scheduler</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=Noto+Sans+KR:wght@400;500;600;800&display=swap" rel="stylesheet">
 
     <style>
-        /* (스타일은 기존과 동일하여 생략하지 않고 그대로 둡니다) */
         :root {
-            --primary-grad: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
-            --primary-shadow: rgba(139, 92, 246, 0.3);
-            --bg-grad: linear-gradient(120deg, #f3e8ff 0%, #e0f2fe 100%);
-            --card-bg: rgba(255, 255, 255, 0.85);
-            --text-main: #1f2937;
-            --text-sub: #6b7280;
-            --border-radius: 24px;
-            --input-radius: 12px;
+            --primary: #6366f1; /* Indigo */
+            --primary-hover: #4f46e5;
+            --bg-grad: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --border-radius: 16px; /* Unified Radius */
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --border: #cbd5e1;
+            --focus-ring: rgba(99, 102, 241, 0.3);
         }
-        body { font-family: 'Inter', 'Noto Sans KR', sans-serif; background: var(--bg-grad); background-attachment: fixed; margin: 0; display: flex; justify-content: center; min-height: 100vh; padding: 40px 20px; color: var(--text-main); }
-        .app-container { background: var(--card-bg); width: 100%; max-width: 1200px; border-radius: var(--border-radius); box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.1); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.6); overflow: hidden; display: flex; flex-direction: column; }
-        .app-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; background: rgba(255,255,255,0.6); border-bottom: 1px solid rgba(0,0,0,0.05); }
-        .brand { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; background: var(--primary-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .lang-switch { display: flex; background: #f3f4f6; padding: 4px; border-radius: 20px; }
-        .lang-btn { background: none; border: none; padding: 6px 12px; border-radius: 16px; font-size: 0.85rem; font-weight: 600; color: #6b7280; cursor: pointer; transition: 0.3s; }
-        .lang-btn.active { background: white; color: #3b82f6; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .btn-login { display: flex; align-items: center; gap: 8px; background: #1f2937; color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: 0.2s; }
-        .btn-login:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .user-name { font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
-        .btn-logout { margin-left: 10px; font-size: 0.8rem; color: #ef4444; text-decoration: none; font-weight: 600; }
+
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background: var(--bg-grad);
+            background-attachment: fixed;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: var(--text-main);
+        }
+
+        .app-container {
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 1100px;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            background: rgba(255,255,255,0.5);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
+
+        .lang-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; }
+        .lang-btn { background: none; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; }
+        .lang-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        .btn-login {
+            display: flex; align-items: center; gap: 8px;
+            background: #1e293b; color: white; padding: 8px 16px;
+            border-radius: 12px; text-decoration: none; font-size: 0.9rem; font-weight: 600;
+            transition: 0.2s;
+        }
+        .btn-login:hover { background: #0f172a; transform: translateY(-1px); }
+
+        /* Layout */
         .main-content { padding: 40px; }
-        .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
-        @media (max-width: 900px) { .content-grid { grid-template-columns: 1fr; gap: 30px; } .app-container { max-width: 700px; } }
-        .hero-section { text-align: center; margin-bottom: 40px; }
-        .hero-section h1 { font-size: 2.5rem; margin: 0 0 10px 0; background: var(--primary-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -1px;}
-        .hero-section p { color: var(--text-sub); font-size: 1.1rem; margin: 0; }
-        .section-card { background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); transition: box-shadow 0.3s; height: 100%; }
-        .section-card:hover { box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #f3f4f6; padding-bottom: 15px; }
-        .section-badge { background: #e0e7ff; color: #4f46e5; font-size: 0.8rem; padding: 5px 10px; border-radius: 8px; font-weight: 800; }
-        .section-title { font-size: 1.2rem; font-weight: 800; margin: 0; color: #374151; }
-        label { display: block; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; color: #4b5563; }
-        textarea, input[type="text"] { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid #e5e7eb; border-radius: var(--input-radius); font-size: 1rem; background: #f9fafb; font-family: inherit; transition: 0.3s; resize: none; }
-        textarea:focus, input:focus { outline: none; background: #fff; border-color: #8b5cf6; box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1); }
-        textarea { min-height: 150px; }
-        .ai-chat-container { margin-top: 20px; background: #eff6ff; border-radius: 16px; padding: 20px; border: 1px solid #bfdbfe; display: none; animation: slideDown 0.3s ease-out; }
-        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .ai-header { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #2563eb; font-size: 0.9rem; margin-bottom: 10px; }
-        .ai-text { font-size: 0.95rem; color: #1e40af; line-height: 1.5; }
-        .ai-input-group { display: flex; gap: 10px; margin-top: 15px; }
-        .ai-input-group input { background: white; border: 1px solid #bfdbfe; padding: 10px; }
-        .ai-send-btn { background: #3b82f6; color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: 700; cursor: pointer; }
-        .btn-main { width: 100%; padding: 16px; border: none; border-radius: 16px; background: var(--primary-grad); color: white; font-size: 1.1rem; font-weight: 700; cursor: pointer; margin-top: 30px; box-shadow: 0 10px 20px -5px var(--primary-shadow); transition: 0.3s; display: flex; justify-content: center; align-items: center; gap: 10px; }
-        .btn-main:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -5px var(--primary-shadow); }
-        .btn-sub { width: 100%; padding: 14px; border: none; border-radius: 14px; background: #f3f4f6; color: #4b5563; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 15px; transition: 0.2s; }
-        .btn-sub:hover { background: #e5e7eb; color: #1f2937; }
+        .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        @media (max-width: 850px) { .content-grid { grid-template-columns: 1fr; } }
+
+        .hero-section { text-align: center; margin-bottom: 30px; }
+        .hero-section h1 { font-size: 2.2rem; font-weight: 800; color: #1e293b; margin-bottom: 5px; }
+        .hero-section p { color: var(--text-sub); font-size: 1rem; }
+
+        /* Cards */
+        .section-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            height: 100%;
+        }
+
+        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .section-badge { background: #e0e7ff; color: var(--primary); font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
+        .section-title { font-size: 1.1rem; font-weight: 700; color: #334155; }
+
+        /* Inputs */
+        label { display: block; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; color: #475569; }
+
+        textarea, input[type="text"], input[type="date"], input[type="time"] {
+            width: 100%; box-sizing: border-box;
+            padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px;
+            font-size: 0.95rem; background: #f8fafc; font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        /* Hover & Focus Effects */
+        textarea:hover, input:hover { background: #fff; border-color: #94a3b8; }
+        textarea:focus, input:focus {
+            outline: none; background: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+        textarea { min-height: 120px; resize: none; }
+
+        /* Highlight Animation for Missing Fields */
+        .highlight-empty {
+            border-color: #ef4444 !important;
+            background-color: #fef2f2 !important;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        /* AI Chat */
+        .ai-chat-container {
+            margin-top: 15px; background: #eff6ff; border: 1px solid #bfdbfe;
+            border-radius: 16px; padding: 15px; display: none;
+        }
+        .ai-header { font-weight: 700; color: var(--primary); font-size: 0.85rem; margin-bottom: 5px; }
+        .ai-text { font-size: 0.95rem; color: #1e3a8a; line-height: 1.4; }
+        .ai-input-group { display: flex; gap: 8px; margin-top: 10px; }
+        .ai-send-btn { background: var(--primary); color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+
+        /* Form Rows */
         .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
         .form-col { flex: 1; }
-        .toggle-wrapper { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 28px; }
-        .toggle-switch { position: relative; width: 50px; height: 28px; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        input:checked + .slider { background: var(--primary-grad); }
-        input:checked + .slider:before { transform: translateX(22px); }
-        .toggle-label { font-weight: 600; color: #4b5563; font-size: 0.85rem; }
-        .map-group { display: flex; gap: 8px; margin-top: 8px; }
-        .map-link { flex: 1; padding: 10px; font-size: 0.8rem; text-decoration: none; color: white; font-weight: 700; text-align: center; border-radius: 10px; transition: 0.2s; opacity: 0.9; }
+
+        /* Map Buttons */
+        .map-group { display: flex; gap: 8px; margin-top: 5px; }
+        .map-link {
+            flex: 1; padding: 8px; font-size: 0.8rem; text-decoration: none;
+            color: white; font-weight: 600; text-align: center; border-radius: 8px;
+            transition: 0.2s; opacity: 0.9;
+        }
         .map-link:hover { opacity: 1; transform: translateY(-1px); }
         .bg-google { background: #4285F4; }
         .bg-naver { background: #03C75A; }
-        .bg-kakao { background: #FEE500; color: #191919; }
+        .bg-kakao { background: #FEE500; color: #3C1E1E; }
         .hidden { display: none !important; }
-        .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 5px; }
-        .consent-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; margin-top: 20px;}
-        .consent-label { margin: 0; color: #166534; font-weight: 600; font-size: 0.85rem; }
-        .result-box { background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; min-height: auto; }
-        .spinner { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary-grad); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Action Buttons */
+        .btn-main {
+            width: 100%; padding: 14px; border: none; border-radius: 14px;
+            background: var(--primary); color: white;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            margin-top: 20px; transition: 0.2s;
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+        }
+        .btn-main:hover { background: var(--primary-hover); transform: translateY(-2px); }
+        .btn-sub {
+            width: 100%; padding: 12px; border: none; border-radius: 12px;
+            background: #e2e8f0; color: #475569;
+            font-size: 0.95rem; font-weight: 600; cursor: pointer;
+            margin-top: 15px; transition: 0.2s;
+        }
+        .btn-sub:hover { background: #cbd5e1; }
     </style>
 </head>
 <body>
@@ -87,16 +174,13 @@
     <div class="app-container">
         <header class="app-header">
             <div class="brand">AI Scheduler</div>
-            <div style="display: flex; gap: 20px; align-items: center;">
+            <div style="display: flex; gap: 15px; align-items: center;">
                 <div class="lang-switch">
                     <button onclick="setLanguage('ko')" class="lang-btn" id="btn-ko">KO</button>
                     <button onclick="setLanguage('en')" class="lang-btn active" id="btn-en">EN</button>
                 </div>
                 <div id="user-area">
-                    <a href="/login" class="btn-login" id="txt-login">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
-                        Sign in
-                    </a>
+                    <a href="/login" class="btn-login" id="txt-login">Login</a>
                 </div>
             </div>
         </header>
@@ -104,74 +188,67 @@
         <div class="main-content">
             <div class="hero-section">
                 <h1 id="txt-title">AI Smart Scheduler</h1>
-                <p id="txt-subtitle">Manage your time effortlessly with AI.</p>
+                <p id="txt-subtitle">Effortless scheduling powered by AI.</p>
             </div>
 
             <div class="content-grid">
                 <div class="section-card">
                     <div class="section-header">
-                        <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input & Analysis</span>
+                        <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input</span>
                     </div>
-
-                    <label id="lbl-input">📝 What's your plan?</label>
-                    <textarea id="input-text" placeholder="Example: 'Dinner at Hongdae station at 7pm tomorrow'"></textarea>
+                    <label id="lbl-input">What's your plan?</label>
+                    <textarea id="input-text" placeholder="Ex: 'Trip to Jeju from Nov 20 to 23'"></textarea>
 
                     <div id="ai-message" class="ai-chat-container">
-                        <div class="ai-header"><span>🤖 AI Assistant</span></div>
+                        <div class="ai-header">🤖 AI Assistant</div>
                         <div class="ai-text" id="ai-text"></div>
                         <div class="ai-input-group">
-                            <input type="text" id="ai-user-reply" placeholder="Type your answer...">
+                            <input type="text" id="ai-user-reply" placeholder="Answer here...">
                             <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
                         </div>
                     </div>
 
-                    <p class="tip-text" id="txt-tip">💡 Tip: Check the translation below if the result seems off.</p>
-
-                    <button id="extract-button" class="action-btn btn-sub" onclick="handleExtract()">
-                        <span id="btn-extract-text">✨ Analyze Text</span>
+                    <button id="extract-button" class="btn-sub" onclick="handleExtract()">
+                        <span id="btn-extract-text">Analyze Text</span>
                     </button>
-
-                    <div style="margin-top: 15px;">
-                        <label id="lbl-result">Translation (EN)</label>
-                        <textarea id="translated-output" class="result-box" rows="1" readonly></textarea>
-                        <div id="model-indicator" class="model-indicator"></div>
-                    </div>
                 </div>
 
                 <div class="section-card">
                     <div class="section-header">
-                        <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Review & Confirm</span>
+                        <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
                     </div>
 
-                    <label id="lbl-title">🎉 Event Title</label>
+                    <label id="lbl-title">Event Title</label>
                     <input type="text" id="summary-box">
 
-                    <div class="form-row">
+                    <div class="form-row" style="margin-top:15px;">
                         <div class="form-col">
-                            <label id="lbl-start">📅 Start Date</label>
+                            <label id="lbl-start">Start Date</label>
                             <input type="text" id="start-date-box" placeholder="YYYY-MM-DD">
                         </div>
                         <div class="form-col">
-                            <label id="lbl-end">📅 End Date</label>
+                            <label id="lbl-end">End Date</label>
                             <input type="text" id="end-date-box" placeholder="YYYY-MM-DD">
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-col">
-                            <label id="lbl-time">⏰ Time</label>
-                            <input type="text" id="time-box" placeholder="HH:MM">
+                            <label id="lbl-time-start">Start Time</label>
+                            <input type="text" id="start-time-box" placeholder="HH:MM">
                         </div>
-                        <div class="form-col toggle-wrapper">
-                            <span class="toggle-label" id="lbl-allday">All Day</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="allday-check">
-                                <span class="slider"></span>
-                            </label>
+                        <div class="form-col">
+                            <label id="lbl-time-end">End Time</label>
+                            <input type="text" id="end-time-box" placeholder="HH:MM">
                         </div>
                     </div>
 
-                    <label id="lbl-loc">📍 Location</label>
+                    <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:15px; gap:8px;">
+                        <input type="checkbox" id="allday-check" style="width:18px; height:18px;">
+                        <label for="allday-check" id="lbl-allday" style="margin:0; cursor:pointer;">All Day Event</label>
+                    </div>
+
+                    <label id="lbl-loc">Location</label>
                     <input type="text" id="loc-box" oninput="updateMapLinks()">
 
                     <div id="map-links" class="map-group hidden">
@@ -180,19 +257,16 @@
                         <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao">Kakao</a>
                     </div>
 
-                    <div class="consent-box">
-                        <input type="checkbox" id="data-consent" checked class="simple-check">
-                        <label for="data-consent" class="consent-label" id="lbl-consent">
-                            Contribute data for AI training
-                        </label>
+                    <div style="margin-top: 20px; padding: 12px; background: #f0fdf4; border-radius: 12px; display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="data-consent" checked style="width:18px; height:18px;">
+                        <label for="data-consent" id="lbl-consent" style="margin:0; color:#166534; font-size:0.85rem;">Contribute data</label>
                     </div>
 
                     <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
-                        <span id="btn-add-text">Add to Google Calendar</span> 📅
+                        <span id="btn-add-text">Add to Google Calendar</span>
                     </button>
 
-                    <div class="spinner" id="loading-spinner"></div>
-                    <div id="result-output" style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
+                    <div id="result-output" style="margin-top: 15px; text-align: center;"></div>
                 </div>
             </div>
         </div>
@@ -200,55 +274,56 @@
 
     <script>
         let originalText = "";
-        let translatedText = "";
         let isLoggedIn = false;
 
         const translations = {
             ko: {
-                subtitle: "일정을 입력하면 AI가 자동으로 정리해드립니다.",
+                subtitle: "일정을 입력하면 AI가 자동으로 정리해줍니다.",
                 txtStep1: "입력 및 분석",
-                lblInput: "📝 일정 내용을 입력하세요",
-                placeholder: "예: '내일 오후 7시에 홍대입구역에서 팀 회식'",
-                tip: "💡 팁: AI가 놓친 정보가 있다면 오른쪽에서 직접 수정할 수 있습니다.",
-                btnExtract: "✨ 분석 시작",
-                lblResult: "영어 번역 결과",
-                txtStep2: "내용 확인",
-                lblTitle: "🎉 일정 제목",
-                lblStart: "📅 시작 날짜",
-                lblEnd: "📅 종료 날짜",
-                lblTime: "⏰ 시간",
+                lblInput: "일정 내용",
+                placeholder: "예: '11월 20일부터 23일까지 제주도 여행'",
+                btnExtract: "분석 시작",
+                txtStep2: "상세 내용",
+                lblTitle: "일정 제목",
+                lblStart: "시작 날짜",
+                lblEnd: "종료 날짜",
+                lblTimeStart: "시작 시간",
+                lblTimeEnd: "종료 시간",
                 lblAllday: "종일 일정",
-                lblLoc: "📍 장소",
-                lblConsent: "(선택) AI 학습을 위한 데이터 기부 동의",
-                btnAdd: "구글 캘린더에 등록하기",
+                lblLoc: "장소",
+                lblConsent: "AI 학습을 위한 데이터 기부 동의",
+                btnAdd: "구글 캘린더에 등록",
                 login: "구글 로그인",
                 logout: "로그아웃",
-                welcome: "님",
-                replyPlaceholder: "답변을 입력하세요...",
-                btnReply: "전송"
+                replyPlaceholder: "답변 입력...",
+                btnReply: "전송",
+                mapGoogle: "구글 지도",
+                mapNaver: "네이버 지도",
+                mapKakao: "카카오맵"
             },
             en: {
-                subtitle: "Manage your time effortlessly with AI.",
+                subtitle: "Effortless scheduling powered by AI.",
                 txtStep1: "Input & Analysis",
-                lblInput: "📝 What's your plan?",
-                placeholder: "Ex: 'Dinner at Hongdae station at 7pm tomorrow'",
-                tip: "💡 Tip: You can manually edit details on the right side.",
-                btnExtract: "✨ Analyze Text",
-                lblResult: "Translation (EN)",
-                txtStep2: "Confirm Details",
-                lblTitle: "🎉 Event Title",
-                lblStart: "📅 Start Date",
-                lblEnd: "📅 End Date",
-                lblTime: "⏰ Time",
+                lblInput: "What's your plan?",
+                placeholder: "Ex: 'Trip to Jeju from Nov 20 to 23'",
+                btnExtract: "Analyze Text",
+                txtStep2: "Details",
+                lblTitle: "Event Title",
+                lblStart: "Start Date",
+                lblEnd: "End Date",
+                lblTimeStart: "Start Time",
+                lblTimeEnd: "End Time",
                 lblAllday: "All Day",
-                lblLoc: "📍 Location",
-                lblConsent: "(Optional) Contribute data for AI training",
+                lblLoc: "Location",
+                lblConsent: "Contribute data for AI training",
                 btnAdd: "Add to Google Calendar",
                 login: "Sign in",
                 logout: "Sign out",
-                welcome: "",
-                replyPlaceholder: "Type your answer...",
-                btnReply: "Send"
+                replyPlaceholder: "Type answer...",
+                btnReply: "Send",
+                mapGoogle: "Google",
+                mapNaver: "Naver",
+                mapKakao: "Kakao"
             }
         };
 
@@ -257,29 +332,29 @@
         function setLanguage(lang) {
             currentLang = lang;
             const t = translations[lang];
-
             document.getElementById('txt-subtitle').innerText = t.subtitle;
             document.getElementById('txt-step1').innerText = t.txtStep1;
             document.getElementById('lbl-input').innerText = t.lblInput;
             document.getElementById('input-text').placeholder = t.placeholder;
             document.getElementById('btn-extract-text').innerText = t.btnExtract;
-            document.getElementById('lbl-result').innerText = t.lblResult;
             document.getElementById('txt-step2').innerText = t.txtStep2;
             document.getElementById('lbl-title').innerText = t.lblTitle;
             document.getElementById('lbl-start').innerText = t.lblStart;
             document.getElementById('lbl-end').innerText = t.lblEnd;
-            document.getElementById('lbl-time').innerText = t.lblTime;
+            document.getElementById('lbl-time-start').innerText = t.lblTimeStart;
+            document.getElementById('lbl-time-end').innerText = t.lblTimeEnd;
             document.getElementById('lbl-allday').innerText = t.lblAllday;
             document.getElementById('lbl-loc').innerText = t.lblLoc;
             document.getElementById('lbl-consent').innerText = t.lblConsent;
             document.getElementById('btn-add-text').innerText = t.btnAdd;
             document.getElementById('ai-user-reply').placeholder = t.replyPlaceholder;
             document.getElementById('btn-reply').innerText = t.btnReply;
+            document.getElementById('link-google').innerText = t.mapGoogle;
+            document.getElementById('link-naver').innerText = t.mapNaver;
+            document.getElementById('link-kakao').innerText = t.mapKakao;
 
             const loginBtn = document.getElementById('txt-login');
-            if (loginBtn && !isLoggedIn) {
-                loginBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="margin-right:6px"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg> ${t.login}`;
-            }
+            if (loginBtn && !isLoggedIn) loginBtn.innerText = t.login;
 
             if (lang === 'ko') {
                 document.getElementById('btn-ko').classList.add('active');
@@ -294,10 +369,7 @@
             const userArea = document.getElementById('user-area');
             if (d.user) {
                 isLoggedIn = true;
-                userArea.innerHTML = `
-                    <span class="user-name">${d.user.name}${translations[currentLang].welcome}</span>
-                    <a href="/logout" class="btn-logout">${translations[currentLang].logout}</a>
-                `;
+                userArea.innerHTML = `<span style="font-weight:600; font-size:0.9rem; margin-right:10px;">${d.user.name}</span><a href="/logout" style="color:#ef4444; text-decoration:none; font-size:0.85rem; font-weight:600;">${translations[currentLang].logout}</a>`;
             }
         });
 
@@ -316,13 +388,11 @@
             const btnText = document.getElementById('btn-extract-text');
             const btn = document.getElementById('extract-button');
             const aiMsgBox = document.getElementById('ai-message');
-            const indicator = document.getElementById('model-indicator');
-            const originalLabel = btnText.innerText;
 
-            btnText.innerText = "⏳ ...";
-            btn.disabled = true;
-            aiMsgBox.style.display = 'none';
-            indicator.innerText = "";
+            // Clear previous highlights
+            document.querySelectorAll('input').forEach(el => el.classList.remove('highlight-empty'));
+
+            btnText.innerText = "..."; btn.disabled = true; aiMsgBox.style.display = 'none';
 
             try {
                 const response = await fetch('/extract', {
@@ -331,69 +401,59 @@
                 });
                 const data = await response.json();
                 originalText = data.original_text;
-                translatedText = data.translated_text;
 
-                document.getElementById('translated-output').value = data.translated_text || "";
-                // [SAFEGUARD] Use || "" to prevent "undefined" text in boxes
                 document.getElementById('summary-box').value = data.summary || "";
                 document.getElementById('start-date-box').value = data.start_date || "";
                 document.getElementById('end-date-box').value = data.end_date || "";
-                document.getElementById('time-box').value = data.time || "";
+                document.getElementById('start-time-box').value = data.start_time || ""; // Start Time
+                document.getElementById('end-time-box').value = data.end_time || "";     // End Time
                 document.getElementById('loc-box').value = data.location || "";
                 document.getElementById('allday-check').checked = data.is_allday;
 
                 updateMapLinks();
 
-                if (data.used_model) indicator.innerText = "⚙️ Processed by: " + data.used_model;
-
                 if (data.ai_message) {
                     document.getElementById('ai-text').innerText = data.ai_message;
                     aiMsgBox.style.display = 'block';
+
+                    // [Smart Focus] Highlight missing fields based on Gemini's question
+                    // Simple logic: If StartDate is empty, highlight it
+                    if (!data.start_date) document.getElementById('start-date-box').classList.add('highlight-empty');
+                    if (!data.start_time && !data.is_allday) document.getElementById('start-time-box').classList.add('highlight-empty');
+                    if (!data.location && data.ai_message.includes("where")) document.getElementById('loc-box').classList.add('highlight-empty');
                 }
 
             } catch (error) { alert('Error processing text.'); }
-            finally { btnText.innerText = originalLabel; btn.disabled = false; }
+            finally { btnText.innerText = translations[currentLang].btnExtract; btn.disabled = false; }
         }
 
         function handleAiReply() {
             const reply = document.getElementById('ai-user-reply').value.trim();
             if (!reply) return;
-            const inputField = document.getElementById('input-text');
-            inputField.value = inputField.value + " " + reply;
+            document.getElementById('input-text').value += " " + reply;
             document.getElementById('ai-user-reply').value = "";
             handleExtract();
         }
 
-        // Enter Key Support
-        document.getElementById('input-text').addEventListener('keydown', function(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault(); handleExtract();
-            }
-        });
-        document.getElementById('ai-user-reply').addEventListener('keydown', function(event) {
-            if (event.key === 'Enter') {
-                event.preventDefault(); handleAiReply();
-            }
-        });
+        document.getElementById('input-text').addEventListener('keydown', function(e) { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleExtract(); }});
+        document.getElementById('ai-user-reply').addEventListener('keydown', function(e) { if(e.key==='Enter') { e.preventDefault(); handleAiReply(); }});
 
         async function handleAddToCalendar() {
             if (!isLoggedIn) { alert("Please login first!"); return; }
             const btn = document.getElementById('add-calendar-btn');
-            const spinner = document.getElementById('loading-spinner');
             const output = document.getElementById('result-output');
-
-            btn.style.opacity = "0.7"; btn.disabled = true;
-            spinner.style.display = 'block'; output.innerHTML = "";
+            btn.style.opacity = "0.7"; btn.disabled = true; output.innerHTML = "";
 
             const eventData = {
                 summary: document.getElementById('summary-box').value,
                 start_date: document.getElementById('start-date-box').value,
                 end_date: document.getElementById('end-date-box').value,
-                time: document.getElementById('time-box').value,
+                start_time: document.getElementById('start-time-box').value, // New
+                end_time: document.getElementById('end-time-box').value,     // New
                 location: document.getElementById('loc-box').value,
-                description: `Original: ${originalText}\nTranslated: ${translatedText}`,
+                description: `Original: ${originalText}`,
                 original_text: originalText,
-                translated_text: translatedText,
+                translated_text: "",
                 is_allday: document.getElementById('allday-check').checked,
                 consent: document.getElementById('data-consent').checked
             };
@@ -404,11 +464,10 @@
                     body: JSON.stringify(eventData)
                 });
                 const data = await response.json();
-                if (response.ok) {
-                    output.innerHTML = `✅ Success! <a href="${data.link}" target="_blank" style="color:#2563eb; text-decoration:underline;">View on Calendar</a>`;
-                } else { output.innerHTML = `❌ Error: ${data.error}`; }
-            } catch (error) { output.innerHTML = `❌ Error: ${error}`; }
-            finally { btn.style.opacity = "1"; btn.disabled = false; spinner.style.display = 'none'; }
+                if (response.ok) output.innerHTML = `✅ <a href="${data.link}" target="_blank" style="color:#2563eb;">View Event</a>`;
+                else output.innerHTML = `❌ ${data.error}`;
+            } catch (error) { output.innerHTML = `❌ Error`; }
+            finally { btn.style.opacity = "1"; btn.disabled = false; }
         }
 
         setLanguage('en');
