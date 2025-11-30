@@ -6,6 +6,8 @@ import pandas as pd
 import pytz
 import httpx
 import google.generativeai as genai
+import json
+import re
 from urllib.parse import quote_plus
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
@@ -22,7 +24,6 @@ from authlib.integrations.starlette_client import OAuth
 # ==============================================================================
 # Configuration
 # ==============================================================================
-NER_MODEL_DIR = "my_ner_model"
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -66,12 +67,13 @@ def translate_english_to_korean(text):
 
 def run_ner_extraction(text, nlp_model):
     """
-    Helper function to run NER with a specific model object.
+    Run spaCy NER model.
     """
     doc = nlp_model(text)
     dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
     times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
-    locs = [ent.text for ent in doc.ents if ent.label_ == "LOC"]
+    locs = [ent.text for ent in doc.ents if
+            ent.label_ == "LOC" or ent.label_ == "GPE"]  # GPE added for cities/countries
     events = [ent.text for ent in doc.ents if ent.label_ == "EVENT"]
 
     date_str = ", ".join(dates) if dates else ""
@@ -88,16 +90,43 @@ def run_ner_extraction(text, nlp_model):
     return date_str, time_str, loc_str, event_str
 
 
-def ask_gemini_for_missing_info(text, current_data, lang='ko'):
+def extract_info_with_gemini(text):
     """
-    [UPDATED] Checks for Date, Time, AND Location.
+    [NEW] Use Gemini to extract missing info when spaCy fails.
+    This handles "Hongdae" or "Hongik Univ" much better than spaCy.
     """
-    if not GEMINI_API_KEY: return ""
+    if not GEMINI_API_KEY: return None
 
+    prompt = f"""
+    Extract the Date, Time, Location, and Event Summary from the text below.
+    Text: "{text}"
+
+    Return ONLY a JSON object with keys: "date", "time", "location", "event".
+    If a field is not found, set it to an empty string "".
+    Do NOT use Markdown formatting. Just plain JSON.
+    """
+
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content(prompt)
+
+        # Cleanup response (remove markdown backticks if any)
+        clean_text = response.text.strip().replace("```json", "").replace("```", "")
+        data = json.loads(clean_text)
+
+        print(f"🤖 Gemini Extraction: {data}")
+        return data
+    except Exception as e:
+        print(f"❌ Gemini Extraction Error: {e}")
+        return None
+
+
+def ask_gemini_for_missing_info(text, current_data, lang='ko'):
+    if not GEMINI_API_KEY: return ""
     lang_instruction = "in Korean" if lang == 'ko' else "in English"
 
     prompt = f"""
-    You are a smart scheduler assistant.
+    You are a helpful scheduler assistant.
     User Input: "{text}"
     Extracted Info:
     - Date: {current_data.get('date', '')}
@@ -105,11 +134,9 @@ def ask_gemini_for_missing_info(text, current_data, lang='ko'):
     - Location: {current_data.get('loc', '')}
 
     Task:
-    Check if 'Date', 'Time', or 'Location' is missing (empty).
-    If ANY of them are missing, write a natural, polite 1-sentence question {lang_instruction} asking for the specific missing fields.
-    Example: "When and where is the meeting?" or "What time should I schedule this?"
-
-    If ALL three (Date, Time, Location) are present, ONLY reply with "OK".
+    Check if 'Date', 'Time', or 'Location' is missing.
+    If ANY are missing, write a polite 1-sentence question {lang_instruction} asking for them.
+    If ALL are present, reply "OK".
     """
     try:
         model = genai.GenerativeModel('gemini-2.0-flash')
@@ -151,11 +178,9 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
 async def lifespan(app: FastAPI):
     print("🔄 Loading AI Models...")
     try:
-        # Load Speed Model (SM)
         print("⚡ Loading Speed Model (en_core_web_sm)...")
         models["nlp_sm"] = spacy.load("en_core_web_sm")
 
-        # Load Accuracy Model (TRF)
         print("🧠 Loading Accuracy Model (en_core_web_trf)...")
         try:
             import en_core_web_trf
@@ -194,7 +219,7 @@ oauth.register(
 
 class ExtractRequest(BaseModel):
     text: str
-    lang: str = 'en'  # Default language
+    lang: str = 'en'
 
 
 class ExtractResponse(BaseModel):
@@ -240,30 +265,38 @@ async def api_extract_schedule(request: ExtractRequest):
     else:
         translated_text = original_text
 
-    # 1. Auto-Switching Logic: Try Speed Model first
+    # 1. Speed Model (spaCy SM)
     date, time, loc, event = run_ner_extraction(translated_text, models["nlp_sm"])
     used_model = "Speed (SM)"
 
-    # 2. If critical info is missing, try Accuracy Model
+    # 2. If missing, try Accuracy Model (spaCy TRF)
     if not date or not time or not loc:
-        print(f"⚠️ Info missing ({date}, {time}, {loc}). Switching to Accuracy mode...")
         date_trf, time_trf, loc_trf, event_trf = run_ner_extraction(translated_text, models["nlp_trf"])
-
-        # Overwrite if TRF found something new
         if date_trf: date = date_trf
         if time_trf: time = time_trf
         if loc_trf: loc = loc_trf
         if event_trf and event_trf != "New Schedule": event = event_trf
         used_model = "Accuracy (TRF)"
 
-    # 3. Gemini Logic (Interactive Slot Filling)
+    # 3. [NEW] If STILL missing, ask Gemini to extract directly! (Hybrid Extraction)
+    if not date or not time or not loc:
+        print("⚠️ spaCy failed to extract all info. Asking Gemini to extract...")
+        gemini_data = extract_info_with_gemini(translated_text)  # Use translated text for consistency
+
+        if gemini_data:
+            if not date and gemini_data.get("date"): date = gemini_data["date"]
+            if not time and gemini_data.get("time"): time = gemini_data["time"]
+            if not loc and gemini_data.get("location"): loc = gemini_data["location"]
+            if gemini_data.get("event") and event == "New Schedule": event = gemini_data["event"]
+            used_model = "Gemini (LLM Fallback)"
+
+    # 4. Final Check: Generate Question if STILL missing
     ai_message = ""
-    # [UPDATED] Ask if Date OR Time OR Location is missing
     if not date or not time or not loc:
         extracted_data = {'date': date, 'time': time, 'loc': loc}
         ai_message = ask_gemini_for_missing_info(original_text, extracted_data, lang=request.lang)
 
-    # 4. Localization
+    # 5. Localization
     if is_korean_input:
         date_final = translate_english_to_korean(date)
         time_final = translate_english_to_korean(time)
