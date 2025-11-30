@@ -37,7 +37,7 @@
         .app-container {
             background: var(--card-bg);
             width: 100%;
-            max-width: 800px; /* Restore stable width */
+            max-width: 1200px; /* [FIX] Widened for PC layout */
             border-radius: 24px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(10px);
@@ -45,7 +45,6 @@
             overflow: visible;
             display: flex;
             flex-direction: column;
-            min-height: 800px;
         }
 
         /* Header */
@@ -53,7 +52,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px 30px;
+            padding: 20px 40px;
             background: rgba(255,255,255,0.6);
             border-bottom: 1px solid rgba(0,0,0,0.05);
             position: relative;
@@ -61,24 +60,22 @@
         }
         .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer; }
 
-        /* Language Switcher */
         .lang-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; }
         .lang-btn { background: none; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; }
         .lang-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
-        /* Login Button */
-        .btn-login { display: flex; align-items: center; gap: 8px; background: #1e293b; color: white; padding: 8px 16px; border-radius: 12px; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: 0.2s; }
+        .btn-login { display: flex; align-items: center; gap: 8px; background: #1e293b; color: white; padding: 8px 20px; border-radius: 12px; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: 0.2s; }
         .btn-login:hover { background: #0f172a; transform: translateY(-1px); }
 
         /* Profile Dropdown */
         .profile-container { position: relative; cursor: pointer; }
-        .profile-trigger { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 12px; transition: 0.2s; background: rgba(255,255,255,0.5); border: 1px solid transparent; }
+        .profile-trigger { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; transition: 0.2s; background: rgba(255,255,255,0.5); border: 1px solid transparent; }
         .profile-trigger:hover { background: #fff; border-color: var(--border); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .profile-name { font-weight: 600; font-size: 0.9rem; color: var(--text-main); max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .profile-name { font-weight: 600; font-size: 0.9rem; color: var(--text-main); max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .profile-avatar { width: 32px; height: 32px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; }
 
         .dropdown-menu {
-            position: absolute; top: 115%; right: 0; width: 220px;
+            position: absolute; top: 115%; right: 0; width: 200px;
             background: white; border-radius: 16px;
             box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15);
             border: 1px solid #f1f5f9;
@@ -90,8 +87,8 @@
 
         .dropdown-item {
             padding: 12px; border-radius: 10px; text-decoration: none;
-            color: var(--text-main); font-size: 0.95rem; font-weight: 500;
-            display: flex; align-items: center; gap: 12px;
+            color: var(--text-main); font-size: 0.9rem; font-weight: 500;
+            display: flex; align-items: center; gap: 10px;
             transition: 0.2s; cursor: pointer;
         }
         .dropdown-item:hover { background: #f8fafc; color: var(--primary); }
@@ -99,27 +96,38 @@
         .text-danger { color: #ef4444; }
         .text-danger:hover { background: #fef2f2; color: #dc2626; }
 
-        /* View Switching */
-        .view-section { display: none; animation: fadeView 0.4s ease-out; padding: 40px 30px; }
+        /* Views & Grid */
+        .view-section { display: none; animation: fadeView 0.4s ease-out; padding: 40px; }
         .view-section.active { display: block; }
         @keyframes fadeView { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        .hero-section { text-align: center; margin-bottom: 30px; }
-        .hero-section h1 { font-size: 2.2rem; font-weight: 800; color: #1e293b; margin-bottom: 5px; }
-        .hero-section p { color: var(--text-sub); font-size: 1rem; }
+        .hero-section { text-align: center; margin-bottom: 40px; }
+        .hero-section h1 { font-size: 2.5rem; font-weight: 800; color: #1e293b; margin-bottom: 10px; letter-spacing: -1px; }
+        .hero-section p { color: var(--text-sub); font-size: 1.1rem; margin: 0; }
 
-        /* Section Cards */
+        /* [FIX] 2-Column Grid Layout */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Equal columns */
+            gap: 40px;
+            align-items: start;
+        }
+        @media (max-width: 900px) {
+            .content-grid { grid-template-columns: 1fr; gap: 30px; } /* Stack on mobile */
+        }
+
         .section-card {
             background: #fff;
             border: 1px solid var(--border);
             border-radius: var(--border-radius);
-            padding: 25px;
+            padding: 30px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-            margin-bottom: 25px;
+            height: 100%; /* Match height */
+            box-sizing: border-box;
         }
 
-        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px; }
-        .section-badge { background: #e0e7ff; color: var(--primary); font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
+        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
+        .section-badge { background: #e0e7ff; color: var(--primary); font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
         .section-title { font-size: 1.1rem; font-weight: 700; color: #334155; }
 
         /* Inputs */
@@ -127,55 +135,52 @@
         textarea, input[type="text"], input[type="date"], input[type="time"] {
             width: 100%; box-sizing: border-box;
             padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px;
-            font-size: 1rem; background: #f8fafc; font-family: inherit;
+            font-size: 0.95rem; background: #f8fafc; font-family: inherit;
             transition: all 0.2s ease;
         }
-        /* Hover & Focus Interaction */
         textarea:hover, input:hover { background: #fff; border-color: #94a3b8; }
-        textarea:focus, input:focus {
-            outline: none; background: #fff;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px var(--focus-ring);
-        }
-        textarea { min-height: 120px; resize: none; }
+        textarea:focus, input:focus { outline: none; background: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
+        textarea { min-height: 150px; resize: none; }
+
+        /* Highlight for missing fields */
         .highlight-empty { border-color: #ef4444 !important; background-color: #fef2f2 !important; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
 
         /* AI Chat */
         .ai-chat-container { margin-top: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px; padding: 15px; display: none; }
         .ai-header { font-weight: 700; color: var(--primary); font-size: 0.85rem; margin-bottom: 5px; }
-        .ai-text { font-size: 0.95rem; color: #1e3a8a; line-height: 1.4; }
+        .ai-text { font-size: 0.95rem; color: #1e3a8a; line-height: 1.5; }
         .ai-input-group { display: flex; gap: 8px; margin-top: 10px; }
         .ai-send-btn { background: var(--primary); color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: 600; cursor: pointer; }
 
         /* Buttons */
-        .btn-main { width: 100%; padding: 16px; background: var(--primary); color: white; font-size: 1.1rem; font-weight: 600; border-radius: 16px; border:none; cursor: pointer; margin-top: 20px; transition: 0.2s; box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3); }
+        .btn-main { width: 100%; padding: 16px; background: var(--primary); color: white; font-size: 1rem; font-weight: 600; border-radius: 16px; border:none; cursor: pointer; margin-top: 25px; transition: 0.2s; box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3); }
         .btn-main:hover { background: var(--primary-hover); transform: translateY(-2px); }
-        .btn-sub { width: 100%; padding: 14px; background: #e2e8f0; color: #475569; font-size: 1rem; font-weight: 600; border-radius: 14px; border:none; cursor: pointer; margin-top: 15px; transition: 0.2s; }
+        .btn-sub { width: 100%; padding: 12px; background: #e2e8f0; color: #475569; font-size: 0.95rem; font-weight: 600; border-radius: 12px; border:none; cursor: pointer; margin-top: 15px; transition: 0.2s; }
         .btn-sub:hover { background: #cbd5e1; }
 
-        /* Layout Helpers */
         .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
         .form-col { flex: 1; }
         .map-group { display: flex; gap: 8px; margin-top: 5px; }
-        .map-link { flex: 1; padding: 8px; font-size: 0.8rem; text-decoration: none; color: white; font-weight: 600; text-align: center; border-radius: 8px; transition: 0.2s; opacity: 0.9; }
+        .map-link { flex: 1; padding: 10px; font-size: 0.8rem; text-decoration: none; color: white; font-weight: 600; text-align: center; border-radius: 10px; transition: 0.2s; opacity: 0.9; }
         .map-link:hover { opacity: 1; transform: translateY(-1px); }
         .bg-google { background: #4285F4; }
         .bg-naver { background: #03C75A; }
         .bg-kakao { background: #FEE500; color: #191919; }
         .hidden { display: none !important; }
-        .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 5px; }
+
+        .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 8px; }
         .consent-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; margin-top: 20px;}
         .consent-label { margin: 0; color: #166534; font-weight: 600; font-size: 0.85rem; }
         .result-box { background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; min-height: auto; }
         .spinner { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toggle-wrapper { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 28px; }
 
-        /* Calendar Styling */
+        /* Calendar */
         #calendar { max-width: 100%; font-family: 'Inter', sans-serif; }
         .fc-toolbar-title { font-size: 1.5rem !important; font-weight: 800 !important; color: #1e293b; }
         .fc-button-primary { background-color: var(--primary) !important; border-color: var(--primary) !important; border-radius: 8px !important; }
-        .fc-daygrid-event { border-radius: 6px; padding: 4px; font-size: 0.85rem; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -202,76 +207,79 @@
                 <p id="txt-subtitle">Manage your time effortlessly with AI.</p>
             </div>
 
-            <div class="section-card">
-                <div class="section-header">
-                    <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input</span>
-                </div>
-                <label id="lbl-input">What's your plan?</label>
-                <textarea id="input-text" placeholder="Example: 'Trip to Jeju from Nov 20 to 23'"></textarea>
+            <div class="content-grid">
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input</span>
+                    </div>
+                    <label id="lbl-input">What's your plan?</label>
+                    <textarea id="input-text" placeholder="Ex: 'Trip to Jeju from Nov 20 to 23'"></textarea>
 
-                <div id="ai-message" class="ai-chat-container">
-                    <div class="ai-header">🤖 AI Assistant</div>
-                    <div class="ai-text" id="ai-text"></div>
-                    <div class="ai-input-group">
-                        <input type="text" id="ai-user-reply" placeholder="Answer...">
-                        <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
+                    <div id="ai-message" class="ai-chat-container">
+                        <div class="ai-header">AI Assistant</div>
+                        <div id="ai-text" class="ai-text"></div>
+                        <div class="ai-input-group">
+                            <input type="text" id="ai-user-reply" placeholder="Answer...">
+                            <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
+                        </div>
+                    </div>
+
+                    <p class="model-indicator" style="text-align:left; margin-top:10px; margin-bottom:5px;" id="txt-tip">Tip: Check translation below.</p>
+
+                    <button id="extract-button" class="btn-sub" onclick="handleExtract()">
+                        <span id="btn-extract-text">Analyze Text</span>
+                    </button>
+
+                    <div style="margin-top: 20px;">
+                        <label id="lbl-result">Translation</label>
+                        <textarea id="translated-output" class="result-box" rows="1" readonly></textarea>
+                        <div id="model-indicator" class="model-indicator"></div>
                     </div>
                 </div>
 
-                <button id="extract-button" class="btn-sub" onclick="handleExtract()">
-                    <span id="btn-extract-text">Analyze Text</span>
-                </button>
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
+                    </div>
 
-                <div style="margin-top: 15px;">
-                    <label id="lbl-result">Translation (EN)</label>
-                    <textarea id="translated-output" class="result-box" rows="1" readonly></textarea>
-                    <div id="model-indicator" class="model-indicator"></div>
+                    <label id="lbl-title">Event Title</label>
+                    <input type="text" id="summary-box">
+
+                    <div class="form-row">
+                        <div class="form-col"><label id="lbl-start">Start Date</label><input type="text" id="start-date-box" placeholder="YYYY-MM-DD"></div>
+                        <div class="form-col"><label id="lbl-end">End Date</label><input type="text" id="end-date-box" placeholder="YYYY-MM-DD"></div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-col"><label id="lbl-time-start">Start Time</label><input type="text" id="start-time-box" placeholder="HH:MM"></div>
+                        <div class="form-col"><label id="lbl-time-end">End Time</label><input type="text" id="end-time-box" placeholder="HH:MM"></div>
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end; margin-bottom:15px; gap:8px;">
+                        <input type="checkbox" id="allday-check" style="width:18px; height:18px;">
+                        <label for="allday-check" id="lbl-allday" style="margin:0; cursor:pointer;">All Day</label>
+                    </div>
+
+                    <label id="lbl-loc">Location</label>
+                    <input type="text" id="loc-box" oninput="updateMapLinks()">
+
+                    <div id="map-links" class="map-group hidden">
+                        <a id="link-google" href="#" target="_blank" class="map-link bg-google">Google</a>
+                        <a id="link-naver" href="#" target="_blank" class="map-link bg-naver">Naver</a>
+                        <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao">Kakao</a>
+                    </div>
+
+                    <div class="consent-box">
+                        <input type="checkbox" id="data-consent" checked>
+                        <label for="data-consent" class="consent-label" id="lbl-consent">Contribute data for AI training</label>
+                    </div>
+
+                    <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
+                        <span id="btn-add-text">Add to Google Calendar</span>
+                    </button>
+                    <div class="spinner" id="loading-spinner"></div>
+                    <div id="result-output" style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
                 </div>
-            </div>
-
-            <div class="section-card">
-                <div class="section-header">
-                    <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
-                </div>
-
-                <label id="lbl-title">Event Title</label>
-                <input type="text" id="summary-box">
-
-                <div class="form-row" style="margin-top:15px;">
-                    <div class="form-col"><label id="lbl-start">Start Date</label><input type="text" id="start-date-box"></div>
-                    <div class="form-col"><label id="lbl-end">End Date</label><input type="text" id="end-date-box"></div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-col"><label id="lbl-time-start">Start Time</label><input type="text" id="start-time-box"></div>
-                    <div class="form-col"><label id="lbl-time-end">End Time</label><input type="text" id="end-time-box"></div>
-                </div>
-
-                <div style="display:flex; justify-content:flex-end; margin-bottom:15px; gap:8px;">
-                    <input type="checkbox" id="allday-check"><label for="allday-check" id="lbl-allday" style="margin:0; cursor:pointer;">All Day</label>
-                </div>
-
-                <label id="lbl-loc">Location</label>
-                <input type="text" id="loc-box" oninput="updateMapLinks()">
-
-                <div id="map-links" class="map-group hidden">
-                    <a id="link-google" href="#" target="_blank" class="map-link bg-google">Google</a>
-                    <a id="link-naver" href="#" target="_blank" class="map-link bg-naver">Naver</a>
-                    <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao">Kakao</a>
-                </div>
-
-                <div class="consent-box">
-                    <input type="checkbox" id="data-consent" checked class="simple-check">
-                    <label for="data-consent" class="consent-label" id="lbl-consent">
-                        Contribute data for AI training
-                    </label>
-                </div>
-
-                <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
-                    <span id="btn-add-text">Add to Google Calendar</span>
-                </button>
-                <div class="spinner" id="loading-spinner"></div>
-                <div id="result-output" style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
             </div>
         </div>
 
@@ -283,7 +291,6 @@
                 <div id="calendar"></div>
             </div>
         </div>
-
     </div>
 
     <script>
@@ -292,20 +299,11 @@
         let isLoggedIn = false;
         let calendar;
 
-        // [NEW] View Switcher Logic
         function switchView(viewId) {
-            // Hide all views
             document.getElementById('view-main').classList.remove('active');
             document.getElementById('view-calendar').classList.remove('active');
-            // Show target view
             document.getElementById(viewId).classList.add('active');
-
-            // Refresh calendar if shown
-            if(viewId === 'view-calendar' && calendar) {
-                setTimeout(() => { calendar.render(); }, 100);
-            }
-
-            // Hide dropdown
+            if(viewId === 'view-calendar' && calendar) { setTimeout(() => { calendar.render(); }, 100); }
             const dropdown = document.getElementById('profile-dropdown');
             if(dropdown) dropdown.classList.remove('show');
         }
@@ -326,7 +324,6 @@
             if (d.user) {
                 isLoggedIn = true;
                 const initial = d.user.name.charAt(0).toUpperCase();
-
                 userArea.innerHTML = `
                     <div class="profile-container" onclick="toggleDropdown()">
                         <div class="profile-trigger">
@@ -335,16 +332,10 @@
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                         </div>
                         <div class="dropdown-menu" id="profile-dropdown">
-                            <div class="dropdown-item" onclick="switchView('view-main')">
-                                <span>📝</span> <span id="menu-input">Input Schedule</span>
-                            </div>
-                            <div class="dropdown-item" onclick="switchView('view-calendar')">
-                                <span>📅</span> <span id="menu-calendar">View Calendar</span>
-                            </div>
+                            <div class="dropdown-item" onclick="switchView('view-main')"><span>📝</span> <span id="menu-input">Input Schedule</span></div>
+                            <div class="dropdown-item" onclick="switchView('view-calendar')"><span>📅</span> <span id="menu-calendar">View Calendar</span></div>
                             <div class="dropdown-divider"></div>
-                            <div class="dropdown-item text-danger" onclick="location.href='/logout'">
-                                <span>🚪</span> <span id="menu-logout">Logout</span>
-                            </div>
+                            <div class="dropdown-item text-danger" onclick="location.href='/logout'"><span>🚪</span> <span id="menu-logout">Logout</span></div>
                         </div>
                     </div>
                 `;
@@ -352,15 +343,8 @@
             }
         });
 
-        function toggleDropdown() {
-            document.getElementById('profile-dropdown').classList.toggle('show');
-        }
-        window.onclick = function(e) {
-            if (!e.target.closest('.profile-container')) {
-                const d = document.getElementById('profile-dropdown');
-                if(d) d.classList.remove('show');
-            }
-        }
+        function toggleDropdown() { document.getElementById('profile-dropdown').classList.toggle('show'); }
+        window.onclick = function(e) { if (!e.target.closest('.profile-container')) { const d = document.getElementById('profile-dropdown'); if(d) d.classList.remove('show'); } }
 
         async function fetchEvents() {
             try {
@@ -373,27 +357,26 @@
             } catch(e) {}
         }
 
-        // ... (Existing Translation & Logic Functions) ...
         const translations = {
             ko: {
                 subtitle: "일정을 입력하면 AI가 자동으로 정리해드립니다.",
                 txtStep1: "입력 및 분석",
-                lblInput: "📝 일정 내용",
+                lblInput: "일정 내용",
                 placeholder: "예: '내일 오후 7시에 홍대입구역에서 팀 회식'",
                 tip: "💡 팁: AI가 놓친 정보가 있다면 직접 수정할 수 있습니다.",
                 btnExtract: "분석 시작",
                 lblResult: "영어 번역 결과",
                 txtStep2: "내용 확인",
-                lblTitle: "🎉 일정 제목",
-                lblStart: "📅 시작 날짜",
-                lblEnd: "📅 종료 날짜",
-                lblTimeStart: "시작 시간",
-                lblTimeEnd: "종료 시간",
-                lblAllday: "종일 일정",
-                lblLoc: "📍 장소",
+                lblTitle: "일정 제목",
+                lblStart: "시작일",
+                lblEnd: "종료일",
+                lblTimeStart: "시작시간",
+                lblTimeEnd: "종료시간",
+                lblAllday: "종일",
+                lblLoc: "장소",
                 lblConsent: "AI 학습을 위한 데이터 기부 동의",
                 btnAdd: "구글 캘린더에 등록",
-                login: "구글 로그인",
+                login: "로그인",
                 txtCalendar: "내 캘린더",
                 menuInput: "일정 입력",
                 menuCalendar: "달력 보기",
@@ -407,7 +390,7 @@
                 txtStep1: "Input & Analysis",
                 lblInput: "What's your plan?",
                 placeholder: "Ex: 'Trip to Jeju from Nov 20 to 23'",
-                tip: "💡 Tip: You can manually edit details below.",
+                tip: "💡 Tip: You can manually edit details if needed.",
                 btnExtract: "Analyze Text",
                 lblResult: "Translation (EN)",
                 txtStep2: "Details",
@@ -420,7 +403,7 @@
                 lblLoc: "Location",
                 lblConsent: "Contribute data for AI training",
                 btnAdd: "Add to Google Calendar",
-                login: "Sign in",
+                login: "Login",
                 txtCalendar: "My Calendar",
                 menuInput: "Input Schedule",
                 menuCalendar: "View Calendar",
@@ -432,17 +415,15 @@
         };
 
         let currentLang = 'en';
-
         function setLanguage(lang) {
             currentLang = lang;
             const t = translations[lang];
             document.getElementById('txt-subtitle').innerText = t.subtitle;
-            document.getElementById('txt-step1').innerText = t.txtStep1;
+            document.getElementById('btn-extract-text').innerText = t.btnExtract;
             document.getElementById('lbl-input').innerText = t.lblInput;
             document.getElementById('input-text').placeholder = t.placeholder;
             document.getElementById('txt-tip').innerText = t.tip;
-            document.getElementById('btn-extract-text').innerText = t.btnExtract;
-            document.getElementById('lbl-result').innerText = t.lblResult;
+            document.getElementById('txt-step1').innerText = t.txtStep1;
             document.getElementById('txt-step2').innerText = t.txtStep2;
             document.getElementById('lbl-title').innerText = t.lblTitle;
             document.getElementById('lbl-start').innerText = t.lblStart;
@@ -453,6 +434,9 @@
             document.getElementById('lbl-loc').innerText = t.lblLoc;
             document.getElementById('lbl-consent').innerText = t.lblConsent;
             document.getElementById('btn-add-text').innerText = t.btnAdd;
+            document.getElementById('link-google').innerText = t.mapGoogle;
+            document.getElementById('link-naver').innerText = t.mapNaver;
+            document.getElementById('link-kakao').innerText = t.mapKakao;
             document.getElementById('txt-calendar').innerText = t.txtCalendar;
 
             if(document.getElementById('menu-input')) {
@@ -464,20 +448,11 @@
             document.getElementById('ai-user-reply').placeholder = t.replyPlaceholder;
             document.getElementById('btn-reply').innerText = t.btnReply;
 
-            document.getElementById('link-google').innerText = t.mapGoogle;
-            document.getElementById('link-naver').innerText = t.mapNaver;
-            document.getElementById('link-kakao').innerText = t.mapKakao;
-
             const loginBtn = document.getElementById('txt-login');
             if (loginBtn && !isLoggedIn) loginBtn.innerText = t.login;
 
-            if (lang === 'ko') {
-                document.getElementById('btn-ko').classList.add('active');
-                document.getElementById('btn-en').classList.remove('active');
-            } else {
-                document.getElementById('btn-ko').classList.remove('active');
-                document.getElementById('btn-en').classList.add('active');
-            }
+            document.getElementById('btn-ko').className = lang==='ko'?'lang-btn active':'lang-btn';
+            document.getElementById('btn-en').className = lang==='en'?'lang-btn active':'lang-btn';
         }
 
         function updateMapLinks() {
@@ -537,7 +512,8 @@
         function handleAiReply() {
             const reply = document.getElementById('ai-user-reply').value.trim();
             if (!reply) return;
-            document.getElementById('input-text').value += " " + reply;
+            const inputField = document.getElementById('input-text');
+            inputField.value = inputField.value + " " + reply;
             document.getElementById('ai-user-reply').value = "";
             handleExtract();
         }
@@ -558,7 +534,7 @@
                 start_time: document.getElementById('start-time-box').value,
                 end_time: document.getElementById('end-time-box').value,
                 location: document.getElementById('loc-box').value,
-                description: `Original: ${originalText}\nTranslated: ${translatedText}`,
+                description: originalText,
                 original_text: originalText,
                 translated_text: translatedText,
                 is_allday: document.getElementById('allday-check').checked,
