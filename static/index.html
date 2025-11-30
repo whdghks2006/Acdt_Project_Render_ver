@@ -41,7 +41,7 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.8);
-            overflow: hidden;
+            overflow: visible; /* Changed for dropdown */
             display: flex;
             flex-direction: column;
         }
@@ -54,29 +54,61 @@
             padding: 20px 30px;
             background: rgba(255,255,255,0.5);
             border-bottom: 1px solid rgba(0,0,0,0.05);
+            position: relative;
+            z-index: 100;
         }
-        .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
+        .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer;}
+
+        /* Language Switcher */
         .lang-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; }
         .lang-btn { background: none; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; }
         .lang-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        /* Login Button */
         .btn-login { display: flex; align-items: center; gap: 8px; background: #1e293b; color: white; padding: 8px 16px; border-radius: 12px; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: 0.2s; }
         .btn-login:hover { background: #0f172a; transform: translateY(-1px); }
+
+        /* Profile Dropdown */
+        .profile-container { position: relative; cursor: pointer; }
+        .profile-trigger { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 12px; transition: 0.2s; background: rgba(255,255,255,0.5); border: 1px solid transparent; }
+        .profile-trigger:hover { background: #fff; border-color: var(--border); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .profile-name { font-weight: 600; font-size: 0.9rem; color: var(--text-main); max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .profile-avatar { width: 32px; height: 32px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; }
+
+        .dropdown-menu {
+            position: absolute; top: 110%; right: 0; width: 200px;
+            background: white; border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 10px -6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #f1f5f9;
+            padding: 8px; display: none; flex-direction: column; z-index: 200;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .dropdown-menu.show { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .dropdown-item {
+            padding: 10px 12px; border-radius: 8px; text-decoration: none;
+            color: var(--text-main); font-size: 0.9rem; font-weight: 500;
+            display: flex; align-items: center; gap: 10px;
+            transition: 0.2s; cursor: pointer;
+        }
+        .dropdown-item:hover { background: #f8fafc; color: var(--primary); }
+        .dropdown-divider { height: 1px; background: #f1f5f9; margin: 6px 0; }
+        .text-danger { color: #ef4444; }
+        .text-danger:hover { background: #fef2f2; color: #dc2626; }
 
         .main-content { padding: 40px; }
         .hero-section { text-align: center; margin-bottom: 30px; }
         .hero-section h1 { font-size: 2.2rem; font-weight: 800; color: #1e293b; margin-bottom: 5px; }
 
-        /* Grid */
         .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
         @media (max-width: 850px) { .content-grid { grid-template-columns: 1fr; } }
 
-        /* Cards */
         .section-card { background: #fff; border: 1px solid var(--border); border-radius: var(--border-radius); padding: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); height: 100%; }
         .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
         .section-badge { background: #e0e7ff; color: var(--primary); font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
         .section-title { font-size: 1.1rem; font-weight: 700; color: #334155; }
 
-        /* Inputs & Buttons */
         textarea, input { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.95rem; background: #f8fafc; transition: all 0.2s; }
         textarea:focus, input:focus { outline: none; background: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3); }
         .btn-main { width: 100%; padding: 14px; background: var(--primary); color: white; font-size: 1rem; font-weight: 600; border-radius: 14px; border:none; cursor: pointer; margin-top: 20px; transition: 0.2s; box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3); }
@@ -84,39 +116,36 @@
         .btn-sub { width: 100%; padding: 12px; background: #e2e8f0; color: #475569; font-size: 0.95rem; font-weight: 600; border-radius: 12px; border:none; cursor: pointer; margin-top: 15px; transition: 0.2s; }
         .btn-sub:hover { background: #cbd5e1; }
 
-        /* Utils */
         .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
         .form-col { flex: 1; }
         .ai-msg-box { background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; padding: 15px; border-radius: 10px; margin-top: 10px; display: none; }
         .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 5px; }
         .hidden { display: none !important; }
 
-        /* Calendar Styles */
         .calendar-section { margin-top: 40px; background: #fff; border-radius: 24px; padding: 30px; border: 1px solid var(--border); }
         #calendar { max-width: 100%; font-family: 'Inter', sans-serif; }
         .fc-toolbar-title { font-size: 1.2rem !important; font-weight: 700; }
         .fc-button-primary { background-color: var(--primary) !important; border-color: var(--primary) !important; }
-        .fc-event { cursor: pointer; border: none; }
-        .fc-daygrid-event { border-radius: 4px; padding: 2px 4px; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
         <header class="app-header">
-            <div class="brand">AI Scheduler</div>
+            <div class="brand" onclick="scrollToSection('top')">AI Scheduler</div>
             <div style="display: flex; gap: 15px; align-items: center;">
                 <div class="lang-switch">
                     <button onclick="setLanguage('ko')" class="lang-btn" id="btn-ko">KO</button>
                     <button onclick="setLanguage('en')" class="lang-btn active" id="btn-en">EN</button>
                 </div>
+
                 <div id="user-area">
                     <a href="/login" class="btn-login" id="txt-login">Login</a>
                 </div>
             </div>
         </header>
 
-        <div class="main-content">
+        <div class="main-content" id="top">
             <div class="hero-section">
                 <h1 id="txt-title">AI Smart Scheduler</h1>
                 <p id="txt-subtitle">Manage your time effortlessly with AI.</p>
@@ -163,7 +192,7 @@
                         <input type="checkbox" id="allday-check"><label for="allday-check" id="lbl-allday">All Day</label>
                     </div>
 
-                    <label id="lbl-loc">Location</label> <input type="text" id="loc-box">
+                    <label id="lbl-loc">Location</label> <input type="text" id="loc-box" oninput="updateMapLinks()">
                     <div id="map-links" class="hidden" style="display:flex; gap:8px; margin-top:5px;">
                         <a id="link-google" href="#" target="_blank" style="flex:1; background:#4285F4; color:white; text-align:center; padding:8px; border-radius:8px; text-decoration:none; font-size:0.8rem;">Google</a>
                         <a id="link-naver" href="#" target="_blank" style="flex:1; background:#03C75A; color:white; text-align:center; padding:8px; border-radius:8px; text-decoration:none; font-size:0.8rem;">Naver</a>
@@ -181,14 +210,13 @@
                 </div>
             </div>
 
-            <div class="calendar-section">
+            <div class="calendar-section" id="calendar-section">
                 <div class="section-header">
                     <span class="section-badge" style="background:#f3e8ff; color:#7c3aed;">View</span>
-                    <span class="section-title">My Calendar</span>
+                    <span class="section-title" id="txt-calendar">My Calendar</span>
                 </div>
                 <div id="calendar"></div>
             </div>
-
         </div>
     </div>
 
@@ -196,52 +224,78 @@
         let originalText = "";
         let translatedText = "";
         let isLoggedIn = false;
-        let calendar; // Calendar instance
+        let calendar;
 
-        // Init Calendar
         document.addEventListener('DOMContentLoaded', function() {
             var calendarEl = document.getElementById('calendar');
             calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek'
-                },
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
                 height: 600,
-                events: [] // Initially empty
+                events: []
             });
             calendar.render();
         });
 
-        // Fetch User Info & Events
+        // [NEW] Profile Dropdown Logic
         fetch('/user-info').then(r => r.json()).then(d => {
             const userArea = document.getElementById('user-area');
             if (d.user) {
                 isLoggedIn = true;
-                userArea.innerHTML = `<span style="font-weight:600; margin-right:10px;">${d.user.name}</span><a href="/logout" style="color:#ef4444;">Sign out</a>`;
-                fetchEvents(); // Load events after login
+                const initial = d.user.name.charAt(0).toUpperCase();
+
+                // Dropdown HTML structure
+                userArea.innerHTML = `
+                    <div class="profile-container" onclick="toggleDropdown()">
+                        <div class="profile-trigger">
+                            <div class="profile-avatar">${initial}</div>
+                            <span class="profile-name">${d.user.name}</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                        </div>
+                        <div class="dropdown-menu" id="profile-dropdown">
+                            <div class="dropdown-item" onclick="scrollToSection('top')">
+                                <span>📝</span> <span id="menu-input">Input Schedule</span>
+                            </div>
+                            <div class="dropdown-item" onclick="scrollToSection('calendar-section')">
+                                <span>📅</span> <span id="menu-calendar">View Calendar</span>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <div class="dropdown-item text-danger" onclick="location.href='/logout'">
+                                <span>🚪</span> <span id="menu-logout">Logout</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
         });
 
-        // [New] Function to fetch events from backend
-        async function fetchEvents() {
-            try {
-                const res = await fetch('/events');
-                if(res.ok) {
-                    const data = await res.json();
-                    // Clear and Add
-                    calendar.removeAllEvents();
-                    data.events.forEach(event => calendar.addEvent(event));
+        function toggleDropdown() {
+            const menu = document.getElementById('profile-dropdown');
+            menu.classList.toggle('show');
+        }
+
+        // Close dropdown when clicking outside
+        window.onclick = function(event) {
+            if (!event.target.closest('.profile-container')) {
+                const dropdowns = document.getElementsByClassName("dropdown-menu");
+                for (let i = 0; i < dropdowns.length; i++) {
+                    dropdowns[i].classList.remove('show');
                 }
-            } catch(e) { console.error("Failed to load events", e); }
+            }
+        }
+
+        function scrollToSection(id) {
+            const element = document.getElementById(id);
+            if(element) element.scrollIntoView({ behavior: 'smooth' });
         }
 
         const translations = {
-            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"데이터 기부 동의", btnAdd:"일정 등록", login:"로그인", logout:"로그아웃", mapGoogle:"구글", mapNaver:"네이버", btnReply:"전송" },
-            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data", btnAdd:"Add Event", login:"Login", logout:"Logout", mapGoogle:"Google", mapNaver:"Naver", btnReply:"Send" }
+            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"데이터 기부 동의", btnAdd:"일정 등록", login:"로그인", logout:"로그아웃", mapGoogle:"구글", mapNaver:"네이버", btnReply:"전송", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃" },
+            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data", btnAdd:"Add Event", login:"Login", logout:"Logout", mapGoogle:"Google", mapNaver:"Naver", btnReply:"Send", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout" }
         };
+
         let currentLang = 'en';
+
         function setLanguage(lang) {
             currentLang = lang;
             const t = translations[lang];
@@ -262,12 +316,42 @@
             document.getElementById('link-google').innerText = t.mapGoogle;
             document.getElementById('link-naver').innerText = t.mapNaver;
             document.getElementById('btn-reply').innerText = t.btnReply;
+            document.getElementById('txt-calendar').innerText = t.txtCalendar;
+
+            // Update menu items if logged in
+            if(document.getElementById('menu-input')) {
+                document.getElementById('menu-input').innerText = t.menuInput;
+                document.getElementById('menu-calendar').innerText = t.menuCalendar;
+                document.getElementById('menu-logout').innerText = t.menuLogout;
+            }
 
             const loginBtn = document.getElementById('txt-login');
             if (loginBtn && !isLoggedIn) loginBtn.innerText = t.login;
 
             document.getElementById('btn-ko').className = lang==='ko'?'lang-btn active':'lang-btn';
             document.getElementById('btn-en').className = lang==='en'?'lang-btn active':'lang-btn';
+        }
+
+        // ... (나머지 Extract, Reply, AddToCalendar 함수들은 기존과 동일) ...
+        async function fetchEvents() {
+            try {
+                const res = await fetch('/events');
+                if(res.ok) {
+                    const data = await res.json();
+                    calendar.removeAllEvents();
+                    data.events.forEach(event => calendar.addEvent(event));
+                }
+            } catch(e) {}
+        }
+
+        function updateMapLinks() {
+            const loc = document.getElementById('loc-box').value.trim();
+            const mapContainer = document.getElementById('map-links');
+            if (!loc) { mapContainer.classList.add('hidden'); return; }
+            mapContainer.classList.remove('hidden');
+            document.getElementById('link-google').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
+            document.getElementById('link-naver').href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
+            document.getElementById('link-kakao').href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
         }
 
         async function handleExtract() {
@@ -296,15 +380,7 @@
                 document.getElementById('loc-box').value = data.location || "";
                 document.getElementById('allday-check').checked = data.is_allday;
 
-                // Map Update
-                const loc = data.location;
-                const mapDiv = document.getElementById('map-links');
-                if(loc) {
-                    mapDiv.classList.remove('hidden');
-                    document.getElementById('link-google').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
-                    document.getElementById('link-naver').href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
-                    document.getElementById('link-kakao').href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
-                } else { mapDiv.classList.add('hidden'); }
+                updateMapLinks();
 
                 if (data.used_model) indicator.innerText = "⚙️ " + data.used_model;
 
@@ -356,7 +432,7 @@
                 const data = await response.json();
                 if (response.ok) {
                     output.innerHTML = `✅ Success!`;
-                    fetchEvents(); // Refresh Calendar!
+                    fetchEvents(); // Refresh Calendar
                 } else { output.innerHTML = `❌ ${data.error}`; }
             } catch (error) { output.innerHTML = `❌ Error`; }
             finally { btn.style.opacity = "1"; btn.disabled = false; }
