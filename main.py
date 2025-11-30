@@ -356,6 +356,62 @@ async def admin_dashboard(request: Request):
     return HTMLResponse("<h1>Admin Dashboard</h1>")
 
 
+@app.get("/events")
+async def list_events(request: Request):
+    """
+    Fetches upcoming events from the user's Google Calendar.
+    """
+    token_data = request.session.get('token')
+    if not token_data or 'access_token' not in token_data:
+        return JSONResponse(status_code=401, content={"error": "Login required"})
+
+    access_token = token_data['access_token']
+    headers = {'Authorization': f'Bearer {access_token}'}
+
+    # Get events starting from 'now'
+    now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
+
+    try:
+        async with httpx.AsyncClient() as client:
+            # Fetch up to 50 events
+            resp = await client.get(
+                'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                headers=headers,
+                params={
+                    'timeMin': now,
+                    'maxResults': 50,
+                    'singleEvents': True,
+                    'orderBy': 'startTime'
+                }
+            )
+
+        if resp.status_code != 200:
+            print(f"Google API Error: {resp.text}")
+            if resp.status_code == 401: return JSONResponse(status_code=401, content={"error": "Token expired."})
+            return JSONResponse(status_code=500, content={"error": "Failed to fetch events"})
+
+        data = resp.json()
+        items = data.get('items', [])
+
+        # Format for FullCalendar
+        calendar_events = []
+        for event in items:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            end = event['end'].get('dateTime', event['end'].get('date'))
+            calendar_events.append({
+                'title': event.get('summary', 'No Title'),
+                'start': start,
+                'end': end,
+                # Add color or url if needed
+                'url': event.get('htmlLink')
+            })
+
+        return {"events": calendar_events}
+
+    except Exception as e:
+        print(f"Event Fetch Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 if __name__ == "__main__":
     import uvicorn
 
