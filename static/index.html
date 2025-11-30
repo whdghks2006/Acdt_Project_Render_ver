@@ -9,157 +9,56 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
 
     <style>
+        /* (스타일은 기존과 동일하여 생략하지 않고 그대로 둡니다) */
         :root {
-            --primary-grad: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%); /* Purple to Blue */
+            --primary-grad: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
             --primary-shadow: rgba(139, 92, 246, 0.3);
-            --bg-grad: linear-gradient(120deg, #f3e8ff 0%, #e0f2fe 100%); /* Light Purple to Light Blue */
-            --card-bg: rgba(255, 255, 255, 0.95);
+            --bg-grad: linear-gradient(120deg, #f3e8ff 0%, #e0f2fe 100%);
+            --card-bg: rgba(255, 255, 255, 0.85);
             --text-main: #1f2937;
             --text-sub: #6b7280;
             --border-radius: 24px;
             --input-radius: 12px;
         }
-
-        body {
-            font-family: 'Inter', 'Noto Sans KR', sans-serif;
-            background: var(--bg-grad);
-            background-attachment: fixed;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 40px 20px;
-            color: var(--text-main);
-        }
-
-        /* Main Card Container */
-        .app-container {
-            background: var(--card-bg);
-            width: 100%;
-            max-width: 1200px; /* Wide for PC */
-            border-radius: var(--border-radius);
-            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.6);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Header */
-        .app-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 40px;
-            background: rgba(255,255,255,0.6);
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-        }
-
+        body { font-family: 'Inter', 'Noto Sans KR', sans-serif; background: var(--bg-grad); background-attachment: fixed; margin: 0; display: flex; justify-content: center; min-height: 100vh; padding: 40px 20px; color: var(--text-main); }
+        .app-container { background: var(--card-bg); width: 100%; max-width: 1200px; border-radius: var(--border-radius); box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.1); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.6); overflow: hidden; display: flex; flex-direction: column; }
+        .app-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; background: rgba(255,255,255,0.6); border-bottom: 1px solid rgba(0,0,0,0.05); }
         .brand { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; background: var(--primary-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-
         .lang-switch { display: flex; background: #f3f4f6; padding: 4px; border-radius: 20px; }
         .lang-btn { background: none; border: none; padding: 6px 12px; border-radius: 16px; font-size: 0.85rem; font-weight: 600; color: #6b7280; cursor: pointer; transition: 0.3s; }
         .lang-btn.active { background: white; color: #3b82f6; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-
-        .btn-login {
-            display: flex; align-items: center; gap: 8px;
-            background: #1f2937; color: white; padding: 8px 16px;
-            border-radius: 20px; text-decoration: none; font-size: 0.9rem; font-weight: 600;
-            transition: 0.2s;
-        }
+        .btn-login { display: flex; align-items: center; gap: 8px; background: #1f2937; color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: 0.2s; }
         .btn-login:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .user-name { font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
         .btn-logout { margin-left: 10px; font-size: 0.8rem; color: #ef4444; text-decoration: none; font-weight: 600; }
-
-        /* --- Layout Grid --- */
-        .main-content {
-            padding: 40px;
-        }
-
-        .content-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 40px;
-            align-items: start;
-        }
-
-        @media (max-width: 900px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-                gap: 30px;
-            }
-        }
-
-        /* Hero Section */
+        .main-content { padding: 40px; }
+        .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+        @media (max-width: 900px) { .content-grid { grid-template-columns: 1fr; gap: 30px; } .app-container { max-width: 700px; } }
         .hero-section { text-align: center; margin-bottom: 40px; }
         .hero-section h1 { font-size: 2.5rem; margin: 0 0 10px 0; background: var(--primary-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -1px;}
         .hero-section p { color: var(--text-sub); font-size: 1.1rem; margin: 0; }
-
-        /* Section Cards */
-        .section-card {
-            background: #fff;
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 25px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
-            transition: box-shadow 0.3s;
-            height: 100%;
-        }
+        .section-card { background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); transition: box-shadow 0.3s; height: 100%; }
         .section-card:hover { box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-
         .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #f3f4f6; padding-bottom: 15px; }
         .section-badge { background: #e0e7ff; color: #4f46e5; font-size: 0.8rem; padding: 5px 10px; border-radius: 8px; font-weight: 800; }
         .section-title { font-size: 1.2rem; font-weight: 800; margin: 0; color: #374151; }
-
-        /* Inputs */
         label { display: block; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; color: #4b5563; }
-        textarea, input[type="text"] {
-            width: 100%; box-sizing: border-box;
-            padding: 14px; border: 1px solid #e5e7eb; border-radius: var(--input-radius);
-            font-size: 1rem; background: #f9fafb; font-family: inherit;
-            transition: 0.3s; resize: none;
-        }
+        textarea, input[type="text"] { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid #e5e7eb; border-radius: var(--input-radius); font-size: 1rem; background: #f9fafb; font-family: inherit; transition: 0.3s; resize: none; }
         textarea:focus, input:focus { outline: none; background: #fff; border-color: #8b5cf6; box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1); }
         textarea { min-height: 150px; }
-
-        /* AI Chat Box */
-        .ai-chat-container {
-            margin-top: 20px; background: #eff6ff;
-            border-radius: 16px; padding: 20px;
-            border: 1px solid #bfdbfe;
-            display: none; animation: slideDown 0.3s ease-out;
-        }
+        .ai-chat-container { margin-top: 20px; background: #eff6ff; border-radius: 16px; padding: 20px; border: 1px solid #bfdbfe; display: none; animation: slideDown 0.3s ease-out; }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .ai-header { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #2563eb; font-size: 0.9rem; margin-bottom: 10px; }
         .ai-text { font-size: 0.95rem; color: #1e40af; line-height: 1.5; }
         .ai-input-group { display: flex; gap: 10px; margin-top: 15px; }
         .ai-input-group input { background: white; border: 1px solid #bfdbfe; padding: 10px; }
         .ai-send-btn { background: #3b82f6; color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: 700; cursor: pointer; }
-
-        /* Buttons */
-        .btn-main {
-            width: 100%; padding: 16px; border: none; border-radius: 16px;
-            background: var(--primary-grad); color: white;
-            font-size: 1.1rem; font-weight: 700; cursor: pointer;
-            margin-top: 30px;
-            box-shadow: 0 10px 20px -5px var(--primary-shadow);
-            transition: 0.3s; display: flex; justify-content: center; align-items: center; gap: 10px;
-        }
+        .btn-main { width: 100%; padding: 16px; border: none; border-radius: 16px; background: var(--primary-grad); color: white; font-size: 1.1rem; font-weight: 700; cursor: pointer; margin-top: 30px; box-shadow: 0 10px 20px -5px var(--primary-shadow); transition: 0.3s; display: flex; justify-content: center; align-items: center; gap: 10px; }
         .btn-main:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -5px var(--primary-shadow); }
-        .btn-sub {
-            width: 100%; padding: 14px; border: none; border-radius: 14px;
-            background: #f3f4f6; color: #4b5563;
-            font-size: 1rem; font-weight: 700; cursor: pointer;
-            margin-top: 15px; transition: 0.2s;
-        }
+        .btn-sub { width: 100%; padding: 14px; border: none; border-radius: 14px; background: #f3f4f6; color: #4b5563; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 15px; transition: 0.2s; }
         .btn-sub:hover { background: #e5e7eb; color: #1f2937; }
-
-        /* Form Layout */
         .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
         .form-col { flex: 1; }
-
-        /* Toggle Switch */
         .toggle-wrapper { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 28px; }
         .toggle-switch { position: relative; width: 50px; height: 28px; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
@@ -168,28 +67,19 @@
         input:checked + .slider { background: var(--primary-grad); }
         input:checked + .slider:before { transform: translateX(22px); }
         .toggle-label { font-weight: 600; color: #4b5563; font-size: 0.85rem; }
-
-        /* Map Buttons */
         .map-group { display: flex; gap: 8px; margin-top: 8px; }
-        .map-link {
-            flex: 1; padding: 10px; font-size: 0.8rem; text-decoration: none;
-            color: white; font-weight: 700; text-align: center; border-radius: 10px;
-            transition: 0.2s; opacity: 0.9;
-        }
+        .map-link { flex: 1; padding: 10px; font-size: 0.8rem; text-decoration: none; color: white; font-weight: 700; text-align: center; border-radius: 10px; transition: 0.2s; opacity: 0.9; }
         .map-link:hover { opacity: 1; transform: translateY(-1px); }
         .bg-google { background: #4285F4; }
         .bg-naver { background: #03C75A; }
         .bg-kakao { background: #FEE500; color: #191919; }
         .hidden { display: none !important; }
-
-        /* Utils */
         .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 5px; }
         .consent-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; margin-top: 20px;}
         .consent-label { margin: 0; color: #166534; font-weight: 600; font-size: 0.85rem; }
         .result-box { background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; min-height: auto; }
         .spinner { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary-grad); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
     </style>
 </head>
 <body>
@@ -220,8 +110,7 @@
             <div class="content-grid">
                 <div class="section-card">
                     <div class="section-header">
-                        <span class="section-badge">Step 1</span>
-                        <span class="section-title" id="txt-step1">Input & Analysis</span>
+                        <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input & Analysis</span>
                     </div>
 
                     <label id="lbl-input">📝 What's your plan?</label>
@@ -251,8 +140,7 @@
 
                 <div class="section-card">
                     <div class="section-header">
-                        <span class="section-badge">Step 2</span>
-                        <span class="section-title" id="txt-step2">Review & Confirm</span>
+                        <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Review & Confirm</span>
                     </div>
 
                     <label id="lbl-title">🎉 Event Title</label>
@@ -385,11 +273,6 @@
             document.getElementById('lbl-loc').innerText = t.lblLoc;
             document.getElementById('lbl-consent').innerText = t.lblConsent;
             document.getElementById('btn-add-text').innerText = t.btnAdd;
-
-            document.getElementById('link-google').innerText = (lang === 'ko') ? "구글 지도" : "Google";
-            document.getElementById('link-naver').innerText = (lang === 'ko') ? "네이버 지도" : "Naver";
-            document.getElementById('link-kakao').innerText = (lang === 'ko') ? "카카오맵" : "Kakao";
-
             document.getElementById('ai-user-reply').placeholder = t.replyPlaceholder;
             document.getElementById('btn-reply').innerText = t.btnReply;
 
@@ -450,19 +333,18 @@
                 originalText = data.original_text;
                 translatedText = data.translated_text;
 
-                document.getElementById('translated-output').value = data.translated_text;
-                document.getElementById('summary-box').value = data.summary;
-                document.getElementById('start-date-box').value = data.start_date;
-                document.getElementById('end-date-box').value = data.end_date;
-                document.getElementById('time-box').value = data.time;
-                document.getElementById('loc-box').value = data.location;
+                document.getElementById('translated-output').value = data.translated_text || "";
+                // [SAFEGUARD] Use || "" to prevent "undefined" text in boxes
+                document.getElementById('summary-box').value = data.summary || "";
+                document.getElementById('start-date-box').value = data.start_date || "";
+                document.getElementById('end-date-box').value = data.end_date || "";
+                document.getElementById('time-box').value = data.time || "";
+                document.getElementById('loc-box').value = data.location || "";
                 document.getElementById('allday-check').checked = data.is_allday;
 
                 updateMapLinks();
 
-                if (data.used_model) {
-                    indicator.innerText = "⚙️ Processed by: " + data.used_model;
-                }
+                if (data.used_model) indicator.innerText = "⚙️ Processed by: " + data.used_model;
 
                 if (data.ai_message) {
                     document.getElementById('ai-text').innerText = data.ai_message;
@@ -482,19 +364,15 @@
             handleExtract();
         }
 
-        // [New] Event Listener for Enter Key
+        // Enter Key Support
         document.getElementById('input-text').addEventListener('keydown', function(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault(); // Prevent default new line behavior
-                handleExtract(); // Trigger extraction
+                event.preventDefault(); handleExtract();
             }
         });
-
-        // [New] Also add Enter key support for AI reply input
         document.getElementById('ai-user-reply').addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
-                event.preventDefault();
-                handleAiReply();
+                event.preventDefault(); handleAiReply();
             }
         });
 
