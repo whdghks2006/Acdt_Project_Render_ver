@@ -14,11 +14,12 @@
             --primary: #6366f1;
             --primary-hover: #4f46e5;
             --bg-grad: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%);
-            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-bg: rgba(255, 255, 255, 0.95);
             --border-radius: 16px;
             --text-main: #1e293b;
             --text-sub: #64748b;
             --border: #cbd5e1;
+            --focus-ring: rgba(99, 102, 241, 0.3);
         }
 
         body {
@@ -36,14 +37,15 @@
         .app-container {
             background: var(--card-bg);
             width: 100%;
-            max-width: 1100px;
+            max-width: 800px; /* Restore stable width */
             border-radius: 24px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.8);
-            overflow: visible; /* Changed for dropdown */
+            overflow: visible;
             display: flex;
             flex-direction: column;
+            min-height: 800px;
         }
 
         /* Header */
@@ -52,12 +54,12 @@
             justify-content: space-between;
             align-items: center;
             padding: 20px 30px;
-            background: rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.6);
             border-bottom: 1px solid rgba(0,0,0,0.05);
             position: relative;
             z-index: 100;
         }
-        .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer;}
+        .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer; }
 
         /* Language Switcher */
         .lang-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; }
@@ -76,9 +78,9 @@
         .profile-avatar { width: 32px; height: 32px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; }
 
         .dropdown-menu {
-            position: absolute; top: 110%; right: 0; width: 200px;
+            position: absolute; top: 115%; right: 0; width: 220px;
             background: white; border-radius: 16px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 10px -6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15);
             border: 1px solid #f1f5f9;
             padding: 8px; display: none; flex-direction: column; z-index: 200;
             animation: fadeIn 0.2s ease-out;
@@ -87,9 +89,9 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 
         .dropdown-item {
-            padding: 10px 12px; border-radius: 8px; text-decoration: none;
-            color: var(--text-main); font-size: 0.9rem; font-weight: 500;
-            display: flex; align-items: center; gap: 10px;
+            padding: 12px; border-radius: 10px; text-decoration: none;
+            color: var(--text-main); font-size: 0.95rem; font-weight: 500;
+            display: flex; align-items: center; gap: 12px;
             transition: 0.2s; cursor: pointer;
         }
         .dropdown-item:hover { background: #f8fafc; color: var(--primary); }
@@ -97,42 +99,91 @@
         .text-danger { color: #ef4444; }
         .text-danger:hover { background: #fef2f2; color: #dc2626; }
 
-        .main-content { padding: 40px; }
+        /* View Switching */
+        .view-section { display: none; animation: fadeView 0.4s ease-out; padding: 40px 30px; }
+        .view-section.active { display: block; }
+        @keyframes fadeView { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
         .hero-section { text-align: center; margin-bottom: 30px; }
         .hero-section h1 { font-size: 2.2rem; font-weight: 800; color: #1e293b; margin-bottom: 5px; }
+        .hero-section p { color: var(--text-sub); font-size: 1rem; }
 
-        .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
-        @media (max-width: 850px) { .content-grid { grid-template-columns: 1fr; } }
+        /* Section Cards */
+        .section-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            margin-bottom: 25px;
+        }
 
-        .section-card { background: #fff; border: 1px solid var(--border); border-radius: var(--border-radius); padding: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); height: 100%; }
-        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px; }
         .section-badge { background: #e0e7ff; color: var(--primary); font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
         .section-title { font-size: 1.1rem; font-weight: 700; color: #334155; }
 
-        textarea, input { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.95rem; background: #f8fafc; transition: all 0.2s; }
-        textarea:focus, input:focus { outline: none; background: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3); }
-        .btn-main { width: 100%; padding: 14px; background: var(--primary); color: white; font-size: 1rem; font-weight: 600; border-radius: 14px; border:none; cursor: pointer; margin-top: 20px; transition: 0.2s; box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3); }
+        /* Inputs */
+        label { display: block; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; color: #475569; }
+        textarea, input[type="text"], input[type="date"], input[type="time"] {
+            width: 100%; box-sizing: border-box;
+            padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px;
+            font-size: 1rem; background: #f8fafc; font-family: inherit;
+            transition: all 0.2s ease;
+        }
+        /* Hover & Focus Interaction */
+        textarea:hover, input:hover { background: #fff; border-color: #94a3b8; }
+        textarea:focus, input:focus {
+            outline: none; background: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+        textarea { min-height: 120px; resize: none; }
+        .highlight-empty { border-color: #ef4444 !important; background-color: #fef2f2 !important; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+
+        /* AI Chat */
+        .ai-chat-container { margin-top: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px; padding: 15px; display: none; }
+        .ai-header { font-weight: 700; color: var(--primary); font-size: 0.85rem; margin-bottom: 5px; }
+        .ai-text { font-size: 0.95rem; color: #1e3a8a; line-height: 1.4; }
+        .ai-input-group { display: flex; gap: 8px; margin-top: 10px; }
+        .ai-send-btn { background: var(--primary); color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+
+        /* Buttons */
+        .btn-main { width: 100%; padding: 16px; background: var(--primary); color: white; font-size: 1.1rem; font-weight: 600; border-radius: 16px; border:none; cursor: pointer; margin-top: 20px; transition: 0.2s; box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3); }
         .btn-main:hover { background: var(--primary-hover); transform: translateY(-2px); }
-        .btn-sub { width: 100%; padding: 12px; background: #e2e8f0; color: #475569; font-size: 0.95rem; font-weight: 600; border-radius: 12px; border:none; cursor: pointer; margin-top: 15px; transition: 0.2s; }
+        .btn-sub { width: 100%; padding: 14px; background: #e2e8f0; color: #475569; font-size: 1rem; font-weight: 600; border-radius: 14px; border:none; cursor: pointer; margin-top: 15px; transition: 0.2s; }
         .btn-sub:hover { background: #cbd5e1; }
 
+        /* Layout Helpers */
         .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
         .form-col { flex: 1; }
-        .ai-msg-box { background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; padding: 15px; border-radius: 10px; margin-top: 10px; display: none; }
-        .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 5px; }
+        .map-group { display: flex; gap: 8px; margin-top: 5px; }
+        .map-link { flex: 1; padding: 8px; font-size: 0.8rem; text-decoration: none; color: white; font-weight: 600; text-align: center; border-radius: 8px; transition: 0.2s; opacity: 0.9; }
+        .map-link:hover { opacity: 1; transform: translateY(-1px); }
+        .bg-google { background: #4285F4; }
+        .bg-naver { background: #03C75A; }
+        .bg-kakao { background: #FEE500; color: #191919; }
         .hidden { display: none !important; }
+        .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 5px; }
+        .consent-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; margin-top: 20px;}
+        .consent-label { margin: 0; color: #166534; font-weight: 600; font-size: 0.85rem; }
+        .result-box { background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; min-height: auto; }
+        .spinner { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .calendar-section { margin-top: 40px; background: #fff; border-radius: 24px; padding: 30px; border: 1px solid var(--border); }
+        /* Calendar Styling */
         #calendar { max-width: 100%; font-family: 'Inter', sans-serif; }
-        .fc-toolbar-title { font-size: 1.2rem !important; font-weight: 700; }
-        .fc-button-primary { background-color: var(--primary) !important; border-color: var(--primary) !important; }
+        .fc-toolbar-title { font-size: 1.5rem !important; font-weight: 800 !important; color: #1e293b; }
+        .fc-button-primary { background-color: var(--primary) !important; border-color: var(--primary) !important; border-radius: 8px !important; }
+        .fc-daygrid-event { border-radius: 6px; padding: 4px; font-size: 0.85rem; font-weight: 600; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
         <header class="app-header">
-            <div class="brand" onclick="scrollToSection('top')">AI Scheduler</div>
+            <div class="brand" onclick="switchView('view-main')">AI Scheduler</div>
+
             <div style="display: flex; gap: 15px; align-items: center;">
                 <div class="lang-switch">
                     <button onclick="setLanguage('ko')" class="lang-btn" id="btn-ko">KO</button>
@@ -145,79 +196,94 @@
             </div>
         </header>
 
-        <div class="main-content" id="top">
+        <div id="view-main" class="view-section active">
             <div class="hero-section">
                 <h1 id="txt-title">AI Smart Scheduler</h1>
                 <p id="txt-subtitle">Manage your time effortlessly with AI.</p>
             </div>
 
-            <div class="content-grid">
-                <div class="section-card">
-                    <div class="section-header">
-                        <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input</span>
-                    </div>
-                    <textarea id="input-text" placeholder="Ex: 'Trip to Jeju from Nov 20 to 23'"></textarea>
+            <div class="section-card">
+                <div class="section-header">
+                    <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input</span>
+                </div>
+                <label id="lbl-input">What's your plan?</label>
+                <textarea id="input-text" placeholder="Example: 'Trip to Jeju from Nov 20 to 23'"></textarea>
 
-                    <div id="ai-message" class="ai-msg-box">
-                        <div style="font-weight:700; margin-bottom:5px;">🤖 AI Assistant</div>
-                        <div id="ai-text"></div>
-                        <div style="display:flex; gap:8px; margin-top:10px;">
-                            <input type="text" id="ai-user-reply" placeholder="Answer..." style="flex:1; padding:8px;">
-                            <button onclick="handleAiReply()" style="background:#3b82f6; color:white; border:none; border-radius:8px; padding:0 15px; cursor:pointer;">Send</button>
-                        </div>
+                <div id="ai-message" class="ai-chat-container">
+                    <div class="ai-header">🤖 AI Assistant</div>
+                    <div class="ai-text" id="ai-text"></div>
+                    <div class="ai-input-group">
+                        <input type="text" id="ai-user-reply" placeholder="Answer...">
+                        <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
                     </div>
-
-                    <button id="extract-button" class="btn-sub" onclick="handleExtract()">
-                        <span id="btn-extract-text">Analyze Text</span>
-                    </button>
-                    <div id="model-indicator" class="model-indicator"></div>
                 </div>
 
-                <div class="section-card">
-                    <div class="section-header">
-                        <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
-                    </div>
+                <button id="extract-button" class="btn-sub" onclick="handleExtract()">
+                    <span id="btn-extract-text">Analyze Text</span>
+                </button>
 
-                    <label id="lbl-title">Event Title</label> <input type="text" id="summary-box">
-
-                    <div class="form-row" style="margin-top:15px;">
-                        <div class="form-col"><label id="lbl-start">Start Date</label><input type="text" id="start-date-box"></div>
-                        <div class="form-col"><label id="lbl-end">End Date</label><input type="text" id="end-date-box"></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col"><label id="lbl-time-start">Start Time</label><input type="text" id="start-time-box"></div>
-                        <div class="form-col"><label id="lbl-time-end">End Time</label><input type="text" id="end-time-box"></div>
-                    </div>
-                    <div style="display:flex; justify-content:flex-end; margin-bottom:15px; gap:8px;">
-                        <input type="checkbox" id="allday-check"><label for="allday-check" id="lbl-allday">All Day</label>
-                    </div>
-
-                    <label id="lbl-loc">Location</label> <input type="text" id="loc-box" oninput="updateMapLinks()">
-                    <div id="map-links" class="hidden" style="display:flex; gap:8px; margin-top:5px;">
-                        <a id="link-google" href="#" target="_blank" style="flex:1; background:#4285F4; color:white; text-align:center; padding:8px; border-radius:8px; text-decoration:none; font-size:0.8rem;">Google</a>
-                        <a id="link-naver" href="#" target="_blank" style="flex:1; background:#03C75A; color:white; text-align:center; padding:8px; border-radius:8px; text-decoration:none; font-size:0.8rem;">Naver</a>
-                    </div>
-
-                    <div style="margin-top:20px; padding:10px; background:#f0fdf4; border-radius:8px; display:flex; align-items:center; gap:10px;">
-                        <input type="checkbox" id="data-consent" checked>
-                        <label for="data-consent" id="lbl-consent" style="color:#166534; font-size:0.85rem; font-weight:500;">Contribute data</label>
-                    </div>
-
-                    <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
-                        <span id="btn-add-text">Add to Google Calendar</span>
-                    </button>
-                    <div id="result-output" style="margin-top:15px; text-align:center; font-weight:600; color:#059669;"></div>
+                <div style="margin-top: 15px;">
+                    <label id="lbl-result">Translation (EN)</label>
+                    <textarea id="translated-output" class="result-box" rows="1" readonly></textarea>
+                    <div id="model-indicator" class="model-indicator"></div>
                 </div>
             </div>
 
-            <div class="calendar-section" id="calendar-section">
+            <div class="section-card">
                 <div class="section-header">
-                    <span class="section-badge" style="background:#f3e8ff; color:#7c3aed;">View</span>
-                    <span class="section-title" id="txt-calendar">My Calendar</span>
+                    <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
                 </div>
+
+                <label id="lbl-title">Event Title</label>
+                <input type="text" id="summary-box">
+
+                <div class="form-row" style="margin-top:15px;">
+                    <div class="form-col"><label id="lbl-start">Start Date</label><input type="text" id="start-date-box"></div>
+                    <div class="form-col"><label id="lbl-end">End Date</label><input type="text" id="end-date-box"></div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-col"><label id="lbl-time-start">Start Time</label><input type="text" id="start-time-box"></div>
+                    <div class="form-col"><label id="lbl-time-end">End Time</label><input type="text" id="end-time-box"></div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; margin-bottom:15px; gap:8px;">
+                    <input type="checkbox" id="allday-check"><label for="allday-check" id="lbl-allday" style="margin:0; cursor:pointer;">All Day</label>
+                </div>
+
+                <label id="lbl-loc">Location</label>
+                <input type="text" id="loc-box" oninput="updateMapLinks()">
+
+                <div id="map-links" class="map-group hidden">
+                    <a id="link-google" href="#" target="_blank" class="map-link bg-google">Google</a>
+                    <a id="link-naver" href="#" target="_blank" class="map-link bg-naver">Naver</a>
+                    <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao">Kakao</a>
+                </div>
+
+                <div class="consent-box">
+                    <input type="checkbox" id="data-consent" checked class="simple-check">
+                    <label for="data-consent" class="consent-label" id="lbl-consent">
+                        Contribute data for AI training
+                    </label>
+                </div>
+
+                <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
+                    <span id="btn-add-text">Add to Google Calendar</span>
+                </button>
+                <div class="spinner" id="loading-spinner"></div>
+                <div id="result-output" style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
+            </div>
+        </div>
+
+        <div id="view-calendar" class="view-section">
+            <div class="hero-section">
+                <h1 id="txt-calendar">My Calendar</h1>
+            </div>
+            <div class="section-card">
                 <div id="calendar"></div>
             </div>
         </div>
+
     </div>
 
     <script>
@@ -226,25 +292,41 @@
         let isLoggedIn = false;
         let calendar;
 
+        // [NEW] View Switcher Logic
+        function switchView(viewId) {
+            // Hide all views
+            document.getElementById('view-main').classList.remove('active');
+            document.getElementById('view-calendar').classList.remove('active');
+            // Show target view
+            document.getElementById(viewId).classList.add('active');
+
+            // Refresh calendar if shown
+            if(viewId === 'view-calendar' && calendar) {
+                setTimeout(() => { calendar.render(); }, 100);
+            }
+
+            // Hide dropdown
+            const dropdown = document.getElementById('profile-dropdown');
+            if(dropdown) dropdown.classList.remove('show');
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             var calendarEl = document.getElementById('calendar');
             calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
                 headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
-                height: 600,
+                height: 650,
                 events: []
             });
             calendar.render();
         });
 
-        // [NEW] Profile Dropdown Logic
         fetch('/user-info').then(r => r.json()).then(d => {
             const userArea = document.getElementById('user-area');
             if (d.user) {
                 isLoggedIn = true;
                 const initial = d.user.name.charAt(0).toUpperCase();
 
-                // Dropdown HTML structure
                 userArea.innerHTML = `
                     <div class="profile-container" onclick="toggleDropdown()">
                         <div class="profile-trigger">
@@ -253,10 +335,10 @@
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
                         </div>
                         <div class="dropdown-menu" id="profile-dropdown">
-                            <div class="dropdown-item" onclick="scrollToSection('top')">
+                            <div class="dropdown-item" onclick="switchView('view-main')">
                                 <span>📝</span> <span id="menu-input">Input Schedule</span>
                             </div>
-                            <div class="dropdown-item" onclick="scrollToSection('calendar-section')">
+                            <div class="dropdown-item" onclick="switchView('view-calendar')">
                                 <span>📅</span> <span id="menu-calendar">View Calendar</span>
                             </div>
                             <div class="dropdown-divider"></div>
@@ -266,32 +348,87 @@
                         </div>
                     </div>
                 `;
+                fetchEvents();
             }
         });
 
         function toggleDropdown() {
-            const menu = document.getElementById('profile-dropdown');
-            menu.classList.toggle('show');
+            document.getElementById('profile-dropdown').classList.toggle('show');
         }
-
-        // Close dropdown when clicking outside
-        window.onclick = function(event) {
-            if (!event.target.closest('.profile-container')) {
-                const dropdowns = document.getElementsByClassName("dropdown-menu");
-                for (let i = 0; i < dropdowns.length; i++) {
-                    dropdowns[i].classList.remove('show');
-                }
+        window.onclick = function(e) {
+            if (!e.target.closest('.profile-container')) {
+                const d = document.getElementById('profile-dropdown');
+                if(d) d.classList.remove('show');
             }
         }
 
-        function scrollToSection(id) {
-            const element = document.getElementById(id);
-            if(element) element.scrollIntoView({ behavior: 'smooth' });
+        async function fetchEvents() {
+            try {
+                const res = await fetch('/events');
+                if(res.ok) {
+                    const data = await res.json();
+                    calendar.removeAllEvents();
+                    data.events.forEach(event => calendar.addEvent(event));
+                }
+            } catch(e) {}
         }
 
+        // ... (Existing Translation & Logic Functions) ...
         const translations = {
-            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"데이터 기부 동의", btnAdd:"일정 등록", login:"로그인", logout:"로그아웃", mapGoogle:"구글", mapNaver:"네이버", btnReply:"전송", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃" },
-            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data", btnAdd:"Add Event", login:"Login", logout:"Logout", mapGoogle:"Google", mapNaver:"Naver", btnReply:"Send", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout" }
+            ko: {
+                subtitle: "일정을 입력하면 AI가 자동으로 정리해드립니다.",
+                txtStep1: "입력 및 분석",
+                lblInput: "📝 일정 내용",
+                placeholder: "예: '내일 오후 7시에 홍대입구역에서 팀 회식'",
+                tip: "💡 팁: AI가 놓친 정보가 있다면 직접 수정할 수 있습니다.",
+                btnExtract: "분석 시작",
+                lblResult: "영어 번역 결과",
+                txtStep2: "내용 확인",
+                lblTitle: "🎉 일정 제목",
+                lblStart: "📅 시작 날짜",
+                lblEnd: "📅 종료 날짜",
+                lblTimeStart: "시작 시간",
+                lblTimeEnd: "종료 시간",
+                lblAllday: "종일 일정",
+                lblLoc: "📍 장소",
+                lblConsent: "AI 학습을 위한 데이터 기부 동의",
+                btnAdd: "구글 캘린더에 등록",
+                login: "구글 로그인",
+                txtCalendar: "내 캘린더",
+                menuInput: "일정 입력",
+                menuCalendar: "달력 보기",
+                menuLogout: "로그아웃",
+                replyPlaceholder: "답변 입력...",
+                btnReply: "전송",
+                mapGoogle: "구글", mapNaver: "네이버", mapKakao: "카카오"
+            },
+            en: {
+                subtitle: "Effortless scheduling powered by AI.",
+                txtStep1: "Input & Analysis",
+                lblInput: "What's your plan?",
+                placeholder: "Ex: 'Trip to Jeju from Nov 20 to 23'",
+                tip: "💡 Tip: You can manually edit details below.",
+                btnExtract: "Analyze Text",
+                lblResult: "Translation (EN)",
+                txtStep2: "Details",
+                lblTitle: "Event Title",
+                lblStart: "Start Date",
+                lblEnd: "End Date",
+                lblTimeStart: "Start Time",
+                lblTimeEnd: "End Time",
+                lblAllday: "All Day",
+                lblLoc: "Location",
+                lblConsent: "Contribute data for AI training",
+                btnAdd: "Add to Google Calendar",
+                login: "Sign in",
+                txtCalendar: "My Calendar",
+                menuInput: "Input Schedule",
+                menuCalendar: "View Calendar",
+                menuLogout: "Logout",
+                replyPlaceholder: "Type answer...",
+                btnReply: "Send",
+                mapGoogle: "Google", mapNaver: "Naver", mapKakao: "Kakao"
+            }
         };
 
         let currentLang = 'en';
@@ -300,9 +437,12 @@
             currentLang = lang;
             const t = translations[lang];
             document.getElementById('txt-subtitle').innerText = t.subtitle;
-            document.getElementById('btn-extract-text').innerText = t.btnExtract;
-            document.getElementById('lbl-input').innerText = t.lblInput;
             document.getElementById('txt-step1').innerText = t.txtStep1;
+            document.getElementById('lbl-input').innerText = t.lblInput;
+            document.getElementById('input-text').placeholder = t.placeholder;
+            document.getElementById('txt-tip').innerText = t.tip;
+            document.getElementById('btn-extract-text').innerText = t.btnExtract;
+            document.getElementById('lbl-result').innerText = t.lblResult;
             document.getElementById('txt-step2').innerText = t.txtStep2;
             document.getElementById('lbl-title').innerText = t.lblTitle;
             document.getElementById('lbl-start').innerText = t.lblStart;
@@ -313,35 +453,31 @@
             document.getElementById('lbl-loc').innerText = t.lblLoc;
             document.getElementById('lbl-consent').innerText = t.lblConsent;
             document.getElementById('btn-add-text').innerText = t.btnAdd;
-            document.getElementById('link-google').innerText = t.mapGoogle;
-            document.getElementById('link-naver').innerText = t.mapNaver;
-            document.getElementById('btn-reply').innerText = t.btnReply;
             document.getElementById('txt-calendar').innerText = t.txtCalendar;
 
-            // Update menu items if logged in
             if(document.getElementById('menu-input')) {
                 document.getElementById('menu-input').innerText = t.menuInput;
                 document.getElementById('menu-calendar').innerText = t.menuCalendar;
                 document.getElementById('menu-logout').innerText = t.menuLogout;
             }
 
+            document.getElementById('ai-user-reply').placeholder = t.replyPlaceholder;
+            document.getElementById('btn-reply').innerText = t.btnReply;
+
+            document.getElementById('link-google').innerText = t.mapGoogle;
+            document.getElementById('link-naver').innerText = t.mapNaver;
+            document.getElementById('link-kakao').innerText = t.mapKakao;
+
             const loginBtn = document.getElementById('txt-login');
             if (loginBtn && !isLoggedIn) loginBtn.innerText = t.login;
 
-            document.getElementById('btn-ko').className = lang==='ko'?'lang-btn active':'lang-btn';
-            document.getElementById('btn-en').className = lang==='en'?'lang-btn active':'lang-btn';
-        }
-
-        // ... (나머지 Extract, Reply, AddToCalendar 함수들은 기존과 동일) ...
-        async function fetchEvents() {
-            try {
-                const res = await fetch('/events');
-                if(res.ok) {
-                    const data = await res.json();
-                    calendar.removeAllEvents();
-                    data.events.forEach(event => calendar.addEvent(event));
-                }
-            } catch(e) {}
+            if (lang === 'ko') {
+                document.getElementById('btn-ko').classList.add('active');
+                document.getElementById('btn-en').classList.remove('active');
+            } else {
+                document.getElementById('btn-ko').classList.remove('active');
+                document.getElementById('btn-en').classList.add('active');
+            }
         }
 
         function updateMapLinks() {
@@ -363,6 +499,7 @@
             const originalLabel = btnText.innerText;
 
             btnText.innerText = "..."; btn.disabled = true; aiMsgBox.style.display = 'none'; indicator.innerText = "";
+            document.querySelectorAll('input').forEach(el => el.classList.remove('highlight-empty'));
 
             try {
                 const response = await fetch('/extract', {
@@ -371,7 +508,9 @@
                 });
                 const data = await response.json();
                 originalText = data.original_text;
+                translatedText = data.translated_text;
 
+                document.getElementById('translated-output').value = data.translated_text || "";
                 document.getElementById('summary-box').value = data.summary || "";
                 document.getElementById('start-date-box').value = data.start_date || "";
                 document.getElementById('end-date-box').value = data.end_date || "";
@@ -387,6 +526,8 @@
                 if (data.ai_message) {
                     document.getElementById('ai-text').innerText = data.ai_message;
                     aiMsgBox.style.display = 'block';
+                    if (!data.start_date) document.getElementById('start-date-box').classList.add('highlight-empty');
+                    if (!data.start_time && !data.is_allday) document.getElementById('start-time-box').classList.add('highlight-empty');
                 }
 
             } catch (error) { alert('Error processing text.'); }
@@ -417,9 +558,9 @@
                 start_time: document.getElementById('start-time-box').value,
                 end_time: document.getElementById('end-time-box').value,
                 location: document.getElementById('loc-box').value,
-                description: originalText,
+                description: `Original: ${originalText}\nTranslated: ${translatedText}`,
                 original_text: originalText,
-                translated_text: "",
+                translated_text: translatedText,
                 is_allday: document.getElementById('allday-check').checked,
                 consent: document.getElementById('data-consent').checked
             };
@@ -432,7 +573,7 @@
                 const data = await response.json();
                 if (response.ok) {
                     output.innerHTML = `✅ Success!`;
-                    fetchEvents(); // Refresh Calendar
+                    fetchEvents();
                 } else { output.innerHTML = `❌ ${data.error}`; }
             } catch (error) { output.innerHTML = `❌ Error`; }
             finally { btn.style.opacity = "1"; btn.disabled = false; }
