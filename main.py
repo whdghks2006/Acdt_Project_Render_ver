@@ -169,8 +169,8 @@ class ExtractResponse(BaseModel):
     summary: str
     start_date: str
     end_date: str
-    start_time: str  # [New]
-    end_time: str  # [New]
+    start_time: str
+    end_time: str
     location: str
     is_allday: bool
     ai_message: str = ""
@@ -181,14 +181,21 @@ class AddEventRequest(BaseModel):
     summary: str
     start_date: str
     end_date: str
-    start_time: str  # [New]
-    end_time: str  # [New]
+    start_time: str
+    end_time: str
     location: str
     description: str
     is_allday: bool
     original_text: str
     translated_text: str
     consent: bool = False
+
+
+# [RESTORED] Model for Updating Event
+class UpdateEventRequest(BaseModel):
+    summary: str
+    location: str
+    description: str
 
 
 # ==============================================================================
@@ -217,8 +224,8 @@ async def api_extract_schedule(request: ExtractRequest):
             summary=data.get("summary", ""),
             start_date=data.get("start_date", ""),
             end_date=data.get("end_date", ""),
-            start_time=data.get("start_time", ""),  # [New]
-            end_time=data.get("end_time", ""),  # [New]
+            start_time=data.get("start_time", ""),
+            end_time=data.get("end_time", ""),
             location=data.get("location", ""),
             is_allday=data.get("is_allday", False),
             ai_message=data.get("question", ""),
@@ -262,6 +269,7 @@ async def get_user_info(request: Request):
     return {"user": request.session.get('user')}
 
 
+# [RESTORED & UPDATED] Add to Calendar with Start/End Time support
 @app.post("/add-to-calendar")
 async def add_to_calendar(request: Request, event_data: AddEventRequest):
     token_data = request.session.get('token')
@@ -269,20 +277,13 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=401, content={"error": "Login required"})
 
     try:
-        # [FIX] Advanced Date Logic for Full Days & Ranges
         s_date_obj = dateparser.parse(event_data.start_date)
         e_date_obj = dateparser.parse(event_data.end_date)
         if not s_date_obj: s_date_obj = datetime.datetime.now()
         if not e_date_obj: e_date_obj = s_date_obj
 
         if event_data.is_allday:
-            # [All Day Logic]
-            # Google Calendar treats end date as exclusive.
-            # If User says "20th to 23rd", they mean 23rd is included.
-            # So we must send "20th" as start and "24th" as end to Google.
             s_str = s_date_obj.strftime("%Y-%m-%d")
-
-            # Add 1 day to end date for Google's exclusive logic
             e_date_exclusive = e_date_obj + datetime.timedelta(days=1)
             e_str = e_date_exclusive.strftime("%Y-%m-%d")
 
@@ -294,19 +295,18 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
                 'end': {'date': e_str},
             }
         else:
-            # [Timed Logic]
             kst = pytz.timezone('Asia/Seoul')
 
-            # Parse Start Time
-            start_full_str = f"{event_data.start_date} {event_data.start_time}"
-            start_dt = dateparser.parse(start_full_str, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
-                                                                  'RETURN_AS_TIMEZONE_AWARE': True})
+            # Start Time
+            start_full = f"{event_data.start_date} {event_data.start_time}"
+            start_dt = dateparser.parse(start_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                              'RETURN_AS_TIMEZONE_AWARE': True})
 
-            # Parse End Time (if exists) or Default +1 Hour
+            # End Time
             if event_data.end_time:
-                end_full_str = f"{event_data.end_date} {event_data.end_time}"
-                end_dt = dateparser.parse(end_full_str, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
-                                                                  'RETURN_AS_TIMEZONE_AWARE': True})
+                end_full = f"{event_data.end_date} {event_data.end_time}"
+                end_dt = dateparser.parse(end_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                              'RETURN_AS_TIMEZONE_AWARE': True})
             else:
                 if not start_dt: start_dt = datetime.datetime.now(kst)
                 end_dt = start_dt + datetime.timedelta(hours=1)
@@ -330,7 +330,6 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
 
         if resp.status_code != 200:
             if resp.status_code == 401: return JSONResponse(status_code=401, content={"error": "Token expired."})
-            print(f"Google API Error: {resp.text}")
             resp.raise_for_status()
 
         result = resp.json()
@@ -348,70 +347,122 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-@app.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(request: Request):
-    key = request.query_params.get("key")
-    if key != "1234": return HTMLResponse("<h1>🚫 Access Denied</h1>", status_code=403)
-    # ... Admin code ...
-    return HTMLResponse("<h1>Admin Dashboard</h1>")
-
-
+# [RESTORED] List Events (Read)
 @app.get("/events")
 async def list_events(request: Request):
     token_data = request.session.get('token')
-    if not token_data or 'access_token' not in token_data:
-        return JSONResponse(status_code=401, content={"error": "Login required"})
+    if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
 
     access_token = token_data['access_token']
     headers = {'Authorization': f'Bearer {access_token}'}
-
-    # Get events starting from 'now' - 30 days (to show recent past too)
-    # Let's just show from now to future to keep it simple, or adjust as needed.
     now = datetime.datetime.utcnow().isoformat() + 'Z'
 
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-                headers=headers,
-                params={
-                    'timeMin': now,
-                    'maxResults': 100,
-                    'singleEvents': True,
-                    'orderBy': 'startTime'
-                }
-            )
+            resp = await client.get('https://www.googleapis.com/calendar/v3/calendars/primary/events', headers=headers,
+                                    params={'timeMin': now, 'maxResults': 100, 'singleEvents': True,
+                                            'orderBy': 'startTime'})
 
-        if resp.status_code != 200:
-            if resp.status_code == 401: return JSONResponse(status_code=401, content={"error": "Token expired."})
-            return JSONResponse(status_code=500, content={"error": "Failed to fetch events"})
+        if resp.status_code != 200: return JSONResponse(status_code=resp.status_code,
+                                                        content={"error": "Failed to fetch"})
 
-        data = resp.json()
-        items = data.get('items', [])
-
+        items = resp.json().get('items', [])
         calendar_events = []
         for event in items:
-            # Extract Date/Time
             start = event['start'].get('dateTime', event['start'].get('date'))
             end = event['end'].get('dateTime', event['end'].get('date'))
-
-            # [UPDATE] Pack detailed info into extendedProps
+            # Include ID for editing/deleting
             calendar_events.append({
+                'id': event['id'],
                 'title': event.get('summary', 'No Title'),
                 'start': start,
                 'end': end,
-                'url': event.get('htmlLink'),  # Keep URL but handle click in JS
-                'extendedProps': {
-                    'description': event.get('description', ''),
-                    'location': event.get('location', '')
-                }
+                'url': event.get('htmlLink'),
+                'extendedProps': {'description': event.get('description', ''), 'location': event.get('location', '')}
             })
-
         return {"events": calendar_events}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# [RESTORED] Update Event
+@app.patch("/events/{event_id}")
+async def update_event(request: Request, event_id: str, event_data: UpdateEventRequest):
+    token_data = request.session.get('token')
+    if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
+
+    headers = {'Authorization': f'Bearer {token_data["access_token"]}', 'Content-Type': 'application/json'}
+    body = {
+        "summary": event_data.summary,
+        "location": event_data.location,
+        "description": event_data.description
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(f'https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}',
+                                      json=body, headers=headers)
+
+        if resp.status_code != 200: return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
+        return {"message": "Updated successfully"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# [RESTORED] Delete Event
+@app.delete("/events/{event_id}")
+async def delete_event(request: Request, event_id: str):
+    token_data = request.session.get('token')
+    if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
+
+    headers = {'Authorization': f'Bearer {token_data["access_token"]}'}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.delete(f'https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}',
+                                       headers=headers)
+
+        if resp.status_code != 204: return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
+        return {"message": "Deleted successfully"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    key = request.query_params.get("key")
+    if key != "1234": return HTMLResponse("<h1>🚫 Access Denied</h1>", status_code=403)
+
+    try:
+        if not HF_TOKEN: return HTMLResponse("<h1>⚠️ HF_TOKEN not set.</h1>")
+        api = HfApi(token=HF_TOKEN)
+        try:
+            files = api.list_repo_files(repo_id=DATASET_REPO_ID, repo_type="dataset")
+        except Exception as e:
+            return HTMLResponse(f"<h1>❌ Failed to list files.</h1><pre>{str(e)}</pre>")
+
+        csv_files = [f for f in files if f.endswith('.csv')]
+        if not csv_files: return HTMLResponse("<h1>📭 No data found.</h1>")
+
+        dfs = []
+        for file in csv_files:
+            try:
+                local_filename = hf_hub_download(repo_id=DATASET_REPO_ID, filename=file, repo_type="dataset",
+                                                 token=HF_TOKEN)
+                df = pd.read_csv(local_filename)
+                dfs.append(df)
+            except Exception:
+                continue
+
+        if not dfs: return HTMLResponse("<h1>❌ Error loading CSV.</h1>")
+        final_df = pd.concat(dfs, ignore_index=True)
+        if 'timestamp' in final_df.columns: final_df = final_df.sort_values(by='timestamp', ascending=False)
+        table_html = final_df.to_html(classes="table table-striped", index=False)
+        return HTMLResponse(
+            f"<html><head><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'></head><body><div class='container mt-4'><h1>📊 Feedback Log</h1><p>Total: {len(final_df)}</p>{table_html}</div></body></html>")
 
     except Exception as e:
-        print(f"Event Fetch Error: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return HTMLResponse(f"<h1>❌ Error: {str(e)}</h1>")
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -7,10 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=Noto+Sans+KR:wght@400;500;600;800&display=swap" rel="stylesheet">
-
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
-    <script src="https://unpkg.com/@popperjs/core@2"></script>
-    <script src="https://unpkg.com/tippy.js@6"></script>
 
     <style>
         :root {
@@ -40,7 +37,7 @@
         .app-container {
             background: var(--card-bg);
             width: 100%;
-            max-width: 1200px;
+            max-width: 1200px; /* Wide layout for PC */
             border-radius: 24px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(10px);
@@ -48,6 +45,7 @@
             overflow: visible;
             display: flex;
             flex-direction: column;
+            min-height: 800px;
         }
 
         /* Header */
@@ -57,9 +55,11 @@
             border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; z-index: 100;
         }
         .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer; }
+
         .lang-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; }
         .lang-btn { background: none; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; }
         .lang-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
         .btn-login { display: flex; align-items: center; gap: 8px; background: #1e293b; color: white; padding: 8px 20px; border-radius: 12px; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: 0.2s; }
         .btn-login:hover { background: #0f172a; transform: translateY(-1px); }
 
@@ -69,15 +69,18 @@
         .profile-trigger:hover { background: #fff; border-color: var(--border); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .profile-name { font-weight: 600; font-size: 0.9rem; color: var(--text-main); max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .profile-avatar { width: 32px; height: 32px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; }
+
         .dropdown-menu { position: absolute; top: 115%; right: 0; width: 200px; background: white; border-radius: 16px; box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15); border: 1px solid #f1f5f9; padding: 8px; display: none; flex-direction: column; z-index: 200; animation: fadeIn 0.2s ease-out; }
         .dropdown-menu.show { display: flex; }
-        .dropdown-item { padding: 12px; border-radius: 10px; text-decoration: none; color: var(--text-main); font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 12px; transition: 0.2s; cursor: pointer; }
+        .dropdown-item { padding: 12px; border-radius: 10px; text-decoration: none; color: var(--text-main); font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 10px; transition: 0.2s; cursor: pointer; }
         .dropdown-item:hover { background: #f8fafc; color: var(--primary); }
+        .dropdown-divider { height: 1px; background: #f1f5f9; margin: 6px 0; }
         .text-danger { color: #ef4444; } .text-danger:hover { background: #fef2f2; color: #dc2626; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Content & View Switching */
-        .view-section { display: none; animation: fadeView 0.4s ease-out; padding: 40px; }
+        /* Layout */
+        .main-content { padding: 40px; }
+        .view-section { display: none; animation: fadeView 0.4s ease-out; }
         .view-section.active { display: block; }
         @keyframes fadeView { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -85,9 +88,11 @@
         .hero-section h1 { font-size: 2.5rem; font-weight: 800; color: #1e293b; margin-bottom: 10px; letter-spacing: -1px; }
         .hero-section p { color: var(--text-sub); font-size: 1.1rem; margin: 0; }
 
-        /* Grid & Cards */
+        /* Grid System (Side-by-Side on PC) */
         .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
         @media (max-width: 900px) { .content-grid { grid-template-columns: 1fr; gap: 30px; } }
+
+        /* Section Cards */
         .section-card { background: #fff; border: 1px solid var(--border); border-radius: var(--border-radius); padding: 30px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); height: 100%; box-sizing: border-box; }
         .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
         .section-badge { background: #e0e7ff; color: var(--primary); font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
@@ -95,19 +100,21 @@
 
         /* Inputs */
         label { display: block; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; color: #475569; }
-        textarea, input { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.95rem; background: #f8fafc; transition: all 0.2s ease; }
+        textarea, input { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.95rem; background: #f8fafc; font-family: inherit; transition: all 0.2s ease; }
         textarea:hover, input:hover { background: #fff; border-color: #94a3b8; }
         textarea:focus, input:focus { outline: none; background: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
         textarea { min-height: 150px; resize: none; }
         .highlight-empty { border-color: #ef4444 !important; background-color: #fef2f2 !important; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
 
-        /* Chat & Buttons */
+        /* AI Chat */
         .ai-chat-container { margin-top: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px; padding: 15px; display: none; }
         .ai-header { font-weight: 700; color: var(--primary); font-size: 0.85rem; margin-bottom: 5px; }
         .ai-text { font-size: 0.95rem; color: #1e3a8a; line-height: 1.5; }
         .ai-input-group { display: flex; gap: 8px; margin-top: 10px; }
         .ai-send-btn { background: var(--primary); color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+
+        /* Buttons */
         .btn-main { width: 100%; padding: 16px; background: var(--primary); color: white; font-size: 1rem; font-weight: 600; border-radius: 16px; border:none; cursor: pointer; margin-top: 25px; transition: 0.2s; box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3); }
         .btn-main:hover { background: var(--primary-hover); transform: translateY(-2px); }
         .btn-sub { width: 100%; padding: 12px; background: #e2e8f0; color: #475569; font-size: 0.95rem; font-weight: 600; border-radius: 12px; border:none; cursor: pointer; margin-top: 15px; transition: 0.2s; }
@@ -129,7 +136,7 @@
         .map-link:hover { opacity: 1; transform: translateY(-1px); }
         .bg-google { background: #4285F4; } .bg-naver { background: #03C75A; } .bg-kakao { background: #FEE500; color: #191919; }
         .hidden { display: none !important; }
-        .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 5px; }
+        .model-indicator { text-align: right; font-size: 0.75rem; color: #9ca3af; font-weight: 500; margin-top: 8px; }
         .consent-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; margin-top: 20px;}
         .consent-label { margin: 0; color: #166534; font-weight: 600; font-size: 0.85rem; }
         .result-box { background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; min-height: auto; }
@@ -139,26 +146,27 @@
         /* Calendar */
         #calendar { max-width: 100%; font-family: 'Inter', sans-serif; }
         .fc-toolbar-title { font-size: 1.5rem !important; font-weight: 800 !important; color: #1e293b; }
-        .fc-button-primary { background-color: var(--primary) !important; border-color: var(--primary) !important; border-radius: 10px !important; border: none !important; font-weight: 600 !important; padding: 8px 16px !important; }
-        .fc-daygrid-event { border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; font-weight: 600; border: none; background-color: #eff6ff; color: #1e3a8a; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s; }
-        .fc-daygrid-event:hover { transform: scale(1.02); background-color: #dbeafe; }
+        .fc-button-primary { background-color: var(--primary) !important; border-color: var(--primary) !important; border-radius: 8px !important; }
+        .fc-daygrid-event { border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
 
-        /* MODAL STYLES (NEW) */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); z-index: 1000; display: none; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.3s; }
-        .modal-overlay.show { display: flex; opacity: 1; }
-        .modal-card { background: white; padding: 30px; border-radius: 24px; width: 400px; max-width: 90%; box-shadow: 0 20px 50px rgba(0,0,0,0.2); transform: translateY(20px); transition: transform 0.3s; border: 1px solid rgba(255,255,255,0.5); }
-        .modal-overlay.show .modal-card { transform: translateY(0); }
-        .modal-title { font-size: 1.4rem; font-weight: 800; margin: 0 0 10px 0; color: var(--text-main); }
-        .modal-meta { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
-        .meta-row { display: flex; align-items: flex-start; gap: 10px; color: var(--text-sub); font-size: 0.95rem; }
-        .meta-icon { width: 20px; text-align: center; }
-        .modal-desc { background: #f8fafc; padding: 15px; border-radius: 12px; margin-top: 20px; font-size: 0.9rem; line-height: 1.5; color: #475569; max-height: 150px; overflow-y: auto; }
-        .modal-actions { margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end; }
-        .btn-modal { padding: 10px 20px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
-        .btn-close { background: #f1f5f9; color: #64748b; }
-        .btn-close:hover { background: #e2e8f0; }
-        .btn-open { background: var(--primary); color: white; text-decoration: none; display: inline-flex; align-items: center; }
-        .btn-open:hover { background: var(--primary-hover); }
+        /* MODAL STYLES (Edit/Delete) */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .modal-card { background: white; width: 400px; padding: 25px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); animation: slideUp 0.3s; position: relative; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; }
+        .modal-title { font-size: 1.3rem; font-weight: 800; margin: 0; color: #1e293b; }
+        .modal-close { background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #999; line-height: 1; }
+        .info-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; }
+        .icon { font-size: 1.2rem; min-width: 25px; }
+        .edit-input { display: none; width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; margin-bottom: 8px; }
+        .editing .edit-input { display: block; }
+        .editing .display-text { display: none; }
+        .modal-footer { margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 15px; }
+        .btn-modal { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s; }
+        .btn-del { background: #fee2e2; color: #ef4444; } .btn-del:hover { background: #fecaca; }
+        .btn-edit { background: #e0e7ff; color: #4f46e5; } .btn-edit:hover { background: #c7d2fe; }
+        .btn-save { background: #22c55e; color: white; display: none; } .btn-save:hover { background: #16a34a; }
+        .editing .btn-edit { display: none; } .editing .btn-save { display: block; }
     </style>
 </head>
 <body>
@@ -188,7 +196,9 @@
                     <div class="section-header">
                         <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input</span>
                     </div>
-                    <textarea id="input-text" placeholder="Ex: 'Trip to Jeju from Nov 20 to 23'"></textarea>
+                    <label id="lbl-input">What's your plan?</label>
+                    <textarea id="input-text" placeholder="Example: 'Trip to Jeju from Nov 20 to 23'"></textarea>
+
                     <div id="ai-message" class="ai-chat-container">
                         <div class="ai-header">🤖 AI Assistant</div>
                         <div id="ai-text" class="ai-text"></div>
@@ -197,10 +207,12 @@
                             <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
                         </div>
                     </div>
+
                     <p class="model-indicator" style="text-align:left; margin-top:10px; margin-bottom:5px;" id="txt-tip">Tip: Check translation below.</p>
                     <button id="extract-button" class="btn-sub" onclick="handleExtract()">
                         <span id="btn-extract-text">Analyze Text</span>
                     </button>
+
                     <div style="margin-top: 15px;">
                         <label id="lbl-result">Translation (EN)</label>
                         <textarea id="translated-output" class="result-box" rows="1" readonly></textarea>
@@ -212,8 +224,10 @@
                     <div class="section-header">
                         <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
                     </div>
+
                     <label id="lbl-title">Event Title</label> <input type="text" id="summary-box">
-                    <div class="form-row" style="margin-top:15px;">
+
+                    <div class="form-row">
                         <div class="form-col"><label id="lbl-start">Start Date</label><input type="text" id="start-date-box" placeholder="YYYY-MM-DD"></div>
                         <div class="form-col"><label id="lbl-end">End Date</label><input type="text" id="end-date-box" placeholder="YYYY-MM-DD"></div>
                     </div>
@@ -221,19 +235,23 @@
                         <div class="form-col"><label id="lbl-time-start">Start Time</label><input type="text" id="start-time-box" placeholder="HH:MM"></div>
                         <div class="form-col"><label id="lbl-time-end">End Time</label><input type="text" id="end-time-box" placeholder="HH:MM"></div>
                     </div>
+
                     <div style="display:flex; justify-content:flex-end; margin-bottom:15px; gap:8px;">
                         <input type="checkbox" id="allday-check"><label for="allday-check" id="lbl-allday" style="margin:0; cursor:pointer;">All Day</label>
                     </div>
+
                     <label id="lbl-loc">Location</label> <input type="text" id="loc-box" oninput="updateMapLinks()">
                     <div id="map-links" class="map-group hidden">
                         <a id="link-google" href="#" target="_blank" class="map-link bg-google">Google</a>
                         <a id="link-naver" href="#" target="_blank" class="map-link bg-naver">Naver</a>
                         <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao">Kakao</a>
                     </div>
+
                     <div class="consent-box">
                         <input type="checkbox" id="data-consent" checked class="simple-check">
                         <label for="data-consent" class="consent-label" id="lbl-consent">Contribute data</label>
                     </div>
+
                     <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
                         <span id="btn-add-text">Add to Google Calendar</span>
                     </button>
@@ -244,34 +262,45 @@
         </div>
 
         <div id="view-calendar" class="view-section">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <div class="section-title" id="txt-calendar" style="font-size:1.5rem;">My Calendar</div>
-                <a href="https://calendar.google.com" target="_blank" class="btn-sub" style="margin:0; padding:10px 20px; text-decoration:none; font-size:0.9rem;">
-                    ↗ Google Calendar
-                </a>
+            <div class="hero-section">
+                <h1 id="txt-calendar">My Calendar</h1>
             </div>
             <div class="section-card" style="padding:10px;">
                 <div id="calendar"></div>
             </div>
         </div>
-
     </div>
 
-    <div class="modal-overlay" id="event-modal">
-        <div class="modal-card">
-            <h2 class="modal-title" id="m-title">Event Title</h2>
-            <div class="modal-meta">
-                <div class="meta-row">
-                    <span class="meta-icon">🕒</span> <span id="m-time">Time</span>
+    <div class="modal-overlay" id="modal">
+        <div class="modal-card" id="modal-content">
+            <div class="modal-header">
+                <div style="flex:1; margin-right:10px;">
+                    <h3 class="display-text modal-title" id="d-title"></h3>
+                    <input class="edit-input" id="e-title" placeholder="Event Title">
                 </div>
-                <div class="meta-row" id="m-loc-row">
-                    <span class="meta-icon">📍</span> <span id="m-loc">Location</span>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="info-row">
+                    <span class="icon">🕒</span>
+                    <span class="display-text" id="d-time"></span>
+                    <span class="edit-input" style="color:#999; font-size:0.85rem;">(Date edit not supported)</span>
+                </div>
+                <div class="info-row">
+                    <span class="icon">📍</span>
+                    <span class="display-text" id="d-loc"></span>
+                    <input class="edit-input" id="e-loc" placeholder="Location">
+                </div>
+                <div class="info-row">
+                    <span class="icon">📝</span>
+                    <span class="display-text" id="d-desc"></span>
+                    <textarea class="edit-input" id="e-desc" rows="3" placeholder="Description"></textarea>
                 </div>
             </div>
-            <div class="modal-desc" id="m-desc">No description</div>
-            <div class="modal-actions">
-                <button class="btn-modal btn-close" onclick="closeModal()">Close</button>
-                <a href="#" target="_blank" class="btn-modal btn-open" id="m-link">Open in Google</a>
+            <div class="modal-footer">
+                <button class="btn-modal btn-del" onclick="deleteEvent()">Delete</button>
+                <button class="btn-modal btn-edit" onclick="enableEdit()">Edit</button>
+                <button class="btn-modal btn-save" onclick="saveEvent()">Save</button>
             </div>
         </div>
     </div>
@@ -281,84 +310,69 @@
         let translatedText = "";
         let isLoggedIn = false;
         let calendar;
+        let currentEventId = null;
 
-        function switchView(viewId) {
-            document.getElementById('view-main').classList.remove('active');
-            document.getElementById('view-calendar').classList.remove('active');
-            document.getElementById(viewId).classList.add('active');
-            if(viewId === 'view-calendar' && calendar) { setTimeout(() => { calendar.render(); }, 100); }
+        function switchView(id) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if(id === 'view-calendar' && calendar) setTimeout(() => calendar.render(), 100);
             const dropdown = document.getElementById('profile-dropdown');
             if(dropdown) dropdown.classList.remove('show');
         }
 
-        // [NEW] Modal Functions
-        function showModal(event) {
-            document.getElementById('m-title').innerText = event.title;
-
-            // Format Date/Time
-            let timeStr = "";
-            if (event.allDay) {
-                timeStr = event.start.toLocaleDateString() + " (All Day)";
-            } else {
-                timeStr = event.start.toLocaleString();
-                if (event.end) timeStr += " - " + event.end.toLocaleTimeString();
-            }
-            document.getElementById('m-time').innerText = timeStr;
-
-            // Location
-            const loc = event.extendedProps.location;
-            if (loc) {
-                document.getElementById('m-loc').innerText = loc;
-                document.getElementById('m-loc-row').style.display = 'flex';
-            } else {
-                document.getElementById('m-loc-row').style.display = 'none';
-            }
-
-            // Description
-            document.getElementById('m-desc').innerText = event.extendedProps.description || "No description available.";
-
-            // Link
-            document.getElementById('m-link').href = event.url;
-
-            // Show
-            const modal = document.getElementById('event-modal');
-            modal.style.display = 'flex';
-            setTimeout(() => modal.classList.add('show'), 10);
-        }
-
-        function closeModal() {
-            const modal = document.getElementById('event-modal');
-            modal.classList.remove('show');
-            setTimeout(() => modal.style.display = 'none', 300);
-        }
-
-        // Close on overlay click
-        document.getElementById('event-modal').addEventListener('click', function(e) {
-            if (e.target === this) closeModal();
-        });
-
+        // Calendar & Modal
         document.addEventListener('DOMContentLoaded', function() {
-            var calendarEl = document.getElementById('calendar');
-            calendar = new FullCalendar.Calendar(calendarEl, {
+            calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
                 initialView: 'dayGridMonth',
-                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
                 height: 650,
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
                 events: [],
-                // [NEW] Event Handlers
-                eventMouseEnter: function(info) {
-                    tippy(info.el, {
-                        content: info.event.title + " (" + (info.event.allDay ? "All Day" : info.event.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})) + ")",
-                        placement: 'top',
-                        theme: 'light'
-                    });
-                },
                 eventClick: function(info) {
-                    info.jsEvent.preventDefault(); // Don't open URL yet
-                    showModal(info.event);
+                    info.jsEvent.preventDefault();
+                    openModal(info.event);
                 }
             });
             calendar.render();
         });
+
+        function openModal(event) {
+            currentEventId = event.id;
+            const props = event.extendedProps;
+            document.getElementById('d-title').innerText = event.title;
+            document.getElementById('d-time').innerText = event.start.toLocaleString();
+            document.getElementById('d-loc').innerText = props.location || "No location";
+            document.getElementById('d-desc').innerText = props.description || "";
+
+            document.getElementById('e-title').value = event.title;
+            document.getElementById('e-loc').value = props.location || "";
+            document.getElementById('e-desc').value = props.description || "";
+
+            document.getElementById('modal-content').classList.remove('editing');
+            document.getElementById('modal').style.display = 'flex';
+        }
+        function closeModal() { document.getElementById('modal').style.display = 'none'; }
+        function enableEdit() { document.getElementById('modal-content').classList.add('editing'); }
+
+        async function saveEvent() {
+            if(!currentEventId) return;
+            const body = {
+                summary: document.getElementById('e-title').value,
+                location: document.getElementById('e-loc').value,
+                description: document.getElementById('e-desc').value
+            };
+            try {
+                const res = await fetch(`/events/${currentEventId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+                if(res.ok) { alert("Updated!"); closeModal(); fetchEvents(); } else { alert("Failed"); }
+            } catch(e) { alert("Error"); }
+        }
+
+        async function deleteEvent() {
+            if(!currentEventId || !confirm("Delete?")) return;
+            try {
+                const res = await fetch(`/events/${currentEventId}`, { method: 'DELETE' });
+                if(res.ok) { alert("Deleted!"); closeModal(); fetchEvents(); } else { alert("Failed"); }
+            } catch(e) { alert("Error"); }
+        }
 
         fetch('/user-info').then(r => r.json()).then(d => {
             const userArea = document.getElementById('user-area');
@@ -398,11 +412,11 @@
             } catch(e) {}
         }
 
-        // Translation & Logic (Same as before)
         const translations = {
             ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"데이터 기부 동의", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오" },
             en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao" }
         };
+
         let currentLang = 'en';
         function setLanguage(lang) {
             currentLang = lang;
@@ -410,6 +424,8 @@
             document.getElementById('txt-subtitle').innerText = t.subtitle;
             document.getElementById('btn-extract-text').innerText = t.btnExtract;
             document.getElementById('lbl-input').innerText = t.lblInput;
+            document.getElementById('input-text').placeholder = t.placeholder;
+            document.getElementById('txt-tip').innerText = t.tip;
             document.getElementById('txt-step1').innerText = t.txtStep1;
             document.getElementById('txt-step2').innerText = t.txtStep2;
             document.getElementById('lbl-title').innerText = t.lblTitle;
@@ -422,18 +438,22 @@
             document.getElementById('lbl-consent').innerText = t.lblConsent;
             document.getElementById('btn-add-text').innerText = t.btnAdd;
             document.getElementById('txt-calendar').innerText = t.txtCalendar;
+
             if(document.getElementById('menu-input')) {
                 document.getElementById('menu-input').innerText = t.menuInput;
                 document.getElementById('menu-calendar').innerText = t.menuCalendar;
                 document.getElementById('menu-logout').innerText = t.menuLogout;
             }
+
             document.getElementById('ai-user-reply').placeholder = t.replyPlaceholder;
             document.getElementById('btn-reply').innerText = t.btnReply;
             document.getElementById('link-google').innerText = t.mapGoogle;
             document.getElementById('link-naver').innerText = t.mapNaver;
             document.getElementById('link-kakao').innerText = t.mapKakao;
+
             const loginBtn = document.getElementById('txt-login');
             if (loginBtn && !isLoggedIn) loginBtn.innerText = t.login;
+
             document.getElementById('btn-ko').className = lang==='ko'?'lang-btn active':'lang-btn';
             document.getElementById('btn-en').className = lang==='en'?'lang-btn active':'lang-btn';
         }
@@ -455,8 +475,10 @@
             const aiMsgBox = document.getElementById('ai-message');
             const indicator = document.getElementById('model-indicator');
             const originalLabel = btnText.innerText;
+
             btnText.innerText = "..."; btn.disabled = true; aiMsgBox.style.display = 'none'; indicator.innerText = "";
             document.querySelectorAll('input').forEach(el => el.classList.remove('highlight-empty'));
+
             try {
                 const response = await fetch('/extract', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -465,6 +487,7 @@
                 const data = await response.json();
                 originalText = data.original_text;
                 translatedText = data.translated_text;
+
                 document.getElementById('translated-output').value = data.translated_text || "";
                 document.getElementById('summary-box').value = data.summary || "";
                 document.getElementById('start-date-box').value = data.start_date || "";
@@ -473,14 +496,18 @@
                 document.getElementById('end-time-box').value = data.end_time || "";
                 document.getElementById('loc-box').value = data.location || "";
                 document.getElementById('allday-check').checked = data.is_allday;
+
                 updateMapLinks();
+
                 if (data.used_model) indicator.innerText = "⚙️ " + data.used_model;
+
                 if (data.ai_message) {
                     document.getElementById('ai-text').innerText = data.ai_message;
                     aiMsgBox.style.display = 'block';
                     if (!data.start_date) document.getElementById('start-date-box').classList.add('highlight-empty');
                     if (!data.start_time && !data.is_allday) document.getElementById('start-time-box').classList.add('highlight-empty');
                 }
+
             } catch (error) { alert('Error processing text.'); }
             finally { btnText.innerText = originalLabel; btn.disabled = false; }
         }
@@ -515,16 +542,14 @@
                 consent: document.getElementById('data-consent').checked
             };
             try {
-                const response = await fetch('/add-to-calendar', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(eventData)
-                });
+                const response = await fetch('/add-to-calendar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(eventData) });
                 const data = await response.json();
                 if (response.ok) { output.innerHTML = `✅ Success!`; fetchEvents(); }
                 else { output.innerHTML = `❌ ${data.error}`; }
             } catch (error) { output.innerHTML = `❌ Error`; }
             finally { btn.style.opacity = "1"; btn.disabled = false; }
         }
+
         setLanguage('en');
     </script>
 </body>
