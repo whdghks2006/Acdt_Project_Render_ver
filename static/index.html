@@ -57,17 +57,15 @@
         }
         .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer; }
 
-        /* [Modified] Fixed width for consistent sizing */
         .lang-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; gap: 4px; }
         .lang-btn {
-            width: 45px; /* Fixed width */
+            width: 45px;
             background: none; border: none; padding: 6px 0; border-radius: 8px;
             font-size: 0.85rem; font-weight: 700; color: #94a3b8; cursor: pointer; transition: 0.2s;
             text-align: center;
         }
         .lang-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
-        /* [Modified] Google Login Button */
         .btn-login {
             display: flex; align-items: center; gap: 10px;
             background: white; color: #374151;
@@ -80,15 +78,14 @@
         .btn-login:hover { background: #f8fafc; transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .google-logo { width: 18px; height: 18px; }
 
-        /* [Modified] Profile Dropdown Trigger (More button-like) */
         .profile-container { position: relative; cursor: pointer; }
         .profile-trigger {
             display: flex; align-items: center; gap: 10px;
             padding: 6px 12px; padding-right: 16px;
-            border-radius: 50px; /* Pill shape */
+            border-radius: 50px;
             transition: 0.2s;
             background: white;
-            border: 1px solid #e2e8f0; /* Visible border */
+            border: 1px solid #e2e8f0;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         .profile-trigger:hover { border-color: var(--primary); box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15); }
@@ -114,12 +111,40 @@
         .hero-section h1 { font-size: 2.5rem; font-weight: 800; color: #1e293b; margin-bottom: 10px; letter-spacing: -1px; }
         .hero-section p { color: var(--text-sub); font-size: 1.1rem; margin: 0; }
 
-        /* Grid System */
-        .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
-        @media (max-width: 900px) { .content-grid { grid-template-columns: 1fr; gap: 30px; } }
+        /* [Modified] Unified Card Layout System */
+        .unified-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--border-radius);
+            padding: 40px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            margin-bottom: 40px;
+        }
 
-        /* Section Cards */
-        .section-card { background: #fff; border: 1px solid var(--border); border-radius: var(--border-radius); padding: 30px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); height: 100%; box-sizing: border-box; }
+        .unified-grid {
+            display: grid;
+            grid-template-columns: 1fr 1px 1fr; /* Left, Divider, Right */
+            gap: 40px;
+            align-items: start;
+        }
+
+        /* Vertical Divider Line */
+        .vertical-divider {
+            width: 1px;
+            height: 100%;
+            background: #f1f5f9;
+            min-height: 400px;
+        }
+
+        /* Responsive: Stack on mobile */
+        @media (max-width: 900px) {
+            .unified-grid { grid-template-columns: 1fr; gap: 30px; }
+            .vertical-divider {
+                width: 100%; height: 1px; min-height: 1px;
+                margin: 10px 0;
+            }
+        }
+
         .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
         .section-badge { background: #e0e7ff; color: var(--primary); font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
         .section-title { font-size: 1.1rem; font-weight: 700; color: #334155; }
@@ -155,14 +180,28 @@
         .spinner { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
+        /* [Modified] Optimized Time Row with Switch */
+        .time-row-container {
+            display: flex;
+            align-items: flex-end; /* Align inputs and switch at bottom */
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .time-input-group { flex: 1; }
+        .switch-wrapper {
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            padding-bottom: 5px; /* Adjust alignment */
+            min-width: 60px;
+        }
+
         /* Toggle Switch Styles */
-        .switch-container { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 10px; margin-bottom: 15px; }
-        .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         input:checked + .slider { background-color: var(--primary); }
-        input:checked + .slider:before { transform: translateX(22px); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .switch-label-text { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
 
         /* Map Links */
         .map-group { display: flex; gap: 8px; margin-top: 10px; }
@@ -233,79 +272,92 @@
                 <p id="txt-subtitle">Manage your time effortlessly with AI.</p>
             </div>
 
-            <div class="content-grid">
-                <div class="section-card">
-                    <div class="section-header">
-                        <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input</span>
-                    </div>
-                    <label id="lbl-input">What's your plan?</label>
-                    <textarea id="input-text" placeholder="Example: 'Trip to Jeju from Nov 20 to 23'"></textarea>
+            <div class="unified-card">
+                <div class="unified-grid">
 
-                    <div id="ai-message" class="ai-chat-container">
-                        <div class="ai-header">🤖 AI Assistant</div>
-                        <div id="ai-text" class="ai-text"></div>
-                        <div class="ai-input-group">
-                            <input type="text" id="ai-user-reply" placeholder="Answer...">
-                            <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
+                    <div>
+                        <div class="section-header">
+                            <span class="section-badge">Step 1</span> <span class="section-title" id="txt-step1">Input</span>
+                        </div>
+                        <label id="lbl-input">What's your plan?</label>
+                        <textarea id="input-text" placeholder="Example: 'Trip to Jeju from Nov 20 to 23'"></textarea>
+
+                        <div id="ai-message" class="ai-chat-container">
+                            <div class="ai-header">🤖 AI Assistant</div>
+                            <div id="ai-text" class="ai-text"></div>
+                            <div class="ai-input-group">
+                                <input type="text" id="ai-user-reply" placeholder="Answer...">
+                                <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
+                            </div>
+                        </div>
+
+                        <p class="model-indicator" style="text-align:left; margin-top:10px; margin-bottom:5px;" id="txt-tip">Tip: Check translation below.</p>
+                        <button id="extract-button" class="btn-sub" onclick="handleExtract()">
+                            <span id="btn-extract-text">Analyze Text</span>
+                        </button>
+
+                        <div style="margin-top: 15px;">
+                            <label id="lbl-result">Translation (EN)</label>
+                            <textarea id="translated-output" class="result-box" rows="1" readonly></textarea>
+                            <div id="model-indicator" class="model-indicator"></div>
                         </div>
                     </div>
 
-                    <p class="model-indicator" style="text-align:left; margin-top:10px; margin-bottom:5px;" id="txt-tip">Tip: Check translation below.</p>
-                    <button id="extract-button" class="btn-sub" onclick="handleExtract()">
-                        <span id="btn-extract-text">Analyze Text</span>
-                    </button>
+                    <div class="vertical-divider"></div>
 
-                    <div style="margin-top: 15px;">
-                        <label id="lbl-result">Translation (EN)</label>
-                        <textarea id="translated-output" class="result-box" rows="1" readonly></textarea>
-                        <div id="model-indicator" class="model-indicator"></div>
+                    <div>
+                        <div class="section-header">
+                            <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
+                        </div>
+
+                        <label id="lbl-title">Event Title</label>
+                        <input type="text" id="summary-box" style="margin-bottom: 20px;">
+
+                        <div class="form-row">
+                            <div class="form-col"><label id="lbl-start">Start Date</label><input type="text" id="start-date-box" placeholder="YYYY-MM-DD"></div>
+                            <div class="form-col"><label id="lbl-end">End Date</label><input type="text" id="end-date-box" placeholder="YYYY-MM-DD"></div>
+                        </div>
+
+                        <div class="time-row-container">
+                            <div class="time-input-group">
+                                <label id="lbl-time-start">Start Time</label>
+                                <input type="text" id="start-time-box" placeholder="HH:MM">
+                            </div>
+                            <div class="time-input-group">
+                                <label id="lbl-time-end">End Time</label>
+                                <input type="text" id="end-time-box" placeholder="HH:MM">
+                            </div>
+
+                            <div class="switch-wrapper">
+                                <span class="switch-label-text" id="lbl-allday">All Day</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="allday-check">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <label id="lbl-loc">Location</label>
+                        <input type="text" id="loc-box" oninput="updateMapLinks()" placeholder="Enter location...">
+
+                        <div id="map-links" class="map-group">
+                            <a id="link-google" href="#" target="_blank" class="map-link bg-google disabled">Google</a>
+                            <a id="link-naver" href="#" target="_blank" class="map-link bg-naver disabled">Naver</a>
+                            <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao disabled">Kakao</a>
+                        </div>
+
+                        <div class="consent-box">
+                            <input type="checkbox" id="data-consent" checked class="simple-check">
+                            <label for="data-consent" class="consent-label" id="lbl-consent">Contribute data for AI improvement</label>
+                        </div>
+
+                        <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
+                            <span id="btn-add-text">Add to Google Calendar</span>
+                        </button>
+                        <div class="spinner" id="loading-spinner"></div>
+                        <div id="result-output" style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
                     </div>
-                </div>
 
-                <div class="section-card">
-                    <div class="section-header">
-                        <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
-                    </div>
-
-                    <label id="lbl-title">Event Title</label>
-                    <input type="text" id="summary-box" style="margin-bottom: 20px;">
-
-                    <div class="form-row">
-                        <div class="form-col"><label id="lbl-start">Start Date</label><input type="text" id="start-date-box" placeholder="YYYY-MM-DD"></div>
-                        <div class="form-col"><label id="lbl-end">End Date</label><input type="text" id="end-date-box" placeholder="YYYY-MM-DD"></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col"><label id="lbl-time-start">Start Time</label><input type="text" id="start-time-box" placeholder="HH:MM"></div>
-                        <div class="form-col"><label id="lbl-time-end">End Time</label><input type="text" id="end-time-box" placeholder="HH:MM"></div>
-                    </div>
-
-                    <div class="switch-container">
-                        <span id="lbl-allday" style="font-size:0.9rem; font-weight:600; color:#475569;">All Day</span>
-                        <label class="switch">
-                            <input type="checkbox" id="allday-check">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-
-                    <label id="lbl-loc">Location</label>
-                    <input type="text" id="loc-box" oninput="updateMapLinks()" placeholder="Enter location...">
-
-                    <div id="map-links" class="map-group">
-                        <a id="link-google" href="#" target="_blank" class="map-link bg-google disabled">Google</a>
-                        <a id="link-naver" href="#" target="_blank" class="map-link bg-naver disabled">Naver</a>
-                        <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao disabled">Kakao</a>
-                    </div>
-
-                    <div class="consent-box">
-                        <input type="checkbox" id="data-consent" checked class="simple-check">
-                        <label for="data-consent" class="consent-label" id="lbl-consent">Contribute data for AI improvement</label>
-                    </div>
-
-                    <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
-                        <span id="btn-add-text">Add to Google Calendar</span>
-                    </button>
-                    <div class="spinner" id="loading-spinner"></div>
-                    <div id="result-output" style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
                 </div>
             </div>
         </div>
@@ -314,7 +366,7 @@
             <div class="hero-section">
                 <h1 id="txt-calendar">My Calendar</h1>
             </div>
-            <div class="section-card" style="padding:10px;">
+            <div class="unified-card" style="padding:20px;">
                 <div id="calendar"></div>
             </div>
         </div>
@@ -443,7 +495,6 @@
             if (d.user) {
                 isLoggedIn = true;
                 const initial = d.user.name.charAt(0).toUpperCase();
-                // [Modified] Added "Menu" hint and improved dropdown trigger
                 userArea.innerHTML = `
                     <div class="profile-container" onclick="toggleDropdown()">
                         <div class="profile-trigger">
@@ -478,7 +529,6 @@
         }
 
         const translations = {
-            // [Modified] Added missing placeholder for Korean to fix "undefined"
             ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"AI 학습용 데이터 기부", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오", placeholder: "예: '11월 20일부터 23일까지 제주도 여행'", tip:"팁: 아래 번역 결과를 확인해보세요." },
 
             en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data for AI improvement", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao", placeholder: "Example: 'Trip to Jeju from Nov 20 to 23'", tip: "Tip: Check translation below." }
@@ -518,7 +568,6 @@
             document.getElementById('link-naver').innerText = t.mapNaver;
             document.getElementById('link-kakao').innerText = t.mapKakao;
 
-            // [Modified] Check if login button exists (user not logged in)
             const loginBtn = document.getElementById('txt-login');
             if (loginBtn && !isLoggedIn) loginBtn.innerText = t.login;
 
