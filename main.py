@@ -261,6 +261,7 @@ async def read_index():
     return FileResponse('static/index.html')
 
 
+# [UPDATED] Hybrid Extraction Endpoint (Safe None Handling)
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
     original_text = request.text
@@ -273,10 +274,9 @@ async def api_extract_schedule(request: ExtractRequest):
     if "nlp_sm" in models:
         date_str, time_str, loc_str, event_str = run_ner_extraction(translated_text, models["nlp_sm"])
 
-    # [Added] Format spaCy results for debugging
     spacy_debug_str = f"Date=[{date_str}] Time=[{time_str}] Loc=[{loc_str}]"
 
-    # Set Initial Values from spaCy
+    # Set Initial Values
     summary_val = original_text if is_korean_input else event_str
     start_date_val = date_str
     end_date_val = date_str
@@ -292,13 +292,20 @@ async def api_extract_schedule(request: ExtractRequest):
         gemini_data = extract_info_with_gemini_json(original_text)
 
         if gemini_data:
-            summary_val = gemini_data.get("summary", summary_val)
-            start_date_val = gemini_data.get("start_date", "")
-            end_date_val = gemini_data.get("end_date", "")
-            start_time_val = gemini_data.get("start_time") or gemini_data.get("time", "")
-            end_time_val = gemini_data.get("end_time", "")
-            loc_val = gemini_data.get("location", loc_val)
-            is_allday_val = gemini_data.get("is_allday", False)
+            summary_val = gemini_data.get("summary") or summary_val  # Safe Get
+
+            # [Fix] Handle None types explicitly
+            start_date_val = gemini_data.get("start_date") or ""
+            end_date_val = gemini_data.get("end_date") or ""
+
+            # Check for both 'start_time' and legacy 'time' keys
+            g_start = gemini_data.get("start_time") or gemini_data.get("time")
+            start_time_val = g_start or ""  # Convert None to ""
+
+            end_time_val = gemini_data.get("end_time") or ""  # Convert None to ""
+
+            loc_val = gemini_data.get("location") or loc_val
+            is_allday_val = gemini_data.get("is_allday") or False
             used_model = "Smart (Gemini 2.0)"
 
     # 3. Localization
@@ -317,7 +324,7 @@ async def api_extract_schedule(request: ExtractRequest):
         start_time=start_time_val, end_time=end_time_val,
         location=loc_val, is_allday=is_allday_val,
         ai_message=ai_message, used_model=used_model,
-        spacy_log=spacy_debug_str  # Return debug info
+        spacy_log=spacy_debug_str
     )
 
 
