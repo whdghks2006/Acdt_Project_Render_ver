@@ -107,11 +107,24 @@
         .view-section.active { display: block; }
         @keyframes fadeView { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        .hero-section { text-align: center; margin-bottom: 40px; }
+        .hero-section { text-align: center; margin-bottom: 40px; position: relative; }
         .hero-section h1 { font-size: 2.5rem; font-weight: 800; color: #1e293b; margin-bottom: 10px; letter-spacing: -1px; }
         .hero-section p { color: var(--text-sub); font-size: 1.1rem; margin: 0; }
 
-        /* [Modified] Unified Card: Now Transparent to blend with container */
+        /* [Modified] Google Calendar Button Style */
+        .btn-gcal {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: white; color: #475569;
+            padding: 8px 18px; border-radius: 50px;
+            font-size: 0.85rem; font-weight: 600; text-decoration: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;
+            transition: all 0.2s ease; margin-top: 15px;
+        }
+        .btn-gcal:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: #cbd5e1; color: var(--primary); }
+        .gcal-icon { width: 20px; height: 20px; }
+
+
+        /* Unified Card: Transparent to blend */
         .unified-card {
             background: transparent; /* No background */
             border: none; /* No border */
@@ -356,6 +369,18 @@
         <div id="view-calendar" class="view-section">
             <div class="hero-section">
                 <h1 id="txt-calendar">My Calendar</h1>
+                <a href="https://calendar.google.com" target="_blank" class="btn-gcal" id="btn-gcal-shortcut">
+                    <svg class="gcal-icon" viewBox="0 0 48 48">
+                        <path fill="#e8f0fe" d="M42,43H6c-2.209,0-4-1.791-4-4V9c0-2.209,1.791-4,4-4h36c2.209,0,4,1.791,4,4v30 C46,41.209,44.209,43,42,43z"/>
+                        <path fill="#4285f4" d="M38.5,10h-29C8.673,10,8,10.673,8,11.5v28c0,0.827,0.673,1.5,1.5,1.5h29 c0.827,0,1.5-0.673,1.5-1.5v-28C40,10.673,39.327,10,38.5,10z"/>
+                        <path fill="#fff" d="M12,41h24c2.209,0,4-1.791,4-4V17H8v20C8,39.209,9.791,41,12,41z"/>
+                        <path fill="#34a853" d="M31,23h-8c-0.552,0-1-0.448-1-1s0.448-1,1-1h8c0.552,0,1,0.448,1,1S31.552,23,31,23z"/>
+                        <path fill="#fbbc04" d="M12,41V17h4v24H12z"/>
+                        <path fill="#ea4335" d="M34,5v6h-4V5c0-0.552,0.448-1,1-1h2C33.552,4,34,4.448,34,5z"/>
+                        <path fill="#ea4335" d="M18,5v6h-4V5c0-0.552,0.448-1,1-1h2C17.552,4,18,4.448,18,5z"/>
+                    </svg>
+                    <span id="txt-go-gcal">Go to Google Calendar</span>
+                </a>
             </div>
             <div class="unified-card" style="padding:20px; background:white; border-radius:24px;">
                 <div id="calendar"></div>
@@ -566,9 +591,9 @@
         }
 
         const translations = {
-            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"AI 학습용 데이터 기부", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오", placeholder: "예: '11월 20일부터 23일까지 제주도 여행'", tip:"팁: 아래 번역 결과를 확인해보세요." },
+            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"AI 학습용 데이터 기부", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오", placeholder: "예: '11월 20일부터 23일까지 제주도 여행'", tip:"팁: 아래 번역 결과를 확인해보세요.", txtGoGcal: "구글 캘린더로 이동" },
 
-            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data for AI improvement", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao", placeholder: "Example: 'Trip to Jeju from Nov 20 to 23'", tip: "Tip: Check translation below." }
+            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data for AI improvement", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao", placeholder: "Example: 'Trip to Jeju from Nov 20 to 23'", tip: "Tip: Check translation below.", txtGoGcal: "Go to Google Calendar" }
         };
 
         let currentLang = 'en';
@@ -592,6 +617,10 @@
             document.getElementById('lbl-consent').innerText = t.lblConsent;
             document.getElementById('btn-add-text').innerText = t.btnAdd;
             document.getElementById('txt-calendar').innerText = t.txtCalendar;
+
+            // [Modified] Translate the new button
+            const gcalBtn = document.getElementById('txt-go-gcal');
+            if(gcalBtn) gcalBtn.innerText = t.txtGoGcal;
 
             if(document.getElementById('menu-input')) {
                 document.getElementById('menu-input').innerText = t.menuInput;
