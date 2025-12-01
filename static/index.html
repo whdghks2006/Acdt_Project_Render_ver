@@ -48,7 +48,7 @@
             min-height: 800px;
         }
 
-        /* [Modified] Header rounded corners to match container */
+        /* Header rounded corners */
         .app-header {
             display: flex; justify-content: space-between; align-items: center;
             padding: 20px 40px; background: rgba(255,255,255,0.6);
@@ -57,21 +57,46 @@
         }
         .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer; }
 
-        .lang-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; }
-        .lang-btn { background: none; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; }
+        /* [Modified] Fixed width for consistent sizing */
+        .lang-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; gap: 4px; }
+        .lang-btn {
+            width: 45px; /* Fixed width */
+            background: none; border: none; padding: 6px 0; border-radius: 8px;
+            font-size: 0.85rem; font-weight: 700; color: #94a3b8; cursor: pointer; transition: 0.2s;
+            text-align: center;
+        }
         .lang-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
-        .btn-login { display: flex; align-items: center; gap: 8px; background: #1e293b; color: white; padding: 8px 20px; border-radius: 12px; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: 0.2s; }
-        .btn-login:hover { background: #0f172a; transform: translateY(-1px); }
+        /* [Modified] Google Login Button */
+        .btn-login {
+            display: flex; align-items: center; gap: 10px;
+            background: white; color: #374151;
+            border: 1px solid #cbd5e1;
+            padding: 8px 16px; border-radius: 12px;
+            text-decoration: none; font-size: 0.9rem; font-weight: 600;
+            transition: 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .btn-login:hover { background: #f8fafc; transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .google-logo { width: 18px; height: 18px; }
 
-        /* Profile Dropdown */
+        /* [Modified] Profile Dropdown Trigger (More button-like) */
         .profile-container { position: relative; cursor: pointer; }
-        .profile-trigger { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; transition: 0.2s; background: rgba(255,255,255,0.5); border: 1px solid transparent; }
-        .profile-trigger:hover { background: #fff; border-color: var(--border); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .profile-name { font-weight: 600; font-size: 0.9rem; color: var(--text-main); max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .profile-trigger {
+            display: flex; align-items: center; gap: 10px;
+            padding: 6px 12px; padding-right: 16px;
+            border-radius: 50px; /* Pill shape */
+            transition: 0.2s;
+            background: white;
+            border: 1px solid #e2e8f0; /* Visible border */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .profile-trigger:hover { border-color: var(--primary); box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15); }
+        .profile-name { font-weight: 700; font-size: 0.9rem; color: var(--text-main); max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .profile-avatar { width: 32px; height: 32px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; }
+        .menu-hint { font-size: 0.75rem; color: #94a3b8; font-weight: 600; margin-left: 5px; }
 
-        .dropdown-menu { position: absolute; top: 115%; right: 0; width: 200px; background: white; border-radius: 16px; box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15); border: 1px solid #f1f5f9; padding: 8px; display: none; flex-direction: column; z-index: 200; animation: fadeIn 0.2s ease-out; }
+        .dropdown-menu { position: absolute; top: 125%; right: 0; width: 220px; background: white; border-radius: 16px; box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15); border: 1px solid #f1f5f9; padding: 8px; display: none; flex-direction: column; z-index: 200; animation: fadeIn 0.2s ease-out; }
         .dropdown-menu.show { display: flex; }
         .dropdown-item { padding: 12px; border-radius: 10px; text-decoration: none; color: var(--text-main); font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 10px; transition: 0.2s; cursor: pointer; }
         .dropdown-item:hover { background: #f8fafc; color: var(--primary); }
@@ -130,7 +155,7 @@
         .spinner { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* [Modified] Toggle Switch Styles */
+        /* Toggle Switch Styles */
         .switch-container { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 10px; margin-bottom: 15px; }
         .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
         .switch input { opacity: 0; width: 0; height: 0; }
@@ -139,7 +164,7 @@
         input:checked + .slider { background-color: var(--primary); }
         input:checked + .slider:before { transform: translateX(22px); }
 
-        /* [Modified] Map Links: Disabled by default */
+        /* Map Links */
         .map-group { display: flex; gap: 8px; margin-top: 10px; }
         .map-link { flex: 1; padding: 12px; font-size: 0.85rem; text-decoration: none; color: white; font-weight: 600; text-align: center; border-radius: 12px; transition: all 0.3s ease; opacity: 1; transform: translateY(0); }
         .map-link.disabled { background-color: #e2e8f0 !important; color: #94a3b8 !important; pointer-events: none; box-shadow: none; transform: none; }
@@ -147,11 +172,10 @@
         .bg-naver { background: #03C75A; }
         .bg-kakao { background: #FEE500; color: #191919 !important; }
 
-        /* [Modified] Clean Consent Box */
+        /* Consent Box */
         .consent-box { background: transparent; border: none; padding: 10px 0; margin-top: 15px; display: flex; align-items: center; gap: 10px; }
         .consent-label { color: var(--text-sub); font-weight: 500; font-size: 0.9rem; cursor: pointer; margin: 0; }
         .simple-check { width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary); }
-
 
         /* Calendar */
         #calendar { max-width: 100%; font-family: 'Inter', sans-serif; }
@@ -190,7 +214,15 @@
                     <button onclick="setLanguage('en')" class="lang-btn active" id="btn-en">EN</button>
                 </div>
                 <div id="user-area">
-                    <a href="/login" class="btn-login" id="txt-login">Login</a>
+                    <a href="/login" class="btn-login" id="btn-login-wrap">
+                        <svg class="google-logo" viewBox="0 0 48 48">
+                            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                        </svg>
+                        <span id="txt-login">Login</span>
+                    </a>
                 </div>
             </div>
         </header>
@@ -338,7 +370,6 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Calendar Init
             calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
                 initialView: 'dayGridMonth',
                 height: 650,
@@ -350,12 +381,9 @@
                 }
             });
             calendar.render();
-
-            // [Modified] Initialize Map Links as disabled
             updateMapLinks();
         });
 
-        // [Modified] Update Map Links logic
         function updateMapLinks() {
             const loc = document.getElementById('loc-box').value.trim();
             const googleBtn = document.getElementById('link-google');
@@ -380,11 +408,9 @@
             document.getElementById('d-time').innerText = event.start.toLocaleString();
             document.getElementById('d-loc').innerText = props.location || "No location";
             document.getElementById('d-desc').innerText = props.description || "";
-
             document.getElementById('e-title').value = event.title;
             document.getElementById('e-loc').value = props.location || "";
             document.getElementById('e-desc').value = props.description || "";
-
             document.getElementById('modal-content').classList.remove('editing');
             document.getElementById('modal').style.display = 'flex';
         }
@@ -417,12 +443,13 @@
             if (d.user) {
                 isLoggedIn = true;
                 const initial = d.user.name.charAt(0).toUpperCase();
+                // [Modified] Added "Menu" hint and improved dropdown trigger
                 userArea.innerHTML = `
                     <div class="profile-container" onclick="toggleDropdown()">
                         <div class="profile-trigger">
                             <div class="profile-avatar">${initial}</div>
                             <span class="profile-name">${d.user.name}</span>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                            <span class="menu-hint">MENU ▼</span>
                         </div>
                         <div class="dropdown-menu" id="profile-dropdown">
                             <div class="dropdown-item" onclick="switchView('view-main')"><span>📝</span> <span id="menu-input">Input Schedule</span></div>
@@ -451,8 +478,10 @@
         }
 
         const translations = {
-            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"AI 학습용 데이터 기부", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오" },
-            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data for AI improvement", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao" }
+            // [Modified] Added missing placeholder for Korean to fix "undefined"
+            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"AI 학습용 데이터 기부", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오", placeholder: "예: '11월 20일부터 23일까지 제주도 여행'", tip:"팁: 아래 번역 결과를 확인해보세요." },
+
+            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data for AI improvement", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao", placeholder: "Example: 'Trip to Jeju from Nov 20 to 23'", tip: "Tip: Check translation below." }
         };
 
         let currentLang = 'en';
@@ -489,6 +518,7 @@
             document.getElementById('link-naver').innerText = t.mapNaver;
             document.getElementById('link-kakao').innerText = t.mapKakao;
 
+            // [Modified] Check if login button exists (user not logged in)
             const loginBtn = document.getElementById('txt-login');
             if (loginBtn && !isLoggedIn) loginBtn.innerText = t.login;
 
