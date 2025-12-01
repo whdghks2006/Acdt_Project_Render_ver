@@ -97,6 +97,7 @@ def extract_info_with_gemini_json(text):
     if not GEMINI_API_KEY: return None
     today = datetime.datetime.now().strftime("%Y-%m-%d")
 
+    # [Updated] User requested Gemini 2.5
     prompt = f"""
     You are a smart scheduler assistant. Today is {today}.
     Extract schedule details from: "{text}"
@@ -111,7 +112,7 @@ def extract_info_with_gemini_json(text):
     {{ "summary": "...", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM", "location": "...", "is_allday": boolean }}
     """
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(prompt)
         clean = re.sub(r'```json|```', '', response.text).strip()
         return json.loads(clean)
@@ -135,7 +136,7 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
     If complete, return "OK".
     """
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(prompt)
         ans = response.text.strip()
         return "" if "OK" in ans else ans
@@ -147,6 +148,7 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
 # AI Logic 2: Vision Analysis (Image/Screenshot)
 # ==============================================================================
 def run_vision_analysis(image_bytes):
+    """이미지를 분석하여 일정 정보 추출"""
     if not GEMINI_API_KEY: return None
     today = datetime.datetime.now().strftime("%Y-%m-%d")
 
@@ -171,18 +173,18 @@ def run_vision_analysis(image_bytes):
           "question": "Follow-up question if info is missing"
         }}
         """
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # [Updated] User requested Gemini 2.5
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content([prompt, image])
         clean = re.sub(r'```json|```', '', response.text).strip()
         return json.loads(clean)
-
     except Exception as e:
         error_msg = str(e)
         print(f"❌ Vision Analysis Error: {error_msg}")
 
-        # [NEW] 429 에러 감지 시 특정 문자열 반환
+        # 429 Error Handling (Quota Limit)
         if "429" in error_msg or "Resource exhausted" in error_msg:
-            return {"error_code": 429, "message": "Usage limit exceeded. Please try again in 1 minute."}
+            return {"error_code": 429, "message": "Usage limit exceeded."}
 
         return None
 
@@ -356,13 +358,14 @@ async def api_extract_schedule(request: ExtractRequest):
             start_date_val = gemini_data.get("start_date") or ""
             end_date_val = gemini_data.get("end_date") or ""
 
-            # Map time fields safely
-            start_time_val = gemini_data.get("start_time") or gemini_data.get("time") or ""
+            # Map time fields safely (Handle None)
+            g_start = gemini_data.get("start_time") or gemini_data.get("time")
+            start_time_val = g_start or ""
             end_time_val = gemini_data.get("end_time") or ""
 
             loc_val = gemini_data.get("location") or loc_val
             is_allday_val = gemini_data.get("is_allday") or False
-            used_model = "✨ Smart (Gemini 2.0)"
+            used_model = "✨ Smart (Gemini 2.5)"
 
     # 3. Localization
     if is_korean_input and used_model.startswith("Fast"):
@@ -390,9 +393,9 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
         contents = await file.read()
         data = run_vision_analysis(contents)
 
-        # [NEW] 에러 핸들링 로직 추가
-        if data and "error_code" in data and data["error_code"] == 429:
-            return JSONResponse(status_code=429, content={"error": "Google AI 사용량이 초과되었습니다. 1분 뒤 다시 시도해주세요."})
+        # [Error Handling] 429 or other errors
+        if isinstance(data, dict) and "error_code" in data:
+            return JSONResponse(status_code=data["error_code"], content={"error": data["message"]})
 
         if data:
             return ExtractResponse(
@@ -406,12 +409,11 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
                 location=data.get("location", ""),
                 is_allday=data.get("is_allday", False),
                 ai_message=data.get("question", ""),
-                used_model="Gemini 2.0 Flash Vision",
+                used_model="Gemini 2.5 Flash Vision",
                 spacy_log="Skipped (Vision)"
             )
         else:
-            return JSONResponse(status_code=500, content={"error": "Image analysis failed. Try text input instead."})
-
+            return JSONResponse(status_code=500, content={"error": "Image analysis failed"})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -440,7 +442,7 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
             location=gemini_data.get("location", ""),
             is_allday=gemini_data.get("is_allday", False),
             ai_message=gemini_data.get("question", ""),
-            used_model="Gemini 2.0 Flash (File)",
+            used_model="Gemini 2.5 Flash (File)",
             spacy_log="Skipped (File)"
         )
     else:
