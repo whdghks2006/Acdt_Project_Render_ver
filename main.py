@@ -147,7 +147,6 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
 # AI Logic 2: Vision Analysis (Image/Screenshot)
 # ==============================================================================
 def run_vision_analysis(image_bytes):
-    """이미지를 분석하여 일정 정보 추출"""
     if not GEMINI_API_KEY: return None
     today = datetime.datetime.now().strftime("%Y-%m-%d")
 
@@ -176,8 +175,15 @@ def run_vision_analysis(image_bytes):
         response = model.generate_content([prompt, image])
         clean = re.sub(r'```json|```', '', response.text).strip()
         return json.loads(clean)
+
     except Exception as e:
-        print(f"❌ Vision Analysis Error: {e}")
+        error_msg = str(e)
+        print(f"❌ Vision Analysis Error: {error_msg}")
+
+        # [NEW] 429 에러 감지 시 특정 문자열 반환
+        if "429" in error_msg or "Resource exhausted" in error_msg:
+            return {"error_code": 429, "message": "Usage limit exceeded. Please try again in 1 minute."}
+
         return None
 
 
@@ -384,6 +390,10 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
         contents = await file.read()
         data = run_vision_analysis(contents)
 
+        # [NEW] 에러 핸들링 로직 추가
+        if data and "error_code" in data and data["error_code"] == 429:
+            return JSONResponse(status_code=429, content={"error": "Google AI 사용량이 초과되었습니다. 1분 뒤 다시 시도해주세요."})
+
         if data:
             return ExtractResponse(
                 original_text="[Image Analysis]",
@@ -400,7 +410,8 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
                 spacy_log="Skipped (Vision)"
             )
         else:
-            return JSONResponse(status_code=500, content={"error": "Image analysis failed"})
+            return JSONResponse(status_code=500, content={"error": "Image analysis failed. Try text input instead."})
+
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 

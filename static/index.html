@@ -305,8 +305,8 @@
 
                     <div>
                         <div class="tab-container">
-                            <div class="tab-btn active" onclick="setMode('text')">Text Input</div>
-                            <div class="tab-btn" onclick="setMode('file')">Image / Upload</div>
+                            <div class="tab-btn active" onclick="setMode('text')" id="tab-text">Text Input</div>
+                            <div class="tab-btn" onclick="setMode('file')" id="tab-file">Image / Upload</div>
                         </div>
 
                         <div id="mode-text">
@@ -330,33 +330,33 @@
                         <div id="mode-file" style="display:none;">
                             <div id="drop-zone" class="drop-zone">
                                 <div class="upload-icon">📁</div>
-                                <div class="drop-msg">Drag & Drop or Paste Image</div>
-                                <div class="drop-sub">Supports: PNG, JPG, TXT (Chat logs)</div>
+                                <div class="drop-msg" id="lbl-drop">Drag & Drop or Paste Image</div>
+                                <div class="drop-sub" id="lbl-drop-sub">Supports: PNG, JPG, TXT (Chat logs)</div>
                                 <input type="file" id="file-input" accept="image/*,.txt" style="display:none;" onchange="handleFileSelect(this.files)">
                             </div>
 
                             <div id="file-preview" style="display:none; margin-top:15px; padding:10px; background:rgba(255,255,255,0.8); border-radius:12px; text-align:center;">
                                 <div style="font-weight:600; font-size:0.9rem; margin-bottom:5px;">Selected File:</div>
                                 <div id="file-name" style="color:var(--primary); margin-bottom:10px;"></div>
-                                <button class="btn-main" onclick="handleUploadExtract()" style="margin-top:0;">Analyze File</button>
+                                <button class="btn-main" onclick="handleUploadExtract()" id="btn-analyze-file" style="margin-top:0;">Analyze File</button>
                             </div>
                         </div>
 
                         <button onclick="toggleAnalysisDetails()" class="analysis-toggle-btn">
-                            <span>🔍 View Analysis Details</span> <span id="arrow-icon">▼</span>
+                            <span id="btn-view-details">🔍 View Analysis Details</span> <span id="arrow-icon">▼</span>
                         </button>
 
                         <div id="analysis-details" class="analysis-details-box">
                             <div class="detail-item">
-                                <span class="detail-label">Used AI Model</span>
+                                <span class="detail-label" id="lbl-model">Used AI Model</span>
                                 <span id="model-badge" class="model-badge">Pending</span>
                             </div>
                             <div class="detail-item">
-                                <span class="detail-label">Translated / Extracted Text</span>
+                                <span class="detail-label" id="lbl-trans">Translated / Extracted Text</span>
                                 <div id="translated-output" class="detail-content">...</div>
                             </div>
                             <div class="detail-item">
-                                <span class="detail-label">Internal spaCy Extraction</span>
+                                <span class="detail-label" id="lbl-log">Internal spaCy Extraction</span>
                                 <div id="spacy-log" class="detail-content code-block">Waiting for analysis...</div>
                             </div>
                         </div>
@@ -550,12 +550,15 @@
 
             try {
                 const res = await fetch(endpoint, { method: 'POST', body: formData });
+
+                // [NEW] 429 Error Handling
+                if (res.status === 429) {
+                    alert("⚠️ 1분만 기다려주세요! (Google 무료 사용량 초과)");
+                    return;
+                }
+
                 const data = await res.json();
-
-                // Update UI with response
                 updateUI(data);
-
-                // Alert success
                 alert("File analyzed successfully!");
 
             } catch(e) { alert("Error analyzing file."); }
@@ -667,7 +670,7 @@
             handleExtract();
         }
 
-        // Calendar & Modal Helpers (Same as before)
+        // Calendar & Modal Helpers
         function formatDate(d) { return d ? d.toISOString().split('T')[0] : ""; }
         function formatTime(d) { return d ? d.toTimeString().split(' ')[0].substring(0,5) : ""; }
 
@@ -681,7 +684,6 @@
             document.getElementById('d-loc').innerText = props.location || "";
             document.getElementById('d-desc').innerText = props.description || "";
 
-            // Fill Edit Inputs
             document.getElementById('e-title').value = event.title;
             document.getElementById('e-loc').value = props.location || "";
             document.getElementById('e-desc').value = props.description || "";
@@ -761,21 +763,56 @@
         }
 
         const translations = {
-            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"AI 학습용 데이터 기부", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오", placeholder: "예: '11월 20일부터 23일까지 제주도 여행'", tip:"팁: 아래 번역 결과를 확인해보세요.", txtGoGcal: "구글 캘린더로 이동" },
-            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data for AI improvement", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao", placeholder: "Example: 'Trip to Jeju from Nov 20 to 23'", tip: "Tip: Check translation below.", txtGoGcal: "Go to Google Calendar" }
+            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"AI 학습용 데이터 기부", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오", placeholder: "예: '11월 20일부터 23일까지 제주도 여행'", txtGoGcal: "구글 캘린더로 이동", tabText:"텍스트 입력", tabFile:"이미지 / 업로드", lblDrop:"파일을 드래그하거나 이미지를 붙여넣으세요", lblDropSub:"지원 형식: PNG, JPG, TXT (대화 내용)", btnAnalyzeFile:"파일 분석", lblModel:"사용된 AI 모델", lblTrans:"번역 / 추출된 텍스트", lblLog:"spaCy 내부 추출 로그", btnViewDetails:"🔍 분석 상세 보기" },
+            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data for AI improvement", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao", placeholder: "Example: 'Trip to Jeju from Nov 20 to 23'", tip: "Tip: Check translation below.", txtGoGcal: "Go to Google Calendar", tabText:"Text Input", tabFile:"Image / Upload", lblDrop:"Drag & Drop or Paste Image", lblDropSub:"Supports: PNG, JPG, TXT (Chat logs)", btnAnalyzeFile:"Analyze File", lblModel:"Used AI Model", lblTrans:"Translated / Extracted Text", lblLog:"Internal spaCy Extraction", btnViewDetails:"🔍 View Analysis Details" }
         };
 
         let currentLang = 'en';
         function setLanguage(lang) {
             currentLang = lang;
             const t = translations[lang];
-            // (Simple text updates omitted for brevity, but logic remains)
-            document.getElementById('txt-subtitle').innerText = t.subtitle;
-            document.getElementById('btn-extract-text').innerText = t.btnExtract;
-            const loginBtn = document.getElementById('txt-login');
-            if (loginBtn && !isLoggedIn) loginBtn.innerText = t.login;
-            document.getElementById('btn-ko').className = lang==='ko'?'lang-btn active':'lang-btn';
-            document.getElementById('btn-en').className = lang==='en'?'lang-btn active':'lang-btn';
+
+            const el = (id) => document.getElementById(id);
+            if(el('txt-subtitle')) el('txt-subtitle').innerText = t.subtitle;
+            if(el('txt-step1')) el('txt-step1').innerText = t.txtStep1;
+            if(el('lbl-input')) el('lbl-input').innerText = t.lblInput;
+            if(el('btn-extract-text')) el('btn-extract-text').innerText = t.btnExtract;
+            if(el('txt-step2')) el('txt-step2').innerText = t.txtStep2;
+            if(el('lbl-title')) el('lbl-title').innerText = t.lblTitle;
+            if(el('lbl-start')) el('lbl-start').innerText = t.lblStart;
+            if(el('lbl-end')) el('lbl-end').innerText = t.lblEnd;
+            if(el('lbl-time-start')) el('lbl-time-start').innerText = t.lblTimeStart;
+            if(el('lbl-time-end')) el('lbl-time-end').innerText = t.lblTimeEnd;
+            if(el('lbl-allday')) el('lbl-allday').innerText = t.lblAllday;
+            if(el('lbl-loc')) el('lbl-loc').innerText = t.lblLoc;
+            if(el('lbl-consent')) el('lbl-consent').innerText = t.lblConsent;
+            if(el('btn-add-text')) el('btn-add-text').innerText = t.btnAdd;
+            if(el('txt-calendar')) el('txt-calendar').innerText = t.txtCalendar;
+            if(el('txt-go-gcal')) el('txt-go-gcal').innerText = t.txtGoGcal;
+            if(el('tab-text')) el('tab-text').innerText = t.tabText;
+            if(el('tab-file')) el('tab-file').innerText = t.tabFile;
+            if(el('lbl-drop')) el('lbl-drop').innerText = t.lblDrop;
+            if(el('lbl-drop-sub')) el('lbl-drop-sub').innerText = t.lblDropSub;
+            if(el('btn-analyze-file')) el('btn-analyze-file').innerText = t.btnAnalyzeFile;
+            if(el('lbl-model')) el('lbl-model').innerText = t.lblModel;
+            if(el('lbl-trans')) el('lbl-trans').innerText = t.lblTrans;
+            if(el('lbl-log')) el('lbl-log').innerText = t.lblLog;
+            if(el('btn-view-details')) el('btn-view-details').innerText = t.btnViewDetails;
+
+            if(el('input-text')) el('input-text').placeholder = t.placeholder;
+            if(el('ai-user-reply')) el('ai-user-reply').placeholder = t.replyPlaceholder;
+            if(el('btn-reply')) el('btn-reply').innerText = t.btnReply;
+            if(el('link-google')) el('link-google').innerText = t.mapGoogle;
+            if(el('link-naver')) el('link-naver').innerText = t.mapNaver;
+            if(el('link-kakao')) el('link-kakao').innerText = t.mapKakao;
+
+            if(el('txt-login') && !isLoggedIn) el('txt-login').innerText = t.login;
+            if(el('menu-input')) el('menu-input').innerText = t.menuInput;
+            if(el('menu-calendar')) el('menu-calendar').innerText = t.menuCalendar;
+            if(el('menu-logout')) el('menu-logout').innerText = t.menuLogout;
+
+            el('btn-ko').className = lang==='ko'?'lang-btn active':'lang-btn';
+            el('btn-en').className = lang==='en'?'lang-btn active':'lang-btn';
         }
 
         async function handleAddToCalendar() {
@@ -783,7 +820,6 @@
             const btn = document.getElementById('add-calendar-btn');
             const output = document.getElementById('result-output');
             btn.style.opacity = "0.7"; btn.disabled = true; output.innerHTML = "";
-
             const eventData = {
                 summary: document.getElementById('summary-box').value,
                 start_date: document.getElementById('start-date-box').value,
