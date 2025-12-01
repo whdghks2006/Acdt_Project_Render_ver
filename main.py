@@ -64,6 +64,30 @@ def translate_english_to_korean(text):
         return text
 
 
+# [NEW] Smart Model Selector (Debugging Logic)
+# 2.5 버전을 먼저 시도하고, 실패하면(404 등) 1.5로 자동 전환하여 서버 다운 방지
+def get_gemini_content(prompt, image=None, target_model="gemini-2.5-flash"):
+    try:
+        model = genai.GenerativeModel(target_model)
+        if image:
+            return model.generate_content([prompt, image])
+        return model.generate_content(prompt)
+    except Exception as e:
+        error_msg = str(e)
+        print(f"⚠️ {target_model} failed: {error_msg}")
+
+        # 429 Quota Error는 모델 문제가 아니므로 즉시 에러 반환 (재시도 X)
+        if "429" in error_msg or "Resource exhausted" in error_msg:
+            raise HTTPException(status_code=429, detail="Google AI Quota Exceeded. Please try again in 1 min.")
+
+        # 그 외 에러(모델 없음 등)는 1.5로 폴백
+        print(f"🔄 Falling back to gemini-1.5-flash...")
+        fallback_model = genai.GenerativeModel("gemini-1.5-flash")
+        if image:
+            return fallback_model.generate_content([prompt, image])
+        return fallback_model.generate_content(prompt)
+
+
 # ==============================================================================
 # AI Logic 1: Text Analysis (spaCy + Gemini Hybrid)
 # ==============================================================================
@@ -93,11 +117,10 @@ def run_ner_extraction(text, nlp_model):
 
 
 def extract_info_with_gemini_json(text):
-    """Gemini를 이용한 정밀 2차 추출 (날짜 범위 등 처리)"""
+    """Gemini를 이용한 정밀 2차 추출"""
     if not GEMINI_API_KEY: return None
     today = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    # [Updated] User requested Gemini 2.5
     prompt = f"""
     You are a smart scheduler assistant. Today is {today}.
     Extract schedule details from: "{text}"
@@ -112,12 +135,12 @@ def extract_info_with_gemini_json(text):
     {{ "summary": "...", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM", "location": "...", "is_allday": boolean }}
     """
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(prompt)
+        # [Updated] Try 2.5 -> Fallback 1.5
+        response = get_gemini_content(prompt, target_model='gemini-2.5-flash')
         clean = re.sub(r'```json|```', '', response.text).strip()
         return json.loads(clean)
     except Exception as e:
-        print(f"Gemini Extraction Error: {e}")
+        print(f"Gemini Text Error: {e}")
         return None
 
 
@@ -136,8 +159,8 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
     If complete, return "OK".
     """
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(prompt)
+        # [Updated] Try 2.5 -> Fallback 1.5
+        response = get_gemini_content(prompt, target_model='gemini-2.5-flash')
         ans = response.text.strip()
         return "" if "OK" in ans else ans
     except:
@@ -149,7 +172,7 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
 # ==============================================================================
 def run_vision_analysis(image_bytes):
     """이미지를 분석하여 일정 정보 추출"""
-    if not GEMINI_API_KEY: return None
+    if not GEMINI_API_KEY: return {"error": "GEMINI_API_KEY not set"}
     today = datetime.datetime.now().strftime("%Y-%m-%d")
 
     try:
@@ -173,20 +196,18 @@ def run_vision_analysis(image_bytes):
           "question": "Follow-up question if info is missing"
         }}
         """
-        # [Updated] User requested Gemini 2.5
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content([prompt, image])
+        # [Updated] Try 2.5 -> Fallback 1.5 (With Error Reporting)
+        response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
         clean = re.sub(r'```json|```', '', response.text).strip()
         return json.loads(clean)
+
+    except HTTPException as he:
+        # 429 에러는 그대로 전달
+        return {"error": he.detail, "error_code": he.status_code}
     except Exception as e:
         error_msg = str(e)
         print(f"❌ Vision Analysis Error: {error_msg}")
-
-        # 429 Error Handling (Quota Limit)
-        if "429" in error_msg or "Resource exhausted" in error_msg:
-            return {"error_code": 429, "message": "Usage limit exceeded."}
-
-        return None
+        return {"error": error_msg}
 
 
 # ==============================================================================
@@ -358,14 +379,13 @@ async def api_extract_schedule(request: ExtractRequest):
             start_date_val = gemini_data.get("start_date") or ""
             end_date_val = gemini_data.get("end_date") or ""
 
-            # Map time fields safely (Handle None)
             g_start = gemini_data.get("start_time") or gemini_data.get("time")
             start_time_val = g_start or ""
             end_time_val = gemini_data.get("end_time") or ""
 
             loc_val = gemini_data.get("location") or loc_val
             is_allday_val = gemini_data.get("is_allday") or False
-            used_model = "✨ Smart (Gemini 2.5)"
+            used_model = "✨ Smart (Gemini 2.5)"  # 모델명 업데이트
 
     # 3. Localization
     if is_korean_input and used_model.startswith("Fast"):
@@ -393,9 +413,11 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
         contents = await file.read()
         data = run_vision_analysis(contents)
 
-        # [Error Handling] 429 or other errors
-        if isinstance(data, dict) and "error_code" in data:
-            return JSONResponse(status_code=data["error_code"], content={"error": data["message"]})
+        # [Error Handling]
+        if isinstance(data, dict) and "error" in data:
+            error_msg = data["error"]
+            status_code = data.get("error_code", 500)  # 기본 500
+            return JSONResponse(status_code=status_code, content={"error": error_msg})
 
         if data:
             return ExtractResponse(
@@ -409,7 +431,7 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
                 location=data.get("location", ""),
                 is_allday=data.get("is_allday", False),
                 ai_message=data.get("question", ""),
-                used_model="Gemini 2.5 Flash Vision",
+                used_model="Gemini 2.5 Flash Vision",  # 모델명 업데이트
                 spacy_log="Skipped (Vision)"
             )
         else:
@@ -427,7 +449,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
     except UnicodeDecodeError:
         text_content = contents.decode('euc-kr', errors='ignore')
 
-    # Reuse the smart analysis logic for long text
     gemini_data = extract_info_with_gemini_json(text_content)
 
     if gemini_data:
