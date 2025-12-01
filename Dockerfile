@@ -2,7 +2,6 @@ FROM python:3.10
 
 WORKDIR /code
 
-# 캐시 효율을 위해 requirements 먼저 복사
 COPY ./requirements.txt /code/requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
