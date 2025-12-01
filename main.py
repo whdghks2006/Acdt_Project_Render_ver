@@ -22,7 +22,7 @@ from authlib.integrations.starlette_client import OAuth
 # ==============================================================================
 # Configuration
 # ==============================================================================
-NER_MODEL_NAME = "en_core_web_sm"
+NER_MODEL_NAME = "en_core_web_md"
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")

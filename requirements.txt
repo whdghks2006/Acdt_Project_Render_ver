@@ -1,9 +1,9 @@
 fastapi
 uvicorn[standard]
 
-# [NLP] spaCy core & Fast Model (en_core_web_sm)
+# [NLP] spaCy core & Medium Model (Better Accuracy)
 spacy>=3.7.0
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.1/en_core_web_md-3.7.1-py3-none-any.whl
 
 # [AI & Translation]
 google-generativeai>=0.7.2
