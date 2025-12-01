@@ -54,9 +54,6 @@ def translate_korean_to_english(text):
 
 
 def run_intelligent_analysis(text, lang='en'):
-    """
-    Gemini extracts Start/End Date AND Start/End Time separately.
-    """
     if not GEMINI_API_KEY: return None
 
     today = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -68,14 +65,13 @@ def run_intelligent_analysis(text, lang='en'):
 
     Your Task:
     1. Extract schedule details.
-       - Summary: Concise title (e.g. "Dinner at Hongdae").
+       - Summary: Concise title.
        - Date Range: If "20th to 23rd", start=20, end=23. If single day, start=end.
        - Time Range: If "2pm to 4pm", start_time="14:00", end_time="16:00". 
          If only "2pm", start_time="14:00", end_time="".
 
     2. Generate a follow-up question ONLY if critical info is missing.
        - If Date is missing, ask for Date.
-       - If Time is missing BUT 'is_allday' seems false, ask for Time.
        - Question should be polite and {lang_instruction}.
        - If info is complete, set question to "".
 
@@ -191,11 +187,16 @@ class AddEventRequest(BaseModel):
     consent: bool = False
 
 
-# [RESTORED] Model for Updating Event
+# [UPDATED] Model for Updating Event (Added date/time fields)
 class UpdateEventRequest(BaseModel):
     summary: str
     location: str
     description: str
+    start_date: str | None = None
+    end_date: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    is_allday: bool = False
 
 
 # ==============================================================================
@@ -269,7 +270,6 @@ async def get_user_info(request: Request):
     return {"user": request.session.get('user')}
 
 
-# [RESTORED & UPDATED] Add to Calendar with Start/End Time support
 @app.post("/add-to-calendar")
 async def add_to_calendar(request: Request, event_data: AddEventRequest):
     token_data = request.session.get('token')
@@ -296,13 +296,10 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
             }
         else:
             kst = pytz.timezone('Asia/Seoul')
-
-            # Start Time
             start_full = f"{event_data.start_date} {event_data.start_time}"
             start_dt = dateparser.parse(start_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
                                                               'RETURN_AS_TIMEZONE_AWARE': True})
 
-            # End Time
             if event_data.end_time:
                 end_full = f"{event_data.end_date} {event_data.end_time}"
                 end_dt = dateparser.parse(end_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
@@ -347,7 +344,6 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-# [RESTORED] List Events (Read)
 @app.get("/events")
 async def list_events(request: Request):
     token_data = request.session.get('token')
@@ -371,12 +367,14 @@ async def list_events(request: Request):
         for event in items:
             start = event['start'].get('dateTime', event['start'].get('date'))
             end = event['end'].get('dateTime', event['end'].get('date'))
-            # Include ID for editing/deleting
+            is_allday = 'date' in event['start']
+
             calendar_events.append({
                 'id': event['id'],
                 'title': event.get('summary', 'No Title'),
                 'start': start,
                 'end': end,
+                'allDay': is_allday,
                 'url': event.get('htmlLink'),
                 'extendedProps': {'description': event.get('description', ''), 'location': event.get('location', '')}
             })
@@ -385,18 +383,51 @@ async def list_events(request: Request):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-# [RESTORED] Update Event
+# [UPDATED] Update Event Endpoint (Supports Date/Time changes)
 @app.patch("/events/{event_id}")
 async def update_event(request: Request, event_id: str, event_data: UpdateEventRequest):
     token_data = request.session.get('token')
     if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
 
     headers = {'Authorization': f'Bearer {token_data["access_token"]}', 'Content-Type': 'application/json'}
+
+    # Base body
     body = {
         "summary": event_data.summary,
         "location": event_data.location,
         "description": event_data.description
     }
+
+    # Date Logic (similar to Add)
+    try:
+        if event_data.start_date:
+            s_date_obj = dateparser.parse(event_data.start_date)
+            e_date_obj = dateparser.parse(event_data.end_date) if event_data.end_date else s_date_obj
+
+            if event_data.is_allday:
+                s_str = s_date_obj.strftime("%Y-%m-%d")
+                # For update, ensure end date is inclusive if needed, but Google needs exclusive.
+                # Assuming simple update for now.
+                e_date_exclusive = e_date_obj + datetime.timedelta(days=1)
+                e_str = e_date_exclusive.strftime("%Y-%m-%d")
+                body['start'] = {'date': s_str}
+                body['end'] = {'date': e_str}
+            else:
+                start_full = f"{event_data.start_date} {event_data.start_time}"
+                start_dt = dateparser.parse(start_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                                  'RETURN_AS_TIMEZONE_AWARE': True})
+
+                end_full = f"{event_data.end_date} {event_data.end_time}"
+                end_dt = dateparser.parse(end_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                              'RETURN_AS_TIMEZONE_AWARE': True})
+
+                body['start'] = {'dateTime': start_dt.isoformat(), 'timeZone': 'Asia/Seoul'}
+                body['end'] = {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'}
+
+    except Exception as e:
+        print(f"Date Parse Error in Update: {e}")
+        # If date parsing fails, we just update text fields to avoid crash
+        pass
 
     try:
         async with httpx.AsyncClient() as client:
@@ -409,7 +440,6 @@ async def update_event(request: Request, event_id: str, event_data: UpdateEventR
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-# [RESTORED] Delete Event
 @app.delete("/events/{event_id}")
 async def delete_event(request: Request, event_id: str):
     token_data = request.session.get('token')
