@@ -8,10 +8,13 @@ import httpx
 import google.generativeai as genai
 import json
 import re
+import io
+import PIL.Image  # 이미지 처리를 위한 라이브러리
+
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -22,7 +25,7 @@ from authlib.integrations.starlette_client import OAuth
 # ==============================================================================
 # Configuration
 # ==============================================================================
-NER_MODEL_NAME = "en_core_web_md"
+NER_MODEL_NAME = "en_core_web_md"  # 문맥 이해도가 높은 Medium 모델 사용
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -38,7 +41,7 @@ if GEMINI_API_KEY:
 
 
 # ==============================================================================
-# [Helper] Language & Translation
+# Helper Functions (Language & Translation)
 # ==============================================================================
 def check_is_korean(text):
     return any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
@@ -62,9 +65,10 @@ def translate_english_to_korean(text):
 
 
 # ==============================================================================
-# [Step 1] Fast Extraction (spaCy)
+# AI Logic 1: Text Analysis (spaCy + Gemini Hybrid)
 # ==============================================================================
 def run_ner_extraction(text, nlp_model):
+    """spaCy를 이용한 빠른 1차 추출"""
     if not text: return "", "", "", ""
     doc = nlp_model(text)
 
@@ -77,6 +81,7 @@ def run_ner_extraction(text, nlp_model):
     time_str = ", ".join(times) if times else ""
     loc_str = ", ".join(locs) if locs else ""
 
+    # 이벤트 제목 추론 (Heuristic)
     if events:
         event_str = ", ".join(events)
     elif locs:
@@ -87,10 +92,8 @@ def run_ner_extraction(text, nlp_model):
     return date_str, time_str, loc_str, event_str
 
 
-# ==============================================================================
-# [Step 2] Smart Extraction (Gemini Fallback)
-# ==============================================================================
 def extract_info_with_gemini_json(text):
+    """Gemini를 이용한 정밀 2차 추출 (날짜 범위 등 처리)"""
     if not GEMINI_API_KEY: return None
     today = datetime.datetime.now().strftime("%Y-%m-%d")
 
@@ -117,10 +120,8 @@ def extract_info_with_gemini_json(text):
         return None
 
 
-# ==============================================================================
-# [Step 3] Interactive Question (Gemini)
-# ==============================================================================
 def ask_gemini_for_missing_info(text, current_data, lang='en'):
+    """부족한 정보에 대한 역질문 생성"""
     if not GEMINI_API_KEY: return ""
     lang_instruction = "in Korean" if lang == 'ko' else "in English"
 
@@ -140,6 +141,44 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
         return "" if "OK" in ans else ans
     except:
         return ""
+
+
+# ==============================================================================
+# AI Logic 2: Vision Analysis (Image/Screenshot)
+# ==============================================================================
+def run_vision_analysis(image_bytes):
+    """이미지를 분석하여 일정 정보 추출"""
+    if not GEMINI_API_KEY: return None
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    try:
+        image = PIL.Image.open(io.BytesIO(image_bytes))
+        prompt = f"""
+        You are a smart scheduler assistant. Today is {today}.
+        Analyze this image (screenshot of chat conversation or document).
+
+        Your Task:
+        1. Read all text in the image (Supports Korean & English).
+        2. Identify schedule details (Summary, Date, Time, Location).
+        3. If the text is in Korean, the 'summary' MUST be in Korean.
+        4. Detect start and end dates accurately.
+
+        Return JSON ONLY:
+        {{
+          "summary": "...",
+          "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD",
+          "start_time": "HH:MM", "end_time": "HH:MM",
+          "location": "...", "is_allday": boolean,
+          "question": "Follow-up question if info is missing"
+        }}
+        """
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content([prompt, image])
+        clean = re.sub(r'```json|```', '', response.text).strip()
+        return json.loads(clean)
+    except Exception as e:
+        print(f"❌ Vision Analysis Error: {e}")
+        return None
 
 
 # ==============================================================================
@@ -171,6 +210,7 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("✅ App Started")
+    # Load spaCy model on startup
     try:
         if not spacy.util.is_package(NER_MODEL_NAME):
             print(f"⚠️ Downloading {NER_MODEL_NAME}...")
@@ -204,11 +244,11 @@ oauth.register(
 )
 
 
-# --- Models ---
+# --- Pydantic Models ---
 class ExtractRequest(BaseModel):
     text: str
     lang: str = 'en'
-    mode: str = "full"  # [Added] 'fast' (spaCy only) or 'full' (Hybrid)
+    mode: str = "full"  # 'fast' or 'full'
 
 
 class ExtractResponse(BaseModel):
@@ -223,7 +263,7 @@ class ExtractResponse(BaseModel):
     is_allday: bool
     ai_message: str = ""
     used_model: str = ""
-    spacy_log: str = ""  # [Added] Field for internal debug info
+    spacy_log: str = ""
 
 
 class AddEventRequest(BaseModel):
@@ -262,15 +302,13 @@ async def read_index():
     return FileResponse('static/index.html')
 
 
-# [UPDATED] Hybrid Extraction Endpoint (Safe None Handling)
+# --- 1. Text Analysis (Hybrid: Fast -> Smart) ---
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
     original_text = request.text
     is_korean_input = check_is_korean(original_text)
 
-    # ---------------------------------------------------------
-    # [Common] 1. Translate & spaCy (Always run this)
-    # ---------------------------------------------------------
+    # 1. Translate & spaCy (Fast)
     translated_text = translate_korean_to_english(original_text) if is_korean_input else original_text
 
     date_str, time_str, loc_str, event_str = "", "", "", ""
@@ -290,14 +328,9 @@ async def api_extract_schedule(request: ExtractRequest):
     used_model = "Fast-Inference (spaCy)"
     ai_message = ""
 
-    # ---------------------------------------------------------
-    # [Branch] If mode is 'fast', return immediately!
-    # ---------------------------------------------------------
+    # [Branch] If fast mode, return immediately
     if request.mode == "fast":
-        # Localization for fast mode
-        if is_korean_input:
-            loc_val = translate_english_to_korean(loc_val)
-
+        if is_korean_input: loc_val = translate_english_to_korean(loc_val)
         return ExtractResponse(
             original_text=original_text, translated_text=translated_text,
             summary=summary_val, start_date=start_date_val, end_date=end_date_val,
@@ -307,11 +340,7 @@ async def api_extract_schedule(request: ExtractRequest):
             spacy_log=spacy_debug_str
         )
 
-    # ---------------------------------------------------------
-    # [Step 2] Gemini Extraction (Only for 'full' mode)
-    # ---------------------------------------------------------
-    # Logic: If spaCy missed something OR explicitly requested full mode
-    # Optimization: If spaCy found everything, we might skip Gemini, but let's keep logic simple for now
+    # 2. Gemini Extraction (Smart Fallback)
     if not date_str or not time_str or " to " in translated_text:
         print("⚠️ spaCy incomplete. Calling Gemini...")
         gemini_data = extract_info_with_gemini_json(original_text)
@@ -321,19 +350,19 @@ async def api_extract_schedule(request: ExtractRequest):
             start_date_val = gemini_data.get("start_date") or ""
             end_date_val = gemini_data.get("end_date") or ""
 
-            g_start = gemini_data.get("start_time") or gemini_data.get("time")
-            start_time_val = g_start or ""
+            # Map time fields safely
+            start_time_val = gemini_data.get("start_time") or gemini_data.get("time") or ""
             end_time_val = gemini_data.get("end_time") or ""
 
             loc_val = gemini_data.get("location") or loc_val
             is_allday_val = gemini_data.get("is_allday") or False
             used_model = "✨ Smart (Gemini 2.0)"
 
-    # [Step 3] Localization
+    # 3. Localization
     if is_korean_input and used_model.startswith("Fast"):
         loc_val = translate_english_to_korean(loc_val)
 
-    # [Step 4] Interactive Question
+    # 4. Interactive Question
     if not start_date_val or (not start_time_val and not is_allday_val):
         current_data = {'date': start_date_val, 'time': start_time_val, 'loc': loc_val}
         ai_message = ask_gemini_for_missing_info(original_text, current_data, lang=request.lang)
@@ -348,7 +377,68 @@ async def api_extract_schedule(request: ExtractRequest):
     )
 
 
-# ... (Auth & Calendar Routes same as before) ...
+# --- 2. Image Analysis (Vision) ---
+@app.post("/extract-image", response_model=ExtractResponse)
+async def api_extract_image_schedule(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        data = run_vision_analysis(contents)
+
+        if data:
+            return ExtractResponse(
+                original_text="[Image Analysis]",
+                translated_text="[Image Analysis]",
+                summary=data.get("summary", ""),
+                start_date=data.get("start_date", ""),
+                end_date=data.get("end_date", ""),
+                start_time=data.get("start_time", ""),
+                end_time=data.get("end_time", ""),
+                location=data.get("location", ""),
+                is_allday=data.get("is_allday", False),
+                ai_message=data.get("question", ""),
+                used_model="Gemini 2.0 Flash Vision",
+                spacy_log="Skipped (Vision)"
+            )
+        else:
+            return JSONResponse(status_code=500, content={"error": "Image analysis failed"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# --- 3. File Analysis (Text Files) ---
+@app.post("/extract-file", response_model=ExtractResponse)
+async def api_extract_file_schedule(file: UploadFile = File(...)):
+    contents = await file.read()
+    try:
+        text_content = contents.decode('utf-8')
+    except UnicodeDecodeError:
+        text_content = contents.decode('euc-kr', errors='ignore')
+
+    # Reuse the smart analysis logic for long text
+    gemini_data = extract_info_with_gemini_json(text_content)
+
+    if gemini_data:
+        return ExtractResponse(
+            original_text="[File Analysis]",
+            translated_text="[File Analysis]",
+            summary=gemini_data.get("summary", ""),
+            start_date=gemini_data.get("start_date", ""),
+            end_date=gemini_data.get("end_date", ""),
+            start_time=gemini_data.get("start_time") or gemini_data.get("time") or "",
+            end_time=gemini_data.get("end_time", ""),
+            location=gemini_data.get("location", ""),
+            is_allday=gemini_data.get("is_allday", False),
+            ai_message=gemini_data.get("question", ""),
+            used_model="Gemini 2.0 Flash (File)",
+            spacy_log="Skipped (File)"
+        )
+    else:
+        return JSONResponse(status_code=500, content={"error": "File analysis failed"})
+
+
+# ==============================================================================
+# Auth & Calendar CRUD
+# ==============================================================================
 @app.get('/login')
 async def login(request: Request):
     fixed_redirect_uri = "https://snowmang-ai-scheduler-g14.hf.space/auth/callback"
@@ -497,7 +587,12 @@ async def update_event(request: Request, event_id: str, event_data: UpdateEventR
     if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
 
     headers = {'Authorization': f'Bearer {token_data["access_token"]}', 'Content-Type': 'application/json'}
-    body = {"summary": event_data.summary, "location": event_data.location, "description": event_data.description}
+
+    body = {
+        "summary": event_data.summary,
+        "location": event_data.location,
+        "description": event_data.description
+    }
 
     try:
         if event_data.start_date:
@@ -514,12 +609,19 @@ async def update_event(request: Request, event_id: str, event_data: UpdateEventR
                 start_full = f"{event_data.start_date} {event_data.start_time}"
                 start_dt = dateparser.parse(start_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
                                                                   'RETURN_AS_TIMEZONE_AWARE': True})
+
                 end_full = f"{event_data.end_date} {event_data.end_time}"
                 end_dt = dateparser.parse(end_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
                                                               'RETURN_AS_TIMEZONE_AWARE': True})
+
                 body['start'] = {'dateTime': start_dt.isoformat(), 'timeZone': 'Asia/Seoul'}
                 body['end'] = {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'}
 
+    except Exception as e:
+        print(f"Date Parse Error in Update: {e}")
+        pass
+
+    try:
         async with httpx.AsyncClient() as client:
             resp = await client.patch(f'https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}',
                                       json=body, headers=headers)
@@ -540,6 +642,7 @@ async def delete_event(request: Request, event_id: str):
         async with httpx.AsyncClient() as client:
             resp = await client.delete(f'https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}',
                                        headers=headers)
+
         if resp.status_code != 204: return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
         return {"message": "Deleted successfully"}
     except Exception as e:
@@ -550,10 +653,16 @@ async def delete_event(request: Request, event_id: str):
 async def admin_dashboard(request: Request):
     key = request.query_params.get("key")
     if key != "1234": return HTMLResponse("<h1>🚫 Access Denied</h1>", status_code=403)
+
     try:
         if not HF_TOKEN: return HTMLResponse("<h1>⚠️ HF_TOKEN not set.</h1>")
         api = HfApi(token=HF_TOKEN)
-        csv_files = [f for f in api.list_repo_files(repo_id=DATASET_REPO_ID, repo_type="dataset") if f.endswith('.csv')]
+        try:
+            files = api.list_repo_files(repo_id=DATASET_REPO_ID, repo_type="dataset")
+        except Exception as e:
+            return HTMLResponse(f"<h1>❌ Failed to list files.</h1><pre>{str(e)}</pre>")
+
+        csv_files = [f for f in files if f.endswith('.csv')]
         if not csv_files: return HTMLResponse("<h1>📭 No data found.</h1>")
 
         dfs = []
@@ -561,15 +670,18 @@ async def admin_dashboard(request: Request):
             try:
                 local_filename = hf_hub_download(repo_id=DATASET_REPO_ID, filename=file, repo_type="dataset",
                                                  token=HF_TOKEN)
-                dfs.append(pd.read_csv(local_filename))
-            except:
+                df = pd.read_csv(local_filename)
+                dfs.append(df)
+            except Exception:
                 continue
 
         if not dfs: return HTMLResponse("<h1>❌ Error loading CSV.</h1>")
         final_df = pd.concat(dfs, ignore_index=True)
         if 'timestamp' in final_df.columns: final_df = final_df.sort_values(by='timestamp', ascending=False)
+        table_html = final_df.to_html(classes="table table-striped", index=False)
         return HTMLResponse(
-            f"<html><head><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'></head><body><div class='container mt-4'><h1>📊 Feedback Log</h1><p>Total: {len(final_df)}</p>{final_df.to_html(classes='table table-striped', index=False)}</div></body></html>")
+            f"<html><head><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'></head><body><div class='container mt-4'><h1>📊 Feedback Log</h1><p>Total: {len(final_df)}</p>{table_html}</div></body></html>")
+
     except Exception as e:
         return HTMLResponse(f"<h1>❌ Error: {str(e)}</h1>")
 

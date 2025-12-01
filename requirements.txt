@@ -1,22 +1,19 @@
 fastapi
 uvicorn[standard]
+python-multipart  # [Added] For file uploads
+pillow            # [Added] For image processing
 
-# [NLP] spaCy core & Medium Model (Better Accuracy)
 spacy>=3.7.0
 https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.1/en_core_web_md-3.7.1-py3-none-any.whl
 
-# [AI & Translation]
 google-generativeai>=0.7.2
 deep_translator==1.11.4
 
-# [Utils]
 dateparser
 pytz
 pandas
 huggingface-hub>=0.16.0
 
-# [Auth & Web]
 authlib
 httpx==0.27.2
 itsdangerous
-python-multipart
