@@ -179,7 +179,7 @@
         .btn-sub { width: 100%; padding: 12px; background: #e2e8f0; color: #475569; font-size: 0.95rem; font-weight: 600; border-radius: 12px; border:none; cursor: pointer; margin-top: 15px; transition: 0.2s; }
         .btn-sub:hover { background: #cbd5e1; }
 
-        /* [Added] Analysis Details Toggle */
+        /* Analysis Details Toggle */
         .analysis-toggle-btn {
             background: none; border: none; color: #64748b; font-size: 0.85rem; font-weight: 600;
             cursor: pointer; display: flex; align-items: center; gap: 5px; margin-top: 15px; padding: 5px;
@@ -673,7 +673,7 @@
             document.getElementById('btn-en').className = lang==='en'?'lang-btn active':'lang-btn';
         }
 
-        // [Added] Toggle function for details
+        // Toggle Analysis Details
         function toggleAnalysisDetails() {
             const box = document.getElementById('analysis-details');
             const icon = document.getElementById('arrow-icon');
@@ -686,6 +686,7 @@
             }
         }
 
+        // [Updated] Handle Extract with Progressive Loading (Fast -> Full)
         async function handleExtract() {
             const inputText = document.getElementById('input-text').value;
             const btnText = document.getElementById('btn-extract-text');
@@ -693,49 +694,70 @@
             const aiMsgBox = document.getElementById('ai-message');
             const originalLabel = btnText.innerText;
 
-            btnText.innerText = "..."; btn.disabled = true; aiMsgBox.style.display = 'none';
+            btn.disabled = true;
+            aiMsgBox.style.display = 'none';
             document.querySelectorAll('input').forEach(el => el.classList.remove('highlight-empty'));
+            document.getElementById('analysis-details').style.display = 'none'; // Reset details
 
-            // Close details initially
-            document.getElementById('analysis-details').style.display = 'none';
-
-            try {
-                const response = await fetch('/extract', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ text: inputText, lang: currentLang })
-                });
-                const data = await response.json();
+            // Helper to update UI
+            const updateUI = (data) => {
                 originalText = data.original_text;
                 translatedText = data.translated_text;
 
-                // [Updated] Populate Analysis Details
-                document.getElementById('translated-output').innerText = data.translated_text || "(No translation)";
-                document.getElementById('spacy-log').innerText = data.spacy_log || "No internal logs.";
+                // Details Panel Update
+                document.getElementById('translated-output').innerText = data.translated_text || "(Translating...)";
+                document.getElementById('spacy-log').innerText = data.spacy_log || "Analyzing...";
 
                 const modelBadge = document.getElementById('model-badge');
                 modelBadge.innerText = data.used_model;
                 modelBadge.className = 'model-badge ' + (data.used_model.includes('Gemini') ? 'smart' : 'fast');
 
-                // Populate Form Fields
-                document.getElementById('summary-box').value = data.summary || "";
-                document.getElementById('start-date-box').value = data.start_date || "";
-                document.getElementById('end-date-box').value = data.end_date || "";
-                document.getElementById('start-time-box').value = data.start_time || "";
-                document.getElementById('end-time-box').value = data.end_time || "";
-                document.getElementById('loc-box').value = data.location || "";
-                document.getElementById('allday-check').checked = data.is_allday;
+                // Form Fields
+                if(data.summary) document.getElementById('summary-box').value = data.summary;
+                if(data.start_date) document.getElementById('start-date-box').value = data.start_date;
+                if(data.end_date) document.getElementById('end-date-box').value = data.end_date;
+                if(data.start_time) document.getElementById('start-time-box').value = data.start_time;
+                if(data.end_time) document.getElementById('end-time-box').value = data.end_time;
+                if(data.location) document.getElementById('loc-box').value = data.location;
+                if(data.is_allday !== undefined) document.getElementById('allday-check').checked = data.is_allday;
 
                 updateMapLinks();
 
-                if (data.ai_message) {
+                // Show AI Message only on Full update
+                if (data.ai_message && data.used_model.includes('Gemini')) {
                     document.getElementById('ai-text').innerText = data.ai_message;
                     aiMsgBox.style.display = 'block';
                     if (!data.start_date) document.getElementById('start-date-box').classList.add('highlight-empty');
                     if (!data.start_time && !data.is_allday) document.getElementById('start-time-box').classList.add('highlight-empty');
                 }
+            };
 
-            } catch (error) { alert('Error processing text.'); }
-            finally { btnText.innerText = originalLabel; btn.disabled = false; }
+            try {
+                // [Step 1] FAST CALL (spaCy only) - Immediate Feedback
+                btnText.innerText = "⚡ Quick Check...";
+                const fastResponse = await fetch('/extract', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'fast' })
+                });
+                const fastData = await fastResponse.json();
+                updateUI(fastData); // Render spaCy results immediately!
+
+                // [Step 2] FULL CALL (Gemini) - Refine Data
+                btnText.innerText = "✨ Refining...";
+                const fullResponse = await fetch('/extract', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'full' })
+                });
+                const fullData = await fullResponse.json();
+                updateUI(fullData); // Overwrite with smarter AI results
+
+            } catch (error) {
+                console.error(error);
+                // alert('Error during analysis.'); // Optional: Don't alert if fast succeeded but slow failed
+            } finally {
+                btnText.innerText = originalLabel;
+                btn.disabled = false;
+            }
         }
 
         function handleAiReply() {

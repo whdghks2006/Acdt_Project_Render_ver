@@ -208,6 +208,7 @@ oauth.register(
 class ExtractRequest(BaseModel):
     text: str
     lang: str = 'en'
+    mode: str = "full"  # [Added] 'fast' (spaCy only) or 'full' (Hybrid)
 
 
 class ExtractResponse(BaseModel):
@@ -267,7 +268,9 @@ async def api_extract_schedule(request: ExtractRequest):
     original_text = request.text
     is_korean_input = check_is_korean(original_text)
 
-    # 1. Translate & spaCy (Fast)
+    # ---------------------------------------------------------
+    # [Common] 1. Translate & spaCy (Always run this)
+    # ---------------------------------------------------------
     translated_text = translate_korean_to_english(original_text) if is_korean_input else original_text
 
     date_str, time_str, loc_str, event_str = "", "", "", ""
@@ -285,35 +288,52 @@ async def api_extract_schedule(request: ExtractRequest):
     loc_val = loc_str
     is_allday_val = False
     used_model = "Fast-Inference (spaCy)"
+    ai_message = ""
 
-    # 2. Gemini Extraction (Smart Fallback)
+    # ---------------------------------------------------------
+    # [Branch] If mode is 'fast', return immediately!
+    # ---------------------------------------------------------
+    if request.mode == "fast":
+        # Localization for fast mode
+        if is_korean_input:
+            loc_val = translate_english_to_korean(loc_val)
+
+        return ExtractResponse(
+            original_text=original_text, translated_text=translated_text,
+            summary=summary_val, start_date=start_date_val, end_date=end_date_val,
+            start_time=start_time_val, end_time=end_time_val,
+            location=loc_val, is_allday=is_allday_val,
+            ai_message="", used_model="⚡ Fast (spaCy)",
+            spacy_log=spacy_debug_str
+        )
+
+    # ---------------------------------------------------------
+    # [Step 2] Gemini Extraction (Only for 'full' mode)
+    # ---------------------------------------------------------
+    # Logic: If spaCy missed something OR explicitly requested full mode
+    # Optimization: If spaCy found everything, we might skip Gemini, but let's keep logic simple for now
     if not date_str or not time_str or " to " in translated_text:
         print("⚠️ spaCy incomplete. Calling Gemini...")
         gemini_data = extract_info_with_gemini_json(original_text)
 
         if gemini_data:
-            summary_val = gemini_data.get("summary") or summary_val  # Safe Get
-
-            # [Fix] Handle None types explicitly
+            summary_val = gemini_data.get("summary") or summary_val
             start_date_val = gemini_data.get("start_date") or ""
             end_date_val = gemini_data.get("end_date") or ""
 
-            # Check for both 'start_time' and legacy 'time' keys
             g_start = gemini_data.get("start_time") or gemini_data.get("time")
-            start_time_val = g_start or ""  # Convert None to ""
-
-            end_time_val = gemini_data.get("end_time") or ""  # Convert None to ""
+            start_time_val = g_start or ""
+            end_time_val = gemini_data.get("end_time") or ""
 
             loc_val = gemini_data.get("location") or loc_val
             is_allday_val = gemini_data.get("is_allday") or False
-            used_model = "Smart (Gemini 2.0)"
+            used_model = "✨ Smart (Gemini 2.0)"
 
-    # 3. Localization
+    # [Step 3] Localization
     if is_korean_input and used_model.startswith("Fast"):
         loc_val = translate_english_to_korean(loc_val)
 
-    # 4. Interactive Question
-    ai_message = ""
+    # [Step 4] Interactive Question
     if not start_date_val or (not start_time_val and not is_allday_val):
         current_data = {'date': start_date_val, 'time': start_time_val, 'loc': loc_val}
         ai_message = ask_gemini_for_missing_info(original_text, current_data, lang=request.lang)
