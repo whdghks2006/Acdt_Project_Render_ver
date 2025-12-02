@@ -468,22 +468,6 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
 
     except HTTPException as he:
         return JSONResponse(status_code=he.status_code, content={"error": he.detail})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-# --- 3. File Analysis (Text Files) ---
-@app.post("/extract-file", response_model=ExtractResponse)
-async def api_extract_file_schedule(file: UploadFile = File(...)):
-    contents = await file.read()
-    try:
-        text_content = contents.decode('utf-8')
-    except UnicodeDecodeError:
-    return {"user": request.session.get('user')}
-
-
-@app.post("/add-to-calendar")
-async def add_to_calendar(request: Request, event_data: AddEventRequest):
     token_data = request.session.get('token')
     if not token_data or 'access_token' not in token_data:
         return JSONResponse(status_code=401, content={"error": "Login required"})
