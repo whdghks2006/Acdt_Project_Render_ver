@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import spacy
 import dateparser
 import datetime
@@ -36,6 +40,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 models = {}
 
+print(f"🔑 GEMINI_API_KEY Loaded: {bool(GEMINI_API_KEY)}")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -124,6 +129,7 @@ def extract_info_with_gemini_json(text):
     prompt = f"""
     You are a smart scheduler assistant. Today is {today}.
     Extract schedule details from: "{text}"
+    (Note: If this looks like a chat log, ignore message timestamps and focus on the conversation content.)
 
     Rules:
     1. Handle date ranges (start_date, end_date). If single day, start=end.
@@ -170,6 +176,31 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
 # ==============================================================================
 # AI Logic 2: Vision Analysis (Image/Screenshot)
 # ==============================================================================
+
+def run_vision_transcription(image_bytes):
+    """이미지에서 텍스트만 추출 (OCR)"""
+    if not GEMINI_API_KEY:
+        print("❌ GEMINI_API_KEY is missing.")
+        return ""
+    
+    try:
+        image = PIL.Image.open(io.BytesIO(image_bytes))
+        prompt = "Transcribe all text from this image exactly as it appears. Do not summarize."
+        
+        # Try 2.5 -> Fallback 1.5
+        response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
+        if not response or not response.text:
+            print("❌ Gemini returned empty response.")
+            return ""
+        return response.text.strip()
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"❌ Vision Transcription Error: {e}")
+        return ""
+
+
+
 def run_vision_analysis(image_bytes):
     """이미지를 분석하여 일정 정보 추출"""
     if not GEMINI_API_KEY: return {"error": "GEMINI_API_KEY not set"}
@@ -257,8 +288,8 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
-    https_only=True,
-    same_site='none',
+    https_only=False,
+    same_site='lax',
     path='/',
     max_age=3600
 )
@@ -332,9 +363,10 @@ async def read_index():
 
 
 # --- 1. Text Analysis (Hybrid: Fast -> Smart) ---
-@app.post("/extract", response_model=ExtractResponse)
-async def api_extract_schedule(request: ExtractRequest):
-    original_text = request.text
+
+def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_ocr: bool = False):
+    """Shared logic for text analysis (Text -> spaCy -> Gemini)"""
+    original_text = text
     is_korean_input = check_is_korean(original_text)
 
     # 1. Translate & spaCy (Fast)
@@ -358,7 +390,7 @@ async def api_extract_schedule(request: ExtractRequest):
     ai_message = ""
 
     # [Branch] If fast mode, return immediately
-    if request.mode == "fast":
+    if mode == "fast":
         if is_korean_input: loc_val = translate_english_to_korean(loc_val)
         return ExtractResponse(
             original_text=original_text, translated_text=translated_text,
@@ -370,7 +402,8 @@ async def api_extract_schedule(request: ExtractRequest):
         )
 
     # 2. Gemini Extraction (Smart Fallback)
-    if not date_str or not time_str or " to " in translated_text:
+    # If spaCy missed something OR if we are in 'full' mode and want to be sure
+    if is_ocr or not date_str or not time_str or " to " in translated_text:
         print("⚠️ spaCy incomplete. Calling Gemini...")
         gemini_data = extract_info_with_gemini_json(original_text)
 
@@ -385,7 +418,7 @@ async def api_extract_schedule(request: ExtractRequest):
 
             loc_val = gemini_data.get("location") or loc_val
             is_allday_val = gemini_data.get("is_allday") or False
-            used_model = "✨ Smart (Gemini 2.5)"  # 모델명 업데이트
+            used_model = "✨ Smart (Gemini 2.5)"
 
     # 3. Localization
     if is_korean_input and used_model.startswith("Fast"):
@@ -394,7 +427,7 @@ async def api_extract_schedule(request: ExtractRequest):
     # 4. Interactive Question
     if not start_date_val or (not start_time_val and not is_allday_val):
         current_data = {'date': start_date_val, 'time': start_time_val, 'loc': loc_val}
-        ai_message = ask_gemini_for_missing_info(original_text, current_data, lang=request.lang)
+        ai_message = ask_gemini_for_missing_info(original_text, current_data, lang=lang)
 
     return ExtractResponse(
         original_text=original_text, translated_text=translated_text,
@@ -406,36 +439,35 @@ async def api_extract_schedule(request: ExtractRequest):
     )
 
 
+@app.post("/extract", response_model=ExtractResponse)
+async def api_extract_schedule(request: ExtractRequest):
+    return process_text_schedule(request.text, request.mode, request.lang)
+
+
 # --- 2. Image Analysis (Vision) ---
 @app.post("/extract-image", response_model=ExtractResponse)
 async def api_extract_image_schedule(file: UploadFile = File(...)):
     try:
         contents = await file.read()
-        data = run_vision_analysis(contents)
+        
+        # 1. Transcribe Image to Text
+        transcribed_text = run_vision_transcription(contents)
+        
+        if not transcribed_text:
+            return JSONResponse(status_code=500, content={"error": "Failed to read text from image."})
+            
+        print(f"📷 Image Transcribed: {transcribed_text[:50]}...")
 
-        # [Error Handling]
-        if isinstance(data, dict) and "error" in data:
-            error_msg = data["error"]
-            status_code = data.get("error_code", 500)  # 기본 500
-            return JSONResponse(status_code=status_code, content={"error": error_msg})
+        # 2. Process as Text (spaCy -> Gemini)
+        # We force 'full' mode to ensure high quality extraction from OCR text
+        result = process_text_schedule(transcribed_text, mode="full", is_ocr=True)
+        
+        # Update model name to indicate source
+        result.used_model = f"Image OCR + {result.used_model}"
+        return result
 
-        if data:
-            return ExtractResponse(
-                original_text="[Image Analysis]",
-                translated_text="[Image Analysis]",
-                summary=data.get("summary", ""),
-                start_date=data.get("start_date", ""),
-                end_date=data.get("end_date", ""),
-                start_time=data.get("start_time", ""),
-                end_time=data.get("end_time", ""),
-                location=data.get("location", ""),
-                is_allday=data.get("is_allday", False),
-                ai_message=data.get("question", ""),
-                used_model="Gemini 2.5 Flash Vision",  # 모델명 업데이트
-                spacy_log="Skipped (Vision)"
-            )
-        else:
-            return JSONResponse(status_code=500, content={"error": "Image analysis failed"})
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"error": he.detail})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -475,8 +507,8 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
 # ==============================================================================
 @app.get('/login')
 async def login(request: Request):
-    fixed_redirect_uri = "https://snowmang-ai-scheduler-g14.hf.space/auth/callback"
-    return await oauth.google.authorize_redirect(request, fixed_redirect_uri)
+    redirect_uri = request.url_for("auth")
+    return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
 @app.get('/auth/callback')
@@ -611,6 +643,8 @@ async def list_events(request: Request):
                 'extendedProps': {'description': event.get('description', ''), 'location': event.get('location', '')}
             })
         return {"events": calendar_events}
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"error": he.detail})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -662,6 +696,8 @@ async def update_event(request: Request, event_id: str, event_data: UpdateEventR
 
         if resp.status_code != 200: return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
         return {"message": "Updated successfully"}
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"error": he.detail})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -679,6 +715,8 @@ async def delete_event(request: Request, event_id: str):
 
         if resp.status_code != 204: return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
         return {"message": "Deleted successfully"}
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"error": he.detail})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 

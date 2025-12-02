@@ -1,0 +1,15 @@
+
+.env
+.git
+.gitignore
+.idea
+.venv
+__pycache__
+*.pyc
+fix_*.py
+fix_*.ps1
+update_*.py
+restore_*.py
+apply_*.py
+refactor_*.py
+output.txt

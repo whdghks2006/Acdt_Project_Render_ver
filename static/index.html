@@ -1,12 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Smart Scheduler</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=Noto+Sans+KR:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=Noto+Sans+KR:wght@400;500;600;800&display=swap"
+        rel="stylesheet">
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
 
     <style>
@@ -50,92 +53,292 @@
 
         /* Header rounded corners */
         .app-header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 20px 40px; background: rgba(255,255,255,0.6);
-            border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            background: rgba(255, 255, 255, 0.6);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            position: relative;
+            z-index: 100;
             border-radius: 24px 24px 0 0;
         }
-        .brand { font-size: 1.4rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer; }
 
-        .lang-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; gap: 4px; }
+        .brand {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: -0.5px;
+            cursor: pointer;
+        }
+
+        .lang-switch {
+            display: flex;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 12px;
+            gap: 4px;
+        }
+
         .lang-btn {
             width: 45px;
-            background: none; border: none; padding: 6px 0; border-radius: 8px;
-            font-size: 0.85rem; font-weight: 700; color: #94a3b8; cursor: pointer; transition: 0.2s;
+            background: none;
+            border: none;
+            padding: 6px 0;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: 0.2s;
             text-align: center;
         }
-        .lang-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        .lang-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
 
         .btn-login {
-            display: flex; align-items: center; gap: 10px;
-            background: white; color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            color: #374151;
             border: 1px solid #cbd5e1;
-            padding: 8px 16px; border-radius: 12px;
-            text-decoration: none; font-size: 0.9rem; font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
             transition: 0.2s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         }
-        .btn-login:hover { background: #f8fafc; transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .google-logo { width: 18px; height: 18px; }
 
-        .profile-container { position: relative; cursor: pointer; }
+        .btn-login:hover {
+            background: #f8fafc;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .google-logo {
+            width: 18px;
+            height: 18px;
+        }
+
+        .profile-container {
+            position: relative;
+            cursor: pointer;
+        }
+
         .profile-trigger {
-            display: flex; align-items: center; gap: 10px;
-            padding: 6px 12px; padding-right: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 12px;
+            padding-right: 16px;
             border-radius: 50px;
             transition: 0.2s;
             background: white;
             border: 1px solid #e2e8f0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
-        .profile-trigger:hover { border-color: var(--primary); box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15); }
-        .profile-name { font-weight: 700; font-size: 0.9rem; color: var(--text-main); max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .profile-avatar { width: 32px; height: 32px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; }
-        .menu-hint { font-size: 0.75rem; color: #94a3b8; font-weight: 600; margin-left: 5px; }
 
-        .dropdown-menu { position: absolute; top: 125%; right: 0; width: 220px; background: white; border-radius: 16px; box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15); border: 1px solid #f1f5f9; padding: 8px; display: none; flex-direction: column; z-index: 200; animation: fadeIn 0.2s ease-out; }
-        .dropdown-menu.show { display: flex; }
-        .dropdown-item { padding: 12px; border-radius: 10px; text-decoration: none; color: var(--text-main); font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 10px; transition: 0.2s; cursor: pointer; }
-        .dropdown-item:hover { background: #f8fafc; color: var(--primary); }
-        .dropdown-divider { height: 1px; background: #f1f5f9; margin: 6px 0; }
-        .text-danger { color: #ef4444; } .text-danger:hover { background: #fef2f2; color: #dc2626; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .profile-trigger:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15);
+        }
+
+        .profile-name {
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            max-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .profile-avatar {
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .menu-hint {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 125%;
+            right: 0;
+            width: 220px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15);
+            border: 1px solid #f1f5f9;
+            padding: 8px;
+            display: none;
+            flex-direction: column;
+            z-index: 200;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .dropdown-menu.show {
+            display: flex;
+        }
+
+        .dropdown-item {
+            padding: 12px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: var(--text-main);
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: 0.2s;
+            cursor: pointer;
+        }
+
+        .dropdown-item:hover {
+            background: #f8fafc;
+            color: var(--primary);
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: #f1f5f9;
+            margin: 6px 0;
+        }
+
+        .text-danger {
+            color: #ef4444;
+        }
+
+        .text-danger:hover {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
         /* Layout */
-        .main-content { padding: 40px; }
-        .view-section { display: none; animation: fadeView 0.4s ease-out; }
-        .view-section.active { display: block; }
-        @keyframes fadeView { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .main-content {
+            padding: 40px;
+        }
 
-        .hero-section { text-align: center; margin-bottom: 40px; position: relative; }
-        .hero-section h1 { font-size: 2.5rem; font-weight: 800; color: #1e293b; margin-bottom: 10px; letter-spacing: -1px; }
-        .hero-section p { color: var(--text-sub); font-size: 1.1rem; margin: 0; }
+        .view-section {
+            display: none;
+            animation: fadeView 0.4s ease-out;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeView {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hero-section {
+            text-align: center;
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .hero-section h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+
+        .hero-section p {
+            color: var(--text-sub);
+            font-size: 1.1rem;
+            margin: 0;
+        }
 
         /* Google Calendar Shortcut */
         .btn-gcal {
-            display: inline-flex; align-items: center; gap: 8px;
-            background: white; color: #475569;
-            padding: 8px 18px; border-radius: 50px;
-            font-size: 0.85rem; font-weight: 600; text-decoration: none;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;
-            transition: all 0.2s ease; margin-top: 15px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            color: #475569;
+            padding: 8px 18px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+            margin-top: 15px;
         }
-        .btn-gcal:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: #cbd5e1; color: var(--primary); }
-        .gcal-icon { width: 20px; height: 20px; }
+
+        .btn-gcal:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #cbd5e1;
+            color: var(--primary);
+        }
+
+        .gcal-icon {
+            width: 20px;
+            height: 20px;
+        }
 
         /* Unified Card: Transparent to blend */
         .unified-card {
-            background: transparent; /* No background */
-            border: none; /* No border */
+            background: transparent;
+            /* No background */
+            border: none;
+            /* No border */
             border-radius: 0;
             padding: 40px;
-            box-shadow: none; /* No shadow */
+            box-shadow: none;
+            /* No shadow */
             margin-bottom: 40px;
         }
 
         .unified-grid {
             display: grid;
-            grid-template-columns: 1fr 1px 1fr; /* Left, Divider, Right */
+            grid-template-columns: 1fr 1px 1fr;
+            /* Left, Divider, Right */
             gap: 40px;
             align-items: start;
         }
@@ -144,132 +347,837 @@
         .vertical-divider {
             width: 1px;
             height: 100%;
-            background: rgba(0,0,0,0.05);
+            background: rgba(0, 0, 0, 0.05);
             min-height: 400px;
         }
 
         @media (max-width: 900px) {
-            .unified-grid { grid-template-columns: 1fr; gap: 30px; }
-            .vertical-divider { width: 100%; height: 1px; min-height: 1px; margin: 10px 0; }
+            .unified-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+
+            .vertical-divider {
+                width: 100%;
+                height: 1px;
+                min-height: 1px;
+                margin: 10px 0;
+            }
         }
 
-        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.05); }
-        .section-badge { background: #e0e7ff; color: var(--primary); font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
-        .section-title { font-size: 1.1rem; font-weight: 700; color: #334155; }
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .section-badge {
+            background: #e0e7ff;
+            color: var(--primary);
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #334155;
+        }
 
         /* Inputs */
-        label { display: block; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; color: #475569; }
-        textarea, input { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.95rem; background: rgba(255,255,255,0.7); font-family: inherit; transition: all 0.2s ease; margin-bottom: 0; }
-        textarea:hover, input:hover { background: #fff; border-color: #94a3b8; }
-        textarea:focus, input:focus { outline: none; background: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
-        textarea { min-height: 150px; resize: none; }
-        .highlight-empty { border-color: #ef4444 !important; background-color: #fef2f2 !important; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        textarea,
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            background: rgba(255, 255, 255, 0.7);
+            font-family: inherit;
+            transition: all 0.2s ease;
+            margin-bottom: 0;
+        }
+
+        textarea:hover,
+        input:hover {
+            background: #fff;
+            border-color: #94a3b8;
+        }
+
+        textarea:focus,
+        input:focus {
+            outline: none;
+            background: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+
+        textarea {
+            min-height: 150px;
+            resize: none;
+        }
+
+        .highlight-empty {
+            border-color: #ef4444 !important;
+            background-color: #fef2f2 !important;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
 
         /* TAB STYLES */
-        .tab-container { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid rgba(0,0,0,0.05); padding-bottom: 5px; }
-        .tab-btn { padding: 10px 20px; font-weight: 700; color: #94a3b8; cursor: pointer; border-bottom: 2px solid transparent; transition: 0.2s; font-size: 0.9rem; }
-        .tab-btn:hover { color: var(--primary); }
-        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .tab-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid rgba(0, 0, 0, 0.05);
+            padding-bottom: 5px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            font-weight: 700;
+            color: #94a3b8;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
 
         /* DROP ZONE STYLES */
         .drop-zone {
-            border: 2px dashed #cbd5e1; border-radius: 16px; padding: 40px 20px;
-            text-align: center; color: #64748b; cursor: pointer; transition: 0.2s; background: rgba(248, 250, 252, 0.5);
-            margin-bottom: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border: 2px dashed #cbd5e1;
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            color: #64748b;
+            cursor: pointer;
+            transition: 0.2s;
+            background: rgba(248, 250, 252, 0.5);
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             min-height: 180px;
         }
-        .drop-zone:hover, .drop-zone.dragover { border-color: var(--primary); background: #e0e7ff; color: var(--primary); }
-        .drop-msg { font-size: 1rem; font-weight: 600; pointer-events: none; margin-bottom: 5px;}
-        .drop-sub { font-size: 0.85rem; opacity: 0.7; pointer-events: none; }
-        .upload-icon { font-size: 2rem; margin-bottom: 10px; }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background: #e0e7ff;
+            color: var(--primary);
+        }
+
+        .drop-msg {
+            font-size: 1rem;
+            font-weight: 600;
+            pointer-events: none;
+            margin-bottom: 5px;
+        }
+
+        .drop-sub {
+            font-size: 0.85rem;
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .upload-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
 
         /* AI Chat & Details */
-        .ai-chat-container { margin-top: 15px; background: rgba(239, 246, 255, 0.7); border: 1px solid #bfdbfe; border-radius: 16px; padding: 15px; display: none; }
-        .ai-header { font-weight: 700; color: var(--primary); font-size: 0.85rem; margin-bottom: 5px; }
-        .ai-text { font-size: 0.95rem; color: #1e3a8a; line-height: 1.5; }
-        .ai-input-group { display: flex; gap: 8px; margin-top: 10px; }
-        .ai-send-btn { background: var(--primary); color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .ai-chat-container {
+            margin-top: 15px;
+            background: rgba(239, 246, 255, 0.7);
+            border: 1px solid #bfdbfe;
+            border-radius: 16px;
+            padding: 15px;
+            display: none;
+        }
+
+        .ai-header {
+            font-weight: 700;
+            color: var(--primary);
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+
+        .ai-text {
+            font-size: 0.95rem;
+            color: #1e3a8a;
+            line-height: 1.5;
+        }
+
+        .ai-input-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .ai-send-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
 
         /* Analysis Details Toggle */
         .analysis-toggle-btn {
-            background: none; border: none; color: #64748b; font-size: 0.85rem; font-weight: 600;
-            cursor: pointer; display: flex; align-items: center; gap: 5px; margin-top: 15px; padding: 5px;
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 15px;
+            padding: 5px;
             transition: 0.2s;
         }
-        .analysis-toggle-btn:hover { color: var(--primary); }
+
+        .analysis-toggle-btn:hover {
+            color: var(--primary);
+        }
 
         .analysis-details-box {
-            display: none; margin-top: 10px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px;
-            box-shadow: 0 4px 6px -2px rgba(0,0,0,0.05); animation: fadeIn 0.3s;
+            display: none;
+            margin-top: 10px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            animation: fadeIn 0.3s;
         }
-        .detail-item { margin-bottom: 10px; }
-        .detail-label { font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: block; }
-        .detail-content { font-size: 0.9rem; color: #334155; background: #f8fafc; padding: 8px; border-radius: 6px; border: 1px solid #f1f5f9; }
-        .model-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; color: white; background: #94a3b8; }
-        .model-badge.smart { background: linear-gradient(135deg, #6366f1, #a855f7); }
-        .model-badge.fast { background: #10b981; }
-        .code-block { font-family: monospace; font-size: 0.8rem; color: #d63384; background: #fff0f6; }
+
+        .detail-item {
+            margin-bottom: 10px;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .detail-content {
+            font-size: 0.9rem;
+            color: #334155;
+            background: #f8fafc;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #f1f5f9;
+        }
+
+        .model-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+            background: #94a3b8;
+        }
+
+        .model-badge.smart {
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+        }
+
+        .model-badge.fast {
+            background: #10b981;
+        }
+
+        .code-block {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #d63384;
+            background: #fff0f6;
+        }
 
         /* Buttons */
-        .btn-main { width: 100%; padding: 16px; background: var(--primary); color: white; font-size: 1rem; font-weight: 600; border-radius: 16px; border:none; cursor: pointer; margin-top: 10px; transition: 0.2s; box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3); }
-        .btn-main:hover { background: var(--primary-hover); transform: translateY(-2px); }
-        .btn-sub { width: 100%; padding: 12px; background: #e2e8f0; color: #475569; font-size: 0.95rem; font-weight: 600; border-radius: 12px; border:none; cursor: pointer; margin-top: 15px; transition: 0.2s; }
-        .btn-sub:hover { background: #cbd5e1; }
+        .btn-main {
+            width: 100%;
+            padding: 16px;
+            background: var(--primary);
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 16px;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: 0.2s;
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-main:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-sub {
+            width: 100%;
+            padding: 12px;
+            background: #e2e8f0;
+            color: #475569;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: 0.2s;
+        }
+
+        .btn-sub:hover {
+            background: #cbd5e1;
+        }
 
         /* Helpers & Others same as before */
-        .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
-        .form-col { flex: 1; }
-        .hidden { display: none !important; }
-        .spinner { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .time-row-container { display: flex; align-items: flex-end; gap: 15px; margin-bottom: 15px; }
-        .time-input-group { flex: 1; }
-        .switch-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 5px; min-width: 60px; }
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        input:checked + .slider { background-color: var(--primary); }
-        input:checked + .slider:before { transform: translateX(20px); }
-        .switch-label-text { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
-        .map-group { display: flex; gap: 8px; margin-top: 10px; }
-        .map-link { flex: 1; padding: 12px; font-size: 0.85rem; text-decoration: none; color: white; font-weight: 600; text-align: center; border-radius: 12px; transition: all 0.3s ease; opacity: 1; transform: translateY(0); }
-        .map-link.disabled { background-color: #e2e8f0 !important; color: #94a3b8 !important; pointer-events: none; box-shadow: none; transform: none; }
-        .bg-google { background: #4285F4; }
-        .bg-naver { background: #03C75A; }
-        .bg-kakao { background: #FEE500; color: #191919 !important; }
-        .consent-box { background: transparent; border: none; padding: 10px 0; margin-top: 15px; display: flex; align-items: center; gap: 10px; }
-        .consent-label { color: var(--text-sub); font-weight: 500; font-size: 0.9rem; cursor: pointer; margin: 0; }
-        .simple-check { width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary); }
-        #calendar { max-width: 100%; font-family: 'Inter', sans-serif; }
-        .fc-toolbar-title { font-size: 1.5rem !important; font-weight: 800 !important; color: #1e293b; }
-        .fc-button-primary { background-color: var(--primary) !important; border-color: var(--primary) !important; border-radius: 8px !important; }
-        .fc-daygrid-event { border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-col {
+            flex: 1;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .spinner {
+            display: none;
+            margin: 10px auto;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .time-row-container {
+            display: flex;
+            align-items: flex-end;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .time-input-group {
+            flex: 1;
+        }
+
+        .switch-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 5px;
+            min-width: 60px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e1;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+
+        .switch-label-text {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+
+        .map-group {
+            display: flex;
+            gap: 16px;
+            margin-top: 10px;
+        }
+
+        .map-link {
+            flex: 1;
+            padding: 12px;
+            font-size: 0.85rem;
+        }
+
+        /* Unified Input Styles */
+        .unified-input-box {
+            border: 1px solid #cbd5e1;
+            border-radius: 16px;
+            background: white;
+            padding: 15px;
+            transition: 0.2s;
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .unified-input-box:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+
+        .unified-input-box textarea {
+            border: none;
+            background: transparent;
+            padding: 0;
+            box-shadow: none;
+            min-height: 100px;
+            resize: none;
+            margin-bottom: 10px;
+        }
+
+        .unified-input-box textarea:focus {
+            outline: none;
+            box-shadow: none;
+        }
+
+        .input-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 10px;
+        }
+
+        .action-btn {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 6px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #64748b;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #e0e7ff;
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .file-preview-area {
+            margin-bottom: 10px;
+            animation: fadeIn 0.2s;
+        }
+
+        .preview-card {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #f1f5f9;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+        }
+
+        .preview-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 0 4px;
+            line-height: 1;
+        }
+
+        .preview-close:hover {
+            color: #ef4444;
+        }
+
+        text-decoration: none;
+        color: white;
+        font-weight: 600;
+        text-align: center;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        opacity: 1;
+        transform: translateY(0);
+        }
+
+        .map-link.disabled {
+            background-color: #e2e8f0 !important;
+            color: #94a3b8 !important;
+            pointer-events: none;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .bg-google {
+            background: #4285F4;
+        }
+
+        .bg-naver {
+            background: #03C75A;
+        }
+
+        .bg-kakao {
+            background: #FEE500;
+            color: #191919 !important;
+        }
+
+        .consent-box {
+            background: transparent;
+            border: none;
+            padding: 10px 0;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .consent-label {
+            color: var(--text-sub);
+            font-weight: 500;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .simple-check {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        #calendar {
+            max-width: 100%;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .fc-toolbar-title {
+            font-size: 1.5rem !important;
+            font-weight: 800 !important;
+            color: #1e293b;
+        }
+
+        .fc-button-primary {
+            background-color: var(--primary) !important;
+            border-color: var(--primary) !important;
+            border-radius: 8px !important;
+        }
+
+        /* Add spacing between FullCalendar buttons */
+        .fc-button-group .fc-button {
+            margin: 0 4px !important; /* Add space between buttons */
+            border-radius: 8px !important; /* Round corners for all buttons to look separate */
+            flex: none; /* Prevent weird resizing */
+        }
+        
+        .fc-button-group {
+            display: inline-flex !important;
+            gap: 2px !important; /* Additional gap if needed */
+        }
+
+        .fc-daygrid-event {
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
 
         /* Modal Styles */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
-        .modal-card { background: white; width: 450px; padding: 25px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); animation: slideUp 0.3s; position: relative; }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .modal-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; }
-        .modal-title { font-size: 1.3rem; font-weight: 800; margin: 0; color: #1e293b; }
-        .modal-close { background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #999; line-height: 1; }
-        .info-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; }
-        .icon { font-size: 1.2rem; min-width: 25px; }
-        .edit-input { display: none; width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; margin-bottom: 8px; }
-        .editing .edit-input { display: block; }
-        .editing .display-text { display: none; }
-        .date-edit-group { display:none; flex-direction:column; gap:5px; width:100%; }
-        .editing .date-edit-group { display: flex; }
-        .date-row { display: flex; gap:5px; }
-        .modal-footer { margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 15px; }
-        .btn-modal { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s; }
-        .btn-del { background: #fee2e2; color: #ef4444; } .btn-del:hover { background: #fecaca; }
-        .btn-edit { background: #e0e7ff; color: #4f46e5; } .btn-edit:hover { background: #c7d2fe; }
-        .btn-save { background: #22c55e; color: white; display: none; } .btn-save:hover { background: #16a34a; }
-        .editing .btn-edit { display: none; } .editing .btn-save { display: block; }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+
+        .modal-card {
+            background: white;
+            width: 450px;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+            animation: slideUp 0.3s;
+            position: relative;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: 800;
+            margin: 0;
+            color: #1e293b;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            cursor: pointer;
+            color: #999;
+            line-height: 1;
+        }
+
+        .info-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+            align-items: flex-start;
+        }
+
+        .icon {
+            font-size: 1.2rem;
+            min-width: 25px;
+        }
+
+        .edit-input {
+            display: none;
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .editing .edit-input {
+            display: block;
+        }
+
+        .editing .display-text {
+            display: none;
+        }
+
+        .date-edit-group {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            width: 100%;
+        }
+
+        .editing .date-edit-group {
+            display: flex;
+        }
+
+        .date-row {
+            display: flex;
+            gap: 5px;
+        }
+
+        .modal-footer {
+            margin-top: 25px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 15px;
+        }
+
+        .btn-modal {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+
+        .btn-del {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+
+        .btn-del:hover {
+            background: #fecaca;
+        }
+
+        .btn-edit {
+            background: #e0e7ff;
+            color: #4f46e5;
+        }
+
+        .btn-edit:hover {
+            background: #c7d2fe;
+        }
+
+        .btn-save {
+            background: #22c55e;
+            color: white;
+            display: none;
+        }
+
+        .btn-save:hover {
+            background: #16a34a;
+        }
+
+        .editing .btn-edit {
+            display: none;
+        }
+
+        .editing .btn-save {
+            display: block;
+        }
+        .map-link {
+            flex: 1;
+            padding: 12px;
+            font-size: 0.85rem;
+            text-decoration: none;
+            color: white;
+            font-weight: 600;
+            border-radius: 12px;
+            text-align: center;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            opacity: 1;
+        }
+
+        .map-link.disabled {
+            background-color: #e2e8f0 !important;
+            color: #94a3b8 !important;
+            pointer-events: none;
+            box-shadow: none;
+        }
+
+        .bg-google { background-color: #4285F4; }
+        .bg-naver { background-color: #03C75A; }
+        .bg-kakao { background-color: #FEE500; color: #3c1e1e; }
+        
+        .bg-google:hover { background-color: #3367d6; }
+        .bg-naver:hover { background-color: #02b351; }
+        .bg-kakao:hover { background-color: #e6cf00; }
     </style>
 </head>
+
 <body>
 
     <div class="app-container">
@@ -283,10 +1191,14 @@
                 <div id="user-area">
                     <a href="/login" class="btn-login" id="btn-login-wrap">
                         <svg class="google-logo" viewBox="0 0 48 48">
-                            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                            <path fill="#EA4335"
+                                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                            <path fill="#4285F4"
+                                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                            <path fill="#FBBC05"
+                                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                            <path fill="#34A853"
+                                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                         </svg>
                         <span id="txt-login">Login</span>
                     </a>
@@ -304,43 +1216,38 @@
                 <div class="unified-grid">
 
                     <div>
-                        <div class="tab-container">
-                            <div class="tab-btn active" onclick="setMode('text')" id="tab-text">Text Input</div>
-                            <div class="tab-btn" onclick="setMode('file')" id="tab-file">Image / Upload</div>
-                        </div>
-
-                        <div id="mode-text">
-                            <label id="lbl-input">What's your plan?</label>
-                            <textarea id="input-text" placeholder="Example: 'Trip to Jeju from Nov 20 to 23'"></textarea>
-
-                            <div id="ai-message" class="ai-chat-container">
-                                <div class="ai-header">🤖 AI Assistant</div>
-                                <div id="ai-text" class="ai-text"></div>
-                                <div class="ai-input-group">
-                                    <input type="text" id="ai-user-reply" placeholder="Answer...">
-                                    <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
+                        <label id="lbl-input">What's your plan?</label>
+                        <div class="unified-input-box">
+                            <textarea id="input-text" placeholder="Example: 'Trip to Jeju' or Paste Image..."></textarea>
+                            
+                            <div id="file-preview-area" class="file-preview-area" style="display:none;">
+                                <div class="preview-card">
+                                    <span class="preview-icon">📎</span>
+                                    <span id="preview-filename" class="preview-name">file.png</span>
+                                    <button onclick="clearFile()" class="preview-close">×</button>
                                 </div>
                             </div>
 
-                            <button id="extract-button" class="btn-main" onclick="handleExtract()">
-                                <span id="btn-extract-text">Analyze Text</span>
-                            </button>
-                        </div>
-
-                        <div id="mode-file" style="display:none;">
-                            <div id="drop-zone" class="drop-zone">
-                                <div class="upload-icon">📁</div>
-                                <div class="drop-msg" id="lbl-drop">Drag & Drop or Paste Image</div>
-                                <div class="drop-sub" id="lbl-drop-sub">Supports: PNG, JPG, TXT (Chat logs)</div>
+                            <div class="input-actions">
+                                <button class="action-btn" onclick="document.getElementById('file-input').click()" title="Attach File">
+                                    <span class="icon">📷</span> <span class="label">Upload / Paste</span>
+                                </button>
                                 <input type="file" id="file-input" accept="image/*,.txt" style="display:none;" onchange="handleFileSelect(this.files)">
                             </div>
+                        </div>
 
-                            <div id="file-preview" style="display:none; margin-top:15px; padding:10px; background:rgba(255,255,255,0.8); border-radius:12px; text-align:center;">
-                                <div style="font-weight:600; font-size:0.9rem; margin-bottom:5px;">Selected File:</div>
-                                <div id="file-name" style="color:var(--primary); margin-bottom:10px;"></div>
-                                <button class="btn-main" onclick="handleUploadExtract()" id="btn-analyze-file" style="margin-top:0;">Analyze File</button>
+                        <div id="ai-message" class="ai-chat-container">
+                            <div class="ai-header">🤖 AI Assistant</div>
+                            <div id="ai-text" class="ai-text"></div>
+                            <div class="ai-input-group">
+                                <input type="text" id="ai-user-reply" placeholder="Answer...">
+                                <button onclick="handleAiReply()" class="ai-send-btn" id="btn-reply">Send</button>
                             </div>
                         </div>
+
+                        <button id="extract-button" class="btn-main" onclick="handleUnifiedAction()">
+                            <span id="btn-extract-text">Analyze</span>
+                        </button>
 
                         <button onclick="toggleAnalysisDetails()" class="analysis-toggle-btn">
                             <span id="btn-view-details">🔍 View Analysis Details</span> <span id="arrow-icon">▼</span>
@@ -366,15 +1273,18 @@
 
                     <div>
                         <div class="section-header">
-                            <span class="section-badge">Step 2</span> <span class="section-title" id="txt-step2">Details</span>
+                             <span class="section-title"
+                                id="txt-step2">Details</span>
                         </div>
 
                         <label id="lbl-title">Event Title</label>
                         <input type="text" id="summary-box" style="margin-bottom: 20px;">
 
                         <div class="form-row">
-                            <div class="form-col"><label id="lbl-start">Start Date</label><input type="text" id="start-date-box" placeholder="YYYY-MM-DD"></div>
-                            <div class="form-col"><label id="lbl-end">End Date</label><input type="text" id="end-date-box" placeholder="YYYY-MM-DD"></div>
+                            <div class="form-col"><label id="lbl-start">Start Date</label><input type="text"
+                                    id="start-date-box" placeholder="YYYY-MM-DD"></div>
+                            <div class="form-col"><label id="lbl-end">End Date</label><input type="text"
+                                    id="end-date-box" placeholder="YYYY-MM-DD"></div>
                         </div>
 
                         <div class="time-row-container">
@@ -406,14 +1316,16 @@
 
                         <div class="consent-box">
                             <input type="checkbox" id="data-consent" checked class="simple-check">
-                            <label for="data-consent" class="consent-label" id="lbl-consent">Contribute data for AI improvement</label>
+                            <label for="data-consent" class="consent-label" id="lbl-consent">Contribute data for AI
+                                improvement</label>
                         </div>
 
                         <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
                             <span id="btn-add-text">Add to Google Calendar</span>
                         </button>
                         <div class="spinner" id="loading-spinner"></div>
-                        <div id="result-output" style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
+                        <div id="result-output"
+                            style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
                     </div>
 
                 </div>
@@ -425,13 +1337,16 @@
                 <h1 id="txt-calendar">My Calendar</h1>
                 <a href="https://calendar.google.com" target="_blank" class="btn-gcal" id="btn-gcal-shortcut">
                     <svg class="gcal-icon" viewBox="0 0 48 48">
-                        <path fill="#e8f0fe" d="M42,43H6c-2.209,0-4-1.791-4-4V9c0-2.209,1.791-4,4-4h36c2.209,0,4,1.791,4,4v30 C46,41.209,44.209,43,42,43z"/>
-                        <path fill="#4285f4" d="M38.5,10h-29C8.673,10,8,10.673,8,11.5v28c0,0.827,0.673,1.5,1.5,1.5h29 c0.827,0,1.5-0.673,1.5-1.5v-28C40,10.673,39.327,10,38.5,10z"/>
-                        <path fill="#fff" d="M12,41h24c2.209,0,4-1.791,4-4V17H8v20C8,39.209,9.791,41,12,41z"/>
-                        <path fill="#34a853" d="M31,23h-8c-0.552,0-1-0.448-1-1s0.448-1,1-1h8c0.552,0,1,0.448,1,1S31.552,23,31,23z"/>
-                        <path fill="#fbbc04" d="M12,41V17h4v24H12z"/>
-                        <path fill="#ea4335" d="M34,5v6h-4V5c0-0.552,0.448-1,1-1h2C33.552,4,34,4.448,34,5z"/>
-                        <path fill="#ea4335" d="M18,5v6h-4V5c0-0.552,0.448-1,1-1h2C17.552,4,18,4.448,18,5z"/>
+                        <path fill="#e8f0fe"
+                            d="M42,43H6c-2.209,0-4-1.791-4-4V9c0-2.209,1.791-4,4-4h36c2.209,0,4,1.791,4,4v30 C46,41.209,44.209,43,42,43z" />
+                        <path fill="#4285f4"
+                            d="M38.5,10h-29C8.673,10,8,10.673,8,11.5v28c0,0.827,0.673,1.5,1.5,1.5h29 c0.827,0,1.5-0.673,1.5-1.5v-28C40,10.673,39.327,10,38.5,10z" />
+                        <path fill="#fff" d="M12,41h24c2.209,0,4-1.791,4-4V17H8v20C8,39.209,9.791,41,12,41z" />
+                        <path fill="#34a853"
+                            d="M31,23h-8c-0.552,0-1-0.448-1-1s0.448-1,1-1h8c0.552,0,1,0.448,1,1S31.552,23,31,23z" />
+                        <path fill="#fbbc04" d="M12,41V17h4v24H12z" />
+                        <path fill="#ea4335" d="M34,5v6h-4V5c0-0.552,0.448-1,1-1h2C33.552,4,34,4.448,34,5z" />
+                        <path fill="#ea4335" d="M18,5v6h-4V5c0-0.552,0.448-1,1-1h2C17.552,4,18,4.448,18,5z" />
                     </svg>
                     <span id="txt-go-gcal">Go to Google Calendar</span>
                 </a>
@@ -471,6 +1386,7 @@
                     <span class="display-text" id="d-loc"></span>
                     <input class="edit-input" id="e-loc" placeholder="Location">
                 </div>
+
                 <div class="info-row">
                     <span class="icon">📝</span>
                     <span class="display-text" id="d-desc"></span>
@@ -496,49 +1412,60 @@
         function switchView(id) {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById(id).classList.add('active');
-            if(id === 'view-calendar' && calendar) setTimeout(() => calendar.render(), 100);
+            if (id === 'view-calendar' && calendar) setTimeout(() => calendar.render(), 100);
             const dropdown = document.getElementById('profile-dropdown');
-            if(dropdown) dropdown.classList.remove('show');
+            if (dropdown) dropdown.classList.remove('show');
         }
 
         // [NEW] Tab Mode Switch
-        function setMode(mode) {
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            if(mode === 'text') {
-                document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
-                document.getElementById('mode-text').style.display = 'block';
-                document.getElementById('mode-file').style.display = 'none';
-            } else {
-                document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
-                document.getElementById('mode-text').style.display = 'none';
-                document.getElementById('mode-file').style.display = 'block';
+        // [NEW] Unified Input Logic
+        function handleFileSelect(files) {
+            if (files.length > 0) {
+                selectedFile = files[0];
+                document.getElementById('file-preview-area').style.display = 'block';
+                document.getElementById('preview-filename').innerText = selectedFile.name;
             }
         }
 
-        // [NEW] File Handling (Drag & Drop + Paste)
-        const dropZone = document.getElementById('drop-zone');
-        dropZone.addEventListener('click', () => document.getElementById('file-input').click());
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault(); dropZone.classList.remove('dragover');
-            if(e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files);
-        });
+        function clearFile() {
+            selectedFile = null;
+            document.getElementById('file-input').value = "";
+            document.getElementById('file-preview-area').style.display = 'none';
+        }
+
+        // Paste Event for Textarea & Window
         window.addEventListener('paste', (e) => {
-            if(e.clipboardData.files.length > 0) {
-                setMode('file');
+            if (e.clipboardData.files.length > 0) {
+                e.preventDefault();
                 handleFileSelect(e.clipboardData.files);
             }
         });
 
-        function handleFileSelect(files) {
-            selectedFile = files[0];
-            document.getElementById('file-preview').style.display = 'block';
-            document.getElementById('file-name').innerText = selectedFile.name;
+        // [NEW] Enter to Submit, Shift+Enter for New Line
+        document.getElementById('input-text').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent default new line
+                handleUnifiedAction();
+            }
+        });
+
+        async function handleUnifiedAction() {
+            const inputText = document.getElementById('input-text').value.trim();
+            const btn = document.getElementById('extract-button');
+            const btnText = document.getElementById('btn-extract-text');
+            
+            // Priority: File -> Text
+            if (selectedFile) {
+                await handleUploadExtract();
+            } else if (inputText) {
+                await handleExtract();
+            } else {
+                alert("Please enter text or attach a file.");
+            }
         }
 
         async function handleUploadExtract() {
-            if(!selectedFile) return alert("No file selected");
+            if (!selectedFile) return;
             const formData = new FormData();
             formData.append("file", selectedFile);
 
@@ -547,11 +1474,12 @@
             const endpoint = isImage ? '/extract-image' : '/extract-file';
 
             document.getElementById('loading-spinner').style.display = 'block';
+            const btn = document.getElementById('extract-button');
+            btn.disabled = true;
 
             try {
                 const res = await fetch(endpoint, { method: 'POST', body: formData });
 
-                // [NEW] 429 Error Handling
                 if (res.status === 429) {
                     alert("⚠️ 1분만 기다려주세요! (Google 무료 사용량 초과)");
                     return;
@@ -559,43 +1487,15 @@
 
                 const data = await res.json();
                 updateUI(data);
-                alert("File analyzed successfully!");
+                // alert("File analyzed successfully!"); // Optional
 
-            } catch(e) { alert("Error analyzing file."); }
-            finally { document.getElementById('loading-spinner').style.display = 'none'; }
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-                initialView: 'dayGridMonth',
-                height: 650,
-                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
-                events: [],
-                eventClick: function(info) {
-                    info.jsEvent.preventDefault();
-                    openModal(info.event);
-                }
-            });
-            calendar.render();
-            updateMapLinks();
-        });
-
-        function updateMapLinks() {
-            const loc = document.getElementById('loc-box').value.trim();
-            const googleBtn = document.getElementById('link-google');
-            const naverBtn = document.getElementById('link-naver');
-            const kakaoBtn = document.getElementById('link-kakao');
-
-            if (!loc) {
-                [googleBtn, naverBtn, kakaoBtn].forEach(btn => btn.classList.add('disabled'));
-                return;
+            } catch (e) { alert("Error analyzing file."); }
+            finally { 
+                document.getElementById('loading-spinner').style.display = 'none'; 
+                btn.disabled = false;
             }
-
-            [googleBtn, naverBtn, kakaoBtn].forEach(btn => btn.classList.remove('disabled'));
-            googleBtn.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
-            naverBtn.href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
-            kakaoBtn.href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
         }
+
 
         function toggleAnalysisDetails() {
             const box = document.getElementById('analysis-details');
@@ -604,7 +1504,31 @@
             else { box.style.display = 'block'; icon.innerText = '▲'; }
         }
 
-        // Shared UI Updater
+
+        function updateMapLinks() {
+            const loc = document.getElementById('loc-box').value.trim();
+            const links = [
+                document.getElementById('link-google'),
+                document.getElementById('link-naver'),
+                document.getElementById('link-kakao')
+            ];
+            
+            if (loc) {
+                links.forEach(link => {
+                    link.classList.remove('disabled');
+                    link.style.pointerEvents = 'auto'; // Ensure clickable
+                });
+                document.getElementById('link-google').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
+                document.getElementById('link-naver').href = `https://map.naver.com/v5/search/${encodeURIComponent(loc)}`;
+                document.getElementById('link-kakao').href = `https://map.kakao.com/link/search/${encodeURIComponent(loc)}`;
+            } else {
+                links.forEach(link => {
+                    link.classList.add('disabled');
+                    link.style.pointerEvents = 'none';
+                    link.href = "#";
+                });
+            }
+        }
         function updateUI(data) {
             originalText = data.original_text;
             translatedText = data.translated_text;
@@ -612,18 +1536,22 @@
             document.getElementById('translated-output').innerText = data.translated_text || "(No translation)";
             document.getElementById('spacy-log').innerText = data.spacy_log || "No internal logs.";
             const modelBadge = document.getElementById('model-badge');
-            modelBadge.innerText = data.used_model;
-            modelBadge.className = 'model-badge ' + (data.used_model.includes('Gemini') ? 'smart' : 'fast');
+            if (modelBadge) {
+                modelBadge.innerText = data.used_model;
+                modelBadge.className = 'model-badge ' + (data.used_model.includes('Gemini') ? 'smart' : 'fast');
+            }
 
-            if(data.summary) document.getElementById('summary-box').value = data.summary;
-            if(data.start_date) document.getElementById('start-date-box').value = data.start_date;
-            if(data.end_date) document.getElementById('end-date-box').value = data.end_date;
-            if(data.start_time) document.getElementById('start-time-box').value = data.start_time;
-            if(data.end_time) document.getElementById('end-time-box').value = data.end_time;
-            if(data.location) document.getElementById('loc-box').value = data.location;
-            if(data.is_allday !== undefined) document.getElementById('allday-check').checked = data.is_allday;
+            document.getElementById('summary-box').value = data.summary || '';
+            document.getElementById('start-date-box').value = data.start_date || '';
+            document.getElementById('end-date-box').value = data.end_date || '';
+            document.getElementById('start-time-box').value = data.start_time || '';
+            document.getElementById('end-time-box').value = data.end_time || '';
+            document.getElementById('loc-box').value = data.location || '';
+            document.getElementById('allday-check').checked = !!data.is_allday;
 
-            updateMapLinks();
+            if (typeof updateMapLinks === 'function') {
+                updateMapLinks();
+            }
 
             if (data.ai_message && data.used_model.includes('Gemini')) {
                 document.getElementById('ai-text').innerText = data.ai_message;
@@ -645,7 +1573,7 @@
                 // 1. FAST
                 btnText.innerText = "⚡ Quick Check...";
                 const fastRes = await fetch('/extract', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'fast' })
                 });
                 updateUI(await fastRes.json());
@@ -653,7 +1581,7 @@
                 // 2. FULL
                 btnText.innerText = "✨ Refining...";
                 const fullRes = await fetch('/extract', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'full' })
                 });
                 updateUI(await fullRes.json());
@@ -672,7 +1600,7 @@
 
         // Calendar & Modal Helpers
         function formatDate(d) { return d ? d.toISOString().split('T')[0] : ""; }
-        function formatTime(d) { return d ? d.toTimeString().split(' ')[0].substring(0,5) : ""; }
+        function formatTime(d) { return d ? d.toTimeString().split(' ')[0].substring(0, 5) : ""; }
 
         function openModal(event) {
             currentEventId = event.id;
@@ -694,12 +1622,13 @@
 
             document.getElementById('modal-content').classList.remove('editing');
             document.getElementById('modal').style.display = 'flex';
+
         }
         function closeModal() { document.getElementById('modal').style.display = 'none'; }
         function enableEdit() { document.getElementById('modal-content').classList.add('editing'); }
 
         async function saveEvent() {
-            if(!currentEventId) return;
+            if (!currentEventId) return;
             const body = {
                 summary: document.getElementById('e-title').value,
                 location: document.getElementById('e-loc').value,
@@ -711,17 +1640,17 @@
                 is_allday: !document.getElementById('e-start-time').value
             };
             try {
-                const res = await fetch(`/events/${currentEventId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
-                if(res.ok) { alert("Updated!"); closeModal(); fetchEvents(); } else { alert("Failed"); }
-            } catch(e) { alert("Error"); }
+                const res = await fetch(`/events/${currentEventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (res.ok) { alert("Updated!"); closeModal(); fetchEvents(); } else { alert("Failed"); }
+            } catch (e) { alert("Error"); }
         }
 
         async function deleteEvent() {
-            if(!currentEventId || !confirm("Delete?")) return;
+            if (!currentEventId || !confirm("Delete?")) return;
             try {
                 const res = await fetch(`/events/${currentEventId}`, { method: 'DELETE' });
-                if(res.ok) { alert("Deleted!"); closeModal(); fetchEvents(); } else { alert("Failed"); }
-            } catch(e) { alert("Error"); }
+                if (res.ok) { alert("Deleted!"); closeModal(); fetchEvents(); } else { alert("Failed"); }
+            } catch (e) { alert("Error"); }
         }
 
         fetch('/user-info').then(r => r.json()).then(d => {
@@ -749,22 +1678,22 @@
         });
 
         function toggleDropdown() { document.getElementById('profile-dropdown').classList.toggle('show'); }
-        window.onclick = function(e) { if (!e.target.closest('.profile-container')) { const d = document.getElementById('profile-dropdown'); if(d) d.classList.remove('show'); } }
+        window.onclick = function (e) { if (!e.target.closest('.profile-container')) { const d = document.getElementById('profile-dropdown'); if (d) d.classList.remove('show'); } }
 
         async function fetchEvents() {
             try {
                 const res = await fetch('/events');
-                if(res.ok) {
+                if (res.ok) {
                     const data = await res.json();
                     calendar.removeAllEvents();
                     data.events.forEach(event => calendar.addEvent(event));
                 }
-            } catch(e) {}
+            } catch (e) { }
         }
 
         const translations = {
-            ko: { subtitle:"일정 관리의 새로운 시작", txtStep1:"입력", lblInput:"일정 내용", btnExtract:"분석 시작", txtStep2:"확인", lblTitle:"제목", lblStart:"시작일", lblEnd:"종료일", lblTimeStart:"시작시간", lblTimeEnd:"종료시간", lblAllday:"종일", lblLoc:"장소", lblConsent:"AI 학습용 데이터 기부", btnAdd:"일정 등록", login:"로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle:"구글", mapNaver:"네이버", mapKakao:"카카오", placeholder: "예: '11월 20일부터 23일까지 제주도 여행'", txtGoGcal: "구글 캘린더로 이동", tabText:"텍스트 입력", tabFile:"이미지 / 업로드", lblDrop:"파일을 드래그하거나 이미지를 붙여넣으세요", lblDropSub:"지원 형식: PNG, JPG, TXT (대화 내용)", btnAnalyzeFile:"파일 분석", lblModel:"사용된 AI 모델", lblTrans:"번역 / 추출된 텍스트", lblLog:"spaCy 내부 추출 로그", btnViewDetails:"🔍 분석 상세 보기" },
-            en: { subtitle:"Effortless scheduling.", txtStep1:"Input", lblInput:"What's the plan?", btnExtract:"Analyze", txtStep2:"Details", lblTitle:"Title", lblStart:"Start", lblEnd:"End", lblTimeStart:"Start Time", lblTimeEnd:"End Time", lblAllday:"All Day", lblLoc:"Location", lblConsent:"Contribute data for AI improvement", btnAdd:"Add Event", login:"Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle:"Google", mapNaver:"Naver", mapKakao:"Kakao", placeholder: "Example: 'Trip to Jeju from Nov 20 to 23'", tip: "Tip: Check translation below.", txtGoGcal: "Go to Google Calendar", tabText:"Text Input", tabFile:"Image / Upload", lblDrop:"Drag & Drop or Paste Image", lblDropSub:"Supports: PNG, JPG, TXT (Chat logs)", btnAnalyzeFile:"Analyze File", lblModel:"Used AI Model", lblTrans:"Translated / Extracted Text", lblLog:"Internal spaCy Extraction", btnViewDetails:"🔍 View Analysis Details" }
+            ko: { subtitle: "일정 관리의 새로운 시작", txtStep1: "입력", lblInput: "일정 내용", btnExtract: "분석 시작", txtStep2: "확인", lblTitle: "제목", lblStart: "시작일", lblEnd: "종료일", lblTimeStart: "시작시간", lblTimeEnd: "종료시간", lblAllday: "종일", lblLoc: "장소", lblConsent: "AI 학습용 데이터 기부", btnAdd: "일정 등록", login: "로그인", txtCalendar: "내 캘린더", menuInput: "일정 입력", menuCalendar: "달력 보기", menuLogout: "로그아웃", replyPlaceholder: "답변 입력...", btnReply: "전송", mapGoogle: "구글", mapNaver: "네이버", mapKakao: "카카오", placeholder: "예: '11월 20일부터 23일까지 제주도 여행'", txtGoGcal: "구글 캘린더로 이동", tabText: "텍스트 입력", tabFile: "이미지 / 업로드", lblDrop: "파일을 드래그하거나 이미지를 붙여넣으세요", lblDropSub: "지원 형식: PNG, JPG, TXT (대화 내용)", btnAnalyzeFile: "파일 분석", lblModel: "사용된 AI 모델", lblTrans: "번역 / 추출된 텍스트", lblLog: "spaCy 내부 추출 로그", btnViewDetails: "🔍 분석 상세 보기" },
+            en: { subtitle: "Effortless scheduling.", txtStep1: "Input", lblInput: "What's the plan?", btnExtract: "Analyze", txtStep2: "Details", lblTitle: "Title", lblStart: "Start", lblEnd: "End", lblTimeStart: "Start Time", lblTimeEnd: "End Time", lblAllday: "All Day", lblLoc: "Location", lblConsent: "Contribute data for AI improvement", btnAdd: "Add Event", login: "Login", txtCalendar: "My Calendar", menuInput: "Input Schedule", menuCalendar: "View Calendar", menuLogout: "Logout", replyPlaceholder: "Type answer...", btnReply: "Send", mapGoogle: "Google", mapNaver: "Naver", mapKakao: "Kakao", placeholder: "Example: 'Trip to Jeju from Nov 20 to 23'", tip: "Tip: Check translation below.", txtGoGcal: "Go to Google Calendar", tabText: "Text Input", tabFile: "Image / Upload", lblDrop: "Drag & Drop or Paste Image", lblDropSub: "Supports: PNG, JPG, TXT (Chat logs)", btnAnalyzeFile: "Analyze File", lblModel: "Used AI Model", lblTrans: "Translated / Extracted Text", lblLog: "Internal spaCy Extraction", btnViewDetails: "🔍 View Analysis Details" }
         };
 
         let currentLang = 'en';
@@ -773,46 +1702,46 @@
             const t = translations[lang];
 
             const el = (id) => document.getElementById(id);
-            if(el('txt-subtitle')) el('txt-subtitle').innerText = t.subtitle;
-            if(el('txt-step1')) el('txt-step1').innerText = t.txtStep1;
-            if(el('lbl-input')) el('lbl-input').innerText = t.lblInput;
-            if(el('btn-extract-text')) el('btn-extract-text').innerText = t.btnExtract;
-            if(el('txt-step2')) el('txt-step2').innerText = t.txtStep2;
-            if(el('lbl-title')) el('lbl-title').innerText = t.lblTitle;
-            if(el('lbl-start')) el('lbl-start').innerText = t.lblStart;
-            if(el('lbl-end')) el('lbl-end').innerText = t.lblEnd;
-            if(el('lbl-time-start')) el('lbl-time-start').innerText = t.lblTimeStart;
-            if(el('lbl-time-end')) el('lbl-time-end').innerText = t.lblTimeEnd;
-            if(el('lbl-allday')) el('lbl-allday').innerText = t.lblAllday;
-            if(el('lbl-loc')) el('lbl-loc').innerText = t.lblLoc;
-            if(el('lbl-consent')) el('lbl-consent').innerText = t.lblConsent;
-            if(el('btn-add-text')) el('btn-add-text').innerText = t.btnAdd;
-            if(el('txt-calendar')) el('txt-calendar').innerText = t.txtCalendar;
-            if(el('txt-go-gcal')) el('txt-go-gcal').innerText = t.txtGoGcal;
-            if(el('tab-text')) el('tab-text').innerText = t.tabText;
-            if(el('tab-file')) el('tab-file').innerText = t.tabFile;
-            if(el('lbl-drop')) el('lbl-drop').innerText = t.lblDrop;
-            if(el('lbl-drop-sub')) el('lbl-drop-sub').innerText = t.lblDropSub;
-            if(el('btn-analyze-file')) el('btn-analyze-file').innerText = t.btnAnalyzeFile;
-            if(el('lbl-model')) el('lbl-model').innerText = t.lblModel;
-            if(el('lbl-trans')) el('lbl-trans').innerText = t.lblTrans;
-            if(el('lbl-log')) el('lbl-log').innerText = t.lblLog;
-            if(el('btn-view-details')) el('btn-view-details').innerText = t.btnViewDetails;
+            if (el('txt-subtitle')) el('txt-subtitle').innerText = t.subtitle;
+            if (el('txt-step1')) el('txt-step1').innerText = t.txtStep1;
+            if (el('lbl-input')) el('lbl-input').innerText = t.lblInput;
+            if (el('btn-extract-text')) el('btn-extract-text').innerText = t.btnExtract;
+            if (el('txt-step2')) el('txt-step2').innerText = t.txtStep2;
+            if (el('lbl-title')) el('lbl-title').innerText = t.lblTitle;
+            if (el('lbl-start')) el('lbl-start').innerText = t.lblStart;
+            if (el('lbl-end')) el('lbl-end').innerText = t.lblEnd;
+            if (el('lbl-time-start')) el('lbl-time-start').innerText = t.lblTimeStart;
+            if (el('lbl-time-end')) el('lbl-time-end').innerText = t.lblTimeEnd;
+            if (el('lbl-allday')) el('lbl-allday').innerText = t.lblAllday;
+            if (el('lbl-loc')) el('lbl-loc').innerText = t.lblLoc;
+            if (el('lbl-consent')) el('lbl-consent').innerText = t.lblConsent;
+            if (el('btn-add-text')) el('btn-add-text').innerText = t.btnAdd;
+            if (el('txt-calendar')) el('txt-calendar').innerText = t.txtCalendar;
+            if (el('txt-go-gcal')) el('txt-go-gcal').innerText = t.txtGoGcal;
+            if (el('tab-text')) el('tab-text').innerText = t.tabText;
+            if (el('tab-file')) el('tab-file').innerText = t.tabFile;
+            if (el('lbl-drop')) el('lbl-drop').innerText = t.lblDrop;
+            if (el('lbl-drop-sub')) el('lbl-drop-sub').innerText = t.lblDropSub;
+            if (el('btn-analyze-file')) el('btn-analyze-file').innerText = t.btnAnalyzeFile;
+            if (el('lbl-model')) el('lbl-model').innerText = t.lblModel;
+            if (el('lbl-trans')) el('lbl-trans').innerText = t.lblTrans;
+            if (el('lbl-log')) el('lbl-log').innerText = t.lblLog;
+            if (el('btn-view-details')) el('btn-view-details').innerText = t.btnViewDetails;
 
-            if(el('input-text')) el('input-text').placeholder = t.placeholder;
-            if(el('ai-user-reply')) el('ai-user-reply').placeholder = t.replyPlaceholder;
-            if(el('btn-reply')) el('btn-reply').innerText = t.btnReply;
-            if(el('link-google')) el('link-google').innerText = t.mapGoogle;
-            if(el('link-naver')) el('link-naver').innerText = t.mapNaver;
-            if(el('link-kakao')) el('link-kakao').innerText = t.mapKakao;
+            if (el('input-text')) el('input-text').placeholder = t.placeholder;
+            if (el('ai-user-reply')) el('ai-user-reply').placeholder = t.replyPlaceholder;
+            if (el('btn-reply')) el('btn-reply').innerText = t.btnReply;
+            if (el('link-google')) el('link-google').innerText = t.mapGoogle;
+            if (el('link-naver')) el('link-naver').innerText = t.mapNaver;
+            if (el('link-kakao')) el('link-kakao').innerText = t.mapKakao;
 
-            if(el('txt-login') && !isLoggedIn) el('txt-login').innerText = t.login;
-            if(el('menu-input')) el('menu-input').innerText = t.menuInput;
-            if(el('menu-calendar')) el('menu-calendar').innerText = t.menuCalendar;
-            if(el('menu-logout')) el('menu-logout').innerText = t.menuLogout;
+            if (el('txt-login') && !isLoggedIn) el('txt-login').innerText = t.login;
+            if (el('menu-input')) el('menu-input').innerText = t.menuInput;
+            if (el('menu-calendar')) el('menu-calendar').innerText = t.menuCalendar;
+            if (el('menu-logout')) el('menu-logout').innerText = t.menuLogout;
 
-            el('btn-ko').className = lang==='ko'?'lang-btn active':'lang-btn';
-            el('btn-en').className = lang==='en'?'lang-btn active':'lang-btn';
+            el('btn-ko').className = lang === 'ko' ? 'lang-btn active' : 'lang-btn';
+            el('btn-en').className = lang === 'en' ? 'lang-btn active' : 'lang-btn';
         }
 
         async function handleAddToCalendar() {
@@ -834,7 +1763,7 @@
                 consent: document.getElementById('data-consent').checked
             };
             try {
-                const response = await fetch('/add-to-calendar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(eventData) });
+                const response = await fetch('/add-to-calendar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(eventData) });
                 const data = await response.json();
                 if (response.ok) { output.innerHTML = `✅ Success!`; fetchEvents(); }
                 else { output.innerHTML = `❌ ${data.error}`; }
@@ -842,7 +1771,27 @@
             finally { btn.style.opacity = "1"; btn.disabled = false; }
         }
 
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                },
+                events: [],
+                eventClick: function(info) {
+                    info.jsEvent.preventDefault();
+                    openModal(info.event);
+                },
+                height: 'auto'
+            });
+            calendar.render();
+        });
         setLanguage('en');
     </script>
 </body>
+
 </html>

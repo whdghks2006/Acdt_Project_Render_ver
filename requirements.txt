@@ -17,3 +17,4 @@ huggingface-hub>=0.16.0
 authlib
 httpx==0.27.2
 itsdangerous
+python-dotenv

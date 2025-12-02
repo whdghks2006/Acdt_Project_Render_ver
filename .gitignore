@@ -1,9 +1,30 @@
-# Windows
-echo ".venv/
-.idea/
-__pycache__/" > .gitignore
 
-# macOS/Linux
-echo ".venv/
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDEs
 .idea/
-__pycache__/" >> .gitignore
+.vscode/
+*.swp
+*.swo
+
+# Project specific
+fix_*.py
+fix_*.ps1
+update_*.py
+restore_*.py
+apply_*.py
+refactor_*.py
+output.txt
