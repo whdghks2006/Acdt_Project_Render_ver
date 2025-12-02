@@ -424,6 +424,295 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
     if is_korean_input and used_model.startswith("Fast"):
         loc_val = translate_english_to_korean(loc_val)
 
+    # 4. Interactive Question
+    if not start_date_val or (not start_time_val and not is_allday_val):
+        current_data = {'date': start_date_val, 'time': start_time_val, 'loc': loc_val}
+        ai_message = ask_gemini_for_missing_info(original_text, current_data, lang=lang)
+
+    return ExtractResponse(
+        original_text=original_text, translated_text=translated_text,
+        summary=summary_val, start_date=start_date_val, end_date=end_date_val,
+        start_time=start_time_val, end_time=end_time_val,
+        location=loc_val, is_allday=is_allday_val,
+        ai_message=ai_message, used_model=used_model,
+        spacy_log=spacy_debug_str
+    )
+
+
+@app.post("/extract", response_model=ExtractResponse)
+async def api_extract_schedule(request: ExtractRequest):
+    return process_text_schedule(request.text, request.mode, request.lang)
+
+
+# --- 2. Image Analysis (Vision) ---
+@app.post("/extract-image", response_model=ExtractResponse)
+async def api_extract_image_schedule(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        
+        # 1. Transcribe Image to Text
+        transcribed_text = run_vision_transcription(contents)
+        
+        if not transcribed_text:
+            return JSONResponse(status_code=500, content={"error": "Failed to read text from image."})
+            
+        print(f"📷 Image Transcribed: {transcribed_text[:50]}...")
+
+        # 2. Process as Text (spaCy -> Gemini)
+        # We force 'full' mode to ensure high quality extraction from OCR text
+        result = process_text_schedule(transcribed_text, mode="full", is_ocr=True)
+        
+        # Update model name to indicate source
+        result.used_model = f"Image OCR + {result.used_model}"
+        return result
+
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"error": he.detail})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# --- 3. File Analysis (Text Files) ---
+@app.post("/extract-file", response_model=ExtractResponse)
+async def api_extract_file_schedule(file: UploadFile = File(...)):
+    contents = await file.read()
+    try:
+        text_content = contents.decode('utf-8')
+    except UnicodeDecodeError:
+        text_content = contents.decode('euc-kr', errors='ignore')
+
+    gemini_data = extract_info_with_gemini_json(text_content)
+
+    if gemini_data:
+        return ExtractResponse(
+            original_text="[File Analysis]",
+            translated_text="[File Analysis]",
+            summary=gemini_data.get("summary", ""),
+            start_date=gemini_data.get("start_date", ""),
+            end_date=gemini_data.get("end_date", ""),
+            start_time=gemini_data.get("start_time") or gemini_data.get("time") or "",
+            end_time=gemini_data.get("end_time", ""),
+            location=gemini_data.get("location", ""),
+            is_allday=gemini_data.get("is_allday", False),
+            ai_message=gemini_data.get("question", ""),
+            used_model="Gemini 2.5 Flash (File)",
+            spacy_log="Skipped (File)"
+        )
+    else:
+        return JSONResponse(status_code=500, content={"error": "File analysis failed"})
+
+
+    try:
+        token = await oauth.google.authorize_access_token(request)
+        user_info = token.get('userinfo')
+        request.session['user'] = {'name': user_info.get('name'), 'email': user_info.get('email')}
+        request.session['token'] = {'access_token': token.get('access_token'), 'token_type': token.get('token_type')}
+        return RedirectResponse(url='/', status_code=303)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Login failed: {str(e)}"})
+
+
+@app.get('/logout')
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url='/')
+
+
+@app.get('/user-info')
+async def get_user_info(request: Request):
+    return {"user": request.session.get('user')}
+
+
+@app.post("/add-to-calendar")
+async def add_to_calendar(request: Request, event_data: AddEventRequest):
+    token_data = request.session.get('token')
+    if not token_data or 'access_token' not in token_data:
+        return JSONResponse(status_code=401, content={"error": "Login required"})
+
+    try:
+        s_date_obj = dateparser.parse(event_data.start_date)
+        e_date_obj = dateparser.parse(event_data.end_date)
+        if not s_date_obj: s_date_obj = datetime.datetime.now()
+        if not e_date_obj: e_date_obj = s_date_obj
+
+        if event_data.is_allday:
+            s_str = s_date_obj.strftime("%Y-%m-%d")
+            e_date_exclusive = e_date_obj + datetime.timedelta(days=1)
+            e_str = e_date_exclusive.strftime("%Y-%m-%d")
+
+            google_event = {
+                'summary': event_data.summary,
+                'location': event_data.location,
+                'description': event_data.description,
+                'start': {'date': s_str},
+                'end': {'date': e_str},
+            }
+        else:
+            kst = pytz.timezone('Asia/Seoul')
+            start_full = f"{event_data.start_date} {event_data.start_time}"
+            start_dt = dateparser.parse(start_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                              'RETURN_AS_TIMEZONE_AWARE': True})
+
+            if event_data.end_time:
+                end_full = f"{event_data.end_date} {event_data.end_time}"
+                end_dt = dateparser.parse(end_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                              'RETURN_AS_TIMEZONE_AWARE': True})
+            else:
+                if not start_dt: start_dt = datetime.datetime.now(kst)
+                end_dt = start_dt + datetime.timedelta(hours=1)
+
+            google_event = {
+                'summary': event_data.summary,
+                'location': event_data.location,
+                'description': event_data.description,
+                'start': {'dateTime': start_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
+                'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
+            }
+
+        access_token = token_data['access_token']
+        headers = {'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                json=google_event, headers=headers
+            )
+
+        if resp.status_code != 200:
+            if resp.status_code == 401: return JSONResponse(status_code=401, content={"error": "Token expired."})
+            resp.raise_for_status()
+
+        result = resp.json()
+
+        if event_data.consent:
+            save_feedback_to_hub(event_data.original_text, event_data.translated_text, event_data)
+            saved_msg = "✅ Data saved."
+        else:
+            saved_msg = "ℹ️ Data NOT saved."
+
+        return {"message": "Success", "link": result.get('htmlLink'), "saved_msg": saved_msg}
+
+    except Exception as e:
+        print(f"Calendar Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/events")
+async def list_events(request: Request):
+    token_data = request.session.get('token')
+    if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
+
+    access_token = token_data['access_token']
+    headers = {'Authorization': f'Bearer {access_token}'}
+    now = datetime.datetime.utcnow().isoformat() + 'Z'
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get('https://www.googleapis.com/calendar/v3/calendars/primary/events', headers=headers,
+                                    params={'timeMin': now, 'maxResults': 100, 'singleEvents': True,
+                                            'orderBy': 'startTime'})
+
+        if resp.status_code != 200: return JSONResponse(status_code=resp.status_code,
+                                                        content={"error": "Failed to fetch"})
+
+        items = resp.json().get('items', [])
+        calendar_events = []
+        for event in items:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            end = event['end'].get('dateTime', event['end'].get('date'))
+            is_allday = 'date' in event['start']
+
+            calendar_events.append({
+                'id': event['id'],
+                'title': event.get('summary', 'No Title'),
+                'start': start,
+                'end': end,
+                'allDay': is_allday,
+                'url': event.get('htmlLink'),
+                'extendedProps': {'description': event.get('description', ''), 'location': event.get('location', '')}
+            })
+        return {"events": calendar_events}
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"error": he.detail})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.patch("/events/{event_id}")
+async def update_event(request: Request, event_id: str, event_data: UpdateEventRequest):
+    token_data = request.session.get('token')
+    if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
+
+    headers = {'Authorization': f'Bearer {token_data["access_token"]}', 'Content-Type': 'application/json'}
+
+    body = {
+        "summary": event_data.summary,
+        "location": event_data.location,
+        "description": event_data.description
+    }
+
+    try:
+        if event_data.start_date:
+            s_date_obj = dateparser.parse(event_data.start_date)
+            e_date_obj = dateparser.parse(event_data.end_date) if event_data.end_date else s_date_obj
+
+            if event_data.is_allday:
+                s_str = s_date_obj.strftime("%Y-%m-%d")
+                e_date_exclusive = e_date_obj + datetime.timedelta(days=1)
+                e_str = e_date_exclusive.strftime("%Y-%m-%d")
+                body['start'] = {'date': s_str}
+                body['end'] = {'date': e_str}
+            else:
+                start_full = f"{event_data.start_date} {event_data.start_time}"
+                start_dt = dateparser.parse(start_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                                  'RETURN_AS_TIMEZONE_AWARE': True})
+
+                end_full = f"{event_data.end_date} {event_data.end_time}"
+                end_dt = dateparser.parse(end_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                              'RETURN_AS_TIMEZONE_AWARE': True})
+
+                body['start'] = {'dateTime': start_dt.isoformat(), 'timeZone': 'Asia/Seoul'}
+                body['end'] = {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'}
+
+    except Exception as e:
+        print(f"Date Parse Error in Update: {e}")
+        pass
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(f'https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}',
+                                      json=body, headers=headers)
+
+        if resp.status_code != 200: return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
+        return {"message": "Updated successfully"}
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"error": he.detail})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.delete("/events/{event_id}")
+async def delete_event(request: Request, event_id: str):
+    token_data = request.session.get('token')
+    if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
+
+    headers = {'Authorization': f'Bearer {token_data["access_token"]}'}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.delete(f'https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}',
+                                       headers=headers)
+
+        if resp.status_code != 204: return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
+        return {"message": "Deleted successfully"}
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"error": he.detail})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    key = request.query_params.get("key")
     if key != "1234": return HTMLResponse("<h1>🚫 Access Denied</h1>", status_code=403)
 
     try:
