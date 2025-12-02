@@ -494,21 +494,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
             end_time=gemini_data.get("end_time", ""),
             location=gemini_data.get("location", ""),
             is_allday=gemini_data.get("is_allday", False),
-            ai_message=gemini_data.get("question", ""),
-            used_model="Gemini 2.5 Flash (File)",
-            spacy_log="Skipped (File)"
-        )
-    else:
-        return JSONResponse(status_code=500, content={"error": "File analysis failed"})
-
-
-# ==============================================================================
-# Auth & Calendar CRUD
-    return {"user": request.session.get('user')}
-
-
-@app.post("/add-to-calendar")
-async def add_to_calendar(request: Request, event_data: AddEventRequest):
     token_data = request.session.get('token')
     if not token_data or 'access_token' not in token_data:
         return JSONResponse(status_code=401, content={"error": "Login required"})
