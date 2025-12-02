@@ -492,17 +492,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
             end_date=gemini_data.get("end_date", ""),
             start_time=gemini_data.get("start_time") or gemini_data.get("time") or "",
             end_time=gemini_data.get("end_time", ""),
-            location=gemini_data.get("location", ""),
-            is_allday=gemini_data.get("is_allday", False),
-            ai_message=gemini_data.get("question", ""),
-            used_model="Gemini 2.5 Flash (File)",
-            spacy_log="Skipped (File)"
-    except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Login failed: {str(e)}"})
-
-
-@app.get('/logout')
-async def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url='/')
 
