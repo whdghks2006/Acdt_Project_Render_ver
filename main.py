@@ -509,25 +509,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
 # [CRITICAL FIX] Hardcoded Redirect URI for Hugging Face Spaces
 REDIRECT_URI = "https://snowmang-ai-scheduler-g14.hf.space/auth/callback"
 
-@app.get('/login')
-async def login(request: Request):
-    return await oauth.google.authorize_redirect(request, REDIRECT_URI)
-
-
-@app.get('/auth/callback')
-async def auth(request: Request):
-    try:
-        token = await oauth.google.authorize_access_token(request, redirect_uri=REDIRECT_URI)
-        user_info = token.get('userinfo')
-        request.session['user'] = {'name': user_info.get('name'), 'email': user_info.get('email')}
-        request.session['token'] = {'access_token': token.get('access_token'), 'token_type': token.get('token_type')}
-        return RedirectResponse(url='/', status_code=303)
-    except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Login failed: {str(e)}"})
-
-
-@app.get('/logout')
-async def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url='/')
 
