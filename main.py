@@ -485,17 +485,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
 
     if gemini_data:
         return ExtractResponse(
-            original_text="[File Analysis]",
-            translated_text="[File Analysis]",
-            summary=gemini_data.get("summary", ""),
-            start_date=gemini_data.get("start_date", ""),
-            end_date=gemini_data.get("end_date", ""),
-            start_time=gemini_data.get("start_time") or gemini_data.get("time") or "",
-    return {"user": request.session.get('user')}
-
-
-@app.post("/add-to-calendar")
-async def add_to_calendar(request: Request, event_data: AddEventRequest):
     token_data = request.session.get('token')
     if not token_data or 'access_token' not in token_data:
         return JSONResponse(status_code=401, content={"error": "Login required"})
