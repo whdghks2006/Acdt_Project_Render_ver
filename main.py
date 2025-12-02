@@ -478,27 +478,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
     contents = await file.read()
     try:
         text_content = contents.decode('utf-8')
-    except UnicodeDecodeError:
-        text_content = contents.decode('euc-kr', errors='ignore')
-
-    gemini_data = extract_info_with_gemini_json(text_content)
-
-    if gemini_data:
-        return ExtractResponse(
-            original_text="[File Analysis]",
-            translated_text="[File Analysis]",
-            summary=gemini_data.get("summary", ""),
-            start_date=gemini_data.get("start_date", ""),
-            end_date=gemini_data.get("end_date", ""),
-            start_time=gemini_data.get("start_time") or gemini_data.get("time") or "",
-            end_time=gemini_data.get("end_time", ""),
-            location=gemini_data.get("location", ""),
-            is_allday=gemini_data.get("is_allday", False),
-    token_data = request.session.get('token')
-    if not token_data or 'access_token' not in token_data:
-        return JSONResponse(status_code=401, content={"error": "Login required"})
-
-    try:
         s_date_obj = dateparser.parse(event_data.start_date)
         e_date_obj = dateparser.parse(event_data.end_date)
         if not s_date_obj: s_date_obj = datetime.datetime.now()
