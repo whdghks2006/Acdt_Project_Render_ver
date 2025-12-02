@@ -502,17 +502,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"error": "File analysis failed"})
 
 
-# ==============================================================================
-# Auth & Calendar CRUD
-# ==============================================================================
-@app.get('/login')
-async def login(request: Request):
-    redirect_uri = request.url_for("auth")
-    return await oauth.google.authorize_redirect(request, redirect_uri)
-
-
-@app.get('/auth/callback')
-async def auth(request: Request):
     try:
         token = await oauth.google.authorize_access_token(request)
         user_info = token.get('userinfo')
