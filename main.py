@@ -479,25 +479,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
     try:
         text_content = contents.decode('utf-8')
     except UnicodeDecodeError:
-        text_content = contents.decode('euc-kr', errors='ignore')
-
-    gemini_data = extract_info_with_gemini_json(text_content)
-
-    if gemini_data:
-        return ExtractResponse(
-            original_text="[File Analysis]",
-            translated_text="[File Analysis]",
-            summary=gemini_data.get("summary", ""),
-            start_date=gemini_data.get("start_date", ""),
-            end_date=gemini_data.get("end_date", ""),
-            start_time=gemini_data.get("start_time") or gemini_data.get("time") or "",
-            end_time=gemini_data.get("end_time", ""),
-    request.session.clear()
-    return RedirectResponse(url='/')
-
-
-@app.get('/user-info')
-async def get_user_info(request: Request):
     return {"user": request.session.get('user')}
 
 
