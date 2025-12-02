@@ -434,53 +434,6 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         summary=summary_val, start_date=start_date_val, end_date=end_date_val,
         start_time=start_time_val, end_time=end_time_val,
         location=loc_val, is_allday=is_allday_val,
-        ai_message=ai_message, used_model=used_model,
-        spacy_log=spacy_debug_str
-    )
-
-
-@app.post("/extract", response_model=ExtractResponse)
-    if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
-
-    access_token = token_data['access_token']
-    headers = {'Authorization': f'Bearer {access_token}'}
-    now = datetime.datetime.utcnow().isoformat() + 'Z'
-
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get('https://www.googleapis.com/calendar/v3/calendars/primary/events', headers=headers,
-                                    params={'timeMin': now, 'maxResults': 100, 'singleEvents': True,
-                                            'orderBy': 'startTime'})
-
-        if resp.status_code != 200: return JSONResponse(status_code=resp.status_code,
-                                                        content={"error": "Failed to fetch"})
-
-        items = resp.json().get('items', [])
-        calendar_events = []
-        for event in items:
-            start = event['start'].get('dateTime', event['start'].get('date'))
-            end = event['end'].get('dateTime', event['end'].get('date'))
-            is_allday = 'date' in event['start']
-
-            calendar_events.append({
-                'id': event['id'],
-                'title': event.get('summary', 'No Title'),
-                'start': start,
-                'end': end,
-                'allDay': is_allday,
-                'url': event.get('htmlLink'),
-                'extendedProps': {'description': event.get('description', ''), 'location': event.get('location', '')}
-            })
-        return {"events": calendar_events}
-    except HTTPException as he:
-        return JSONResponse(status_code=he.status_code, content={"error": he.detail})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-@app.patch("/events/{event_id}")
-async def update_event(request: Request, event_id: str, event_data: UpdateEventRequest):
-    token_data = request.session.get('token')
     if not token_data: return JSONResponse(status_code=401, content={"error": "Login required"})
 
     headers = {'Authorization': f'Bearer {token_data["access_token"]}', 'Content-Type': 'application/json'}
