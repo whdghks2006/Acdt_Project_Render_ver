@@ -504,17 +504,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
 
 # ==============================================================================
 # Auth & Calendar CRUD
-# ==============================================================================
-
-# [CRITICAL FIX] Hardcoded Redirect URI for Hugging Face Spaces
-REDIRECT_URI = "https://snowmang-ai-scheduler-g14.hf.space/auth/callback"
-
-    request.session.clear()
-    return RedirectResponse(url='/')
-
-
-@app.get('/user-info')
-async def get_user_info(request: Request):
     return {"user": request.session.get('user')}
 
 
