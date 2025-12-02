@@ -497,17 +497,6 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
             ai_message=gemini_data.get("question", ""),
             used_model="Gemini 2.5 Flash (File)",
             spacy_log="Skipped (File)"
-        )
-    else:
-        return JSONResponse(status_code=500, content={"error": "File analysis failed"})
-
-
-    try:
-        token = await oauth.google.authorize_access_token(request)
-        user_info = token.get('userinfo')
-        request.session['user'] = {'name': user_info.get('name'), 'email': user_info.get('email')}
-        request.session['token'] = {'access_token': token.get('access_token'), 'token_type': token.get('token_type')}
-        return RedirectResponse(url='/', status_code=303)
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Login failed: {str(e)}"})
 
