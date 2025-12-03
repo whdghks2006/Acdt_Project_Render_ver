@@ -210,9 +210,19 @@ def extract_info_with_gemini_json(text):
         # [Updated] Try 2.5 -> Fallback 1.5
         response = get_gemini_content(prompt, target_model='gemini-2.5-flash')
         clean = re.sub(r'```json|```', '', response.text).strip()
-        return json.loads(clean)
+        parsed = json.loads(clean)
+        
+        # Type check: Gemini should return a dict, not a list
+        if not isinstance(parsed, dict):
+            print(f"[WARN] Gemini returned unexpected type: {type(parsed)}")
+            return None
+        
+        return parsed
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] JSON Parse Error: {e}")
+        return None
     except Exception as e:
-        print(f"Gemini Text Error: {e}")
+        print(f"[ERROR] Gemini Error: {e}")
         return None
 
 
@@ -480,7 +490,7 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
     # 2. Gemini Extraction (Smart Fallback)
     # If spaCy missed something OR if we are in 'full' mode and want to be sure
     if is_ocr or not date_str or not time_str or " to " in translated_text:
-        print("🤖 spaCy incomplete. Calling Gemini...")
+        print("[AI] spaCy incomplete. Calling Gemini...")
         gemini_data = extract_info_with_gemini_json(original_text)
 
         if gemini_data:
@@ -550,7 +560,7 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-# --- 3. File Analysis (Enhanced: TXT, PDF, DOCX, XLSX) ---
+# --- 3. File Analysis (Enhanced: TXT, PDF, DOCX) ---
 @app.post("/extract-file", response_model=ExtractResponse)
 async def api_extract_file_schedule(file: UploadFile = File(...)):
     contents = await file.read()
@@ -560,16 +570,13 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
     text_content = ""
     
     if filename.endswith('.pdf'):
-        print("?? Processing PDF file...")
+        print("[PDF] Processing PDF file...")
         text_content = extract_text_from_pdf(contents)
     elif filename.endswith('.docx'):
-        print("?? Processing DOCX file...")
+        print("[DOCX] Processing DOCX file...")
         text_content = extract_text_from_docx(contents)
-    # elif filename.endswith(('.xlsx', '.xls')):
-    #     print("Processing XLSX file...")
-    #     text_content = extract_text_from_xlsx(contents)
     elif filename.endswith('.txt'):
-        print("?? Processing TXT file...")
+        print("[TXT] Processing TXT file...")
         try:
             text_content = contents.decode('utf-8')
         except UnicodeDecodeError:
@@ -580,10 +587,11 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
     if not text_content or not text_content.strip():
         return JSONResponse(status_code=500, content={"error": "Failed to extract text from file"})
     
-    print(f"? Extracted {len(text_content)} characters from {filename}")
+    print(f"[OK] Extracted {len(text_content)} characters from {filename}")
     
     # Use the unified text processing pipeline (spaCy + Gemini)
-    result = process_text_schedule(text_content, mode="full", is_ocr=False)
+    # Force Gemini usage for file analysis to ensure high-quality extraction
+    result = process_text_schedule(text_content, mode="full", is_ocr=True)
     
     # Create a new response with updated model name (Pydantic models are immutable)
     file_type = filename.split('.')[-1].upper()
@@ -728,7 +736,7 @@ async def list_events(request: Request):
 
     access_token = token_data['access_token']
     headers = {'Authorization': f'Bearer {access_token}'}
-    now = datetime.datetime.utcnow().isoformat() + 'Z'
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
 
     try:
         async with httpx.AsyncClient() as client:
