@@ -1337,6 +1337,16 @@
                             <a id="link-naver" href="#" target="_blank" class="map-link bg-naver disabled">Naver</a>
                             <a id="link-kakao" href="#" target="_blank" class="map-link bg-kakao disabled">Kakao</a>
                         </div>
+                        <!-- Description Field with Toggle -->
+                        <div style="margin-top: 20px;">
+                            <button onclick="toggleDescription()" class="analysis-toggle-btn" style="margin-top: 0;">
+                                <span id="lbl-description">📝 Description</span> <span id="desc-arrow">▼</span>
+                            </button>
+                            <div id="description-box-container" class="analysis-details-box" style="display: none;">
+                                <textarea id="description-box" placeholder="Additional details about this event..."
+                                    style="min-height: 100px; resize: vertical;"></textarea>
+                            </div>
+                        </div>
 
                         <div class="consent-box">
                             <input type="checkbox" id="data-consent" checked class="simple-check">
@@ -1456,6 +1466,18 @@
             document.getElementById('file-input').value = "";
             document.getElementById('file-preview-area').style.display = 'none';
         }
+        // Description Toggle Function
+        function toggleDescription() {
+            const container = document.getElementById('description-box-container');
+            const arrow = document.getElementById('desc-arrow');
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                arrow.textContent = '▲';
+            } else {
+                container.style.display = 'none';
+                arrow.textContent = '▼';
+            }
+        }
 
         // Paste Event for Textarea & Window
         window.addEventListener('paste', (e) => {
@@ -1570,6 +1592,7 @@
             document.getElementById('end-date-box').value = data.end_date || '';
             document.getElementById('start-time-box').value = data.start_time || '';
             document.getElementById('end-time-box').value = data.end_time || '';
+            document.getElementById('description-box').value = data.description || '';
             document.getElementById('loc-box').value = data.location || '';
             document.getElementById('allday-check').checked = !!data.is_allday;
 
@@ -1780,7 +1803,7 @@
                 start_time: document.getElementById('start-time-box').value,
                 end_time: document.getElementById('end-time-box').value,
                 location: document.getElementById('loc-box').value,
-                description: `Original: ${originalText}\nTranslated: ${translatedText}`,
+                description: document.getElementById('description-box').value,
                 original_text: originalText,
                 translated_text: translatedText,
                 is_allday: document.getElementById('allday-check').checked,

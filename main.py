@@ -176,20 +176,35 @@ def extract_info_with_gemini_json(text):
     """Gemini를 이용한 정밀 2차 추출"""
     if not GEMINI_API_KEY: return None
     today = datetime.datetime.now().strftime("%Y-%m-%d")
+    
+    # 입력 언어 감지
+    is_korean_input = check_is_korean(text)
+    lang_instruction = "IMPORTANT: The input text is in Korean. You MUST keep the 'summary' and 'description' in Korean." if is_korean_input else ""
 
     prompt = f"""
     You are a smart scheduler assistant. Today is {today}.
     Extract schedule details from: "{text}"
+    {lang_instruction}
+    
     (Note: If this looks like a chat log, ignore message timestamps and focus on the conversation content.)
 
-    Rules:
-    1. Handle date ranges (start_date, end_date). If single day, start=end.
-    2. Summarize the event title concisely.
-    3. If no time is mentioned, set is_allday to true.
-    4. Separate start_time and end_time if a range is given (e.g. 2pm-4pm).
+    CRITICAL RULES:
+    1. **DO NOT invent or assume dates/times if they are not explicitly mentioned in the text.**
+       - If no date is mentioned, return empty string "" for start_date and end_date.
+       - If no time is mentioned, return empty string "" for start_time and end_time, and set is_allday to false.
+    
+    2. Handle date ranges (start_date, end_date). If single day is mentioned, start=end.
+    
+    3. **Keep the summary SHORT and simple** (max 5-7 words). Put detailed information in the 'description' field.
+    
+    4. **Preserve the original language**: If input is Korean, summary and description MUST be in Korean.
+    
+    5. Separate start_time and end_time if a range is given (e.g. 2pm-4pm).
+    
+    6. **Description field**: Include any additional details, context, or notes about the event here.
 
     Return JSON ONLY: 
-    {{ "summary": "...", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM", "location": "...", "is_allday": boolean }}
+    {{ "summary": "...", "description": "...", "start_date": "YYYY-MM-DD or empty", "end_date": "YYYY-MM-DD or empty", "start_time": "HH:MM or empty", "end_time": "HH:MM or empty", "location": "...", "is_allday": boolean }}
     """
     try:
         # [Updated] Try 2.5 -> Fallback 1.5
@@ -266,14 +281,21 @@ def run_vision_analysis(image_bytes):
         Your Task:
         1. Read all text in the image (Supports Korean & English).
         2. Identify schedule details (Summary, Date, Time, Location).
-        3. If the text is in Korean, the 'summary' MUST be in Korean.
-        4. Detect start and end dates accurately.
+        3. **If the text is in Korean, the 'summary' and 'description' MUST be in Korean.**
+        
+        CRITICAL RULES:
+        - **DO NOT invent or assume dates/times if they are not explicitly mentioned.**
+        - If no date is mentioned, return empty string "" for start_date and end_date.
+        - If no time is mentioned, return empty string "" for start_time and end_time.
+        - **Keep summary SHORT** (max 5-7 words). Put details in 'description'.
+        - **Preserve original language**: Korean input → Korean output.
 
         Return JSON ONLY:
         {{
           "summary": "...",
-          "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD",
-          "start_time": "HH:MM", "end_time": "HH:MM",
+          "description": "...",
+          "start_date": "YYYY-MM-DD or empty", "end_date": "YYYY-MM-DD or empty",
+          "start_time": "HH:MM or empty", "end_time": "HH:MM or empty",
           "location": "...", "is_allday": boolean,
           "question": "Follow-up question if info is missing"
         }}
@@ -371,6 +393,7 @@ class ExtractResponse(BaseModel):
     start_time: str
     end_time: str
     location: str
+    description: str = ""
     is_allday: bool
     ai_message: str = ""
     used_model: str = ""
@@ -431,6 +454,7 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 
     # Set Initial Values
     summary_val = original_text if is_korean_input else event_str
+    description_val = ""
     start_date_val = date_str
     end_date_val = date_str
     start_time_val = time_str
@@ -445,21 +469,23 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         if is_korean_input: loc_val = translate_english_to_korean(loc_val)
         return ExtractResponse(
             original_text=original_text, translated_text=translated_text,
-            summary=summary_val, start_date=start_date_val, end_date=end_date_val,
+            summary=summary_val, description=description_val,
+            start_date=start_date_val, end_date=end_date_val,
             start_time=start_time_val, end_time=end_time_val,
             location=loc_val, is_allday=is_allday_val,
-            ai_message="", used_model="? Fast (spaCy)",
+            ai_message="", used_model="⚡ Fast (spaCy)",
             spacy_log=spacy_debug_str
         )
 
     # 2. Gemini Extraction (Smart Fallback)
     # If spaCy missed something OR if we are in 'full' mode and want to be sure
     if is_ocr or not date_str or not time_str or " to " in translated_text:
-        print("?? spaCy incomplete. Calling Gemini...")
+        print("🤖 spaCy incomplete. Calling Gemini...")
         gemini_data = extract_info_with_gemini_json(original_text)
 
         if gemini_data:
             summary_val = gemini_data.get("summary") or summary_val
+            description_val = gemini_data.get("description") or ""
             start_date_val = gemini_data.get("start_date") or ""
             end_date_val = gemini_data.get("end_date") or ""
 
@@ -469,7 +495,7 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 
             loc_val = gemini_data.get("location") or loc_val
             is_allday_val = gemini_data.get("is_allday") or False
-            used_model = "? Smart (Gemini 2.5)"
+            used_model = "🧠 Smart (Gemini 2.5)"
 
     # 3. Localization
     if is_korean_input and used_model.startswith("Fast"):
@@ -482,7 +508,8 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 
     return ExtractResponse(
         original_text=original_text, translated_text=translated_text,
-        summary=summary_val, start_date=start_date_val, end_date=end_date_val,
+        summary=summary_val, description=description_val,
+        start_date=start_date_val, end_date=end_date_val,
         start_time=start_time_val, end_time=end_time_val,
         location=loc_val, is_allday=is_allday_val,
         ai_message=ai_message, used_model=used_model,
@@ -571,6 +598,7 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
         location=result.location,
         is_allday=result.is_allday,
         ai_message=result.ai_message,
+        description=result.description,
         used_model=f"File ({file_type}) + {result.used_model}",
         spacy_log=result.spacy_log
     )
