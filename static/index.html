@@ -966,14 +966,18 @@
 
         /* Add spacing between FullCalendar buttons */
         .fc-button-group .fc-button {
-            margin: 0 4px !important; /* Add space between buttons */
-            border-radius: 8px !important; /* Round corners for all buttons to look separate */
-            flex: none; /* Prevent weird resizing */
+            margin: 0 4px !important;
+            /* Add space between buttons */
+            border-radius: 8px !important;
+            /* Round corners for all buttons to look separate */
+            flex: none;
+            /* Prevent weird resizing */
         }
-        
+
         .fc-button-group {
             display: inline-flex !important;
-            gap: 2px !important; /* Additional gap if needed */
+            gap: 2px !important;
+            /* Additional gap if needed */
         }
 
         .fc-daygrid-event {
@@ -1144,6 +1148,7 @@
         .editing .btn-save {
             display: block;
         }
+
         .map-link {
             flex: 1;
             padding: 12px;
@@ -1168,13 +1173,30 @@
             box-shadow: none;
         }
 
-        .bg-google { background-color: #4285F4; }
-        .bg-naver { background-color: #03C75A; }
-        .bg-kakao { background-color: #FEE500; color: #3c1e1e; }
-        
-        .bg-google:hover { background-color: #3367d6; }
-        .bg-naver:hover { background-color: #02b351; }
-        .bg-kakao:hover { background-color: #e6cf00; }
+        .bg-google {
+            background-color: #4285F4;
+        }
+
+        .bg-naver {
+            background-color: #03C75A;
+        }
+
+        .bg-kakao {
+            background-color: #FEE500;
+            color: #3c1e1e;
+        }
+
+        .bg-google:hover {
+            background-color: #3367d6;
+        }
+
+        .bg-naver:hover {
+            background-color: #02b351;
+        }
+
+        .bg-kakao:hover {
+            background-color: #e6cf00;
+        }
     </style>
 </head>
 
@@ -1218,8 +1240,9 @@
                     <div>
                         <label id="lbl-input">What's your plan?</label>
                         <div class="unified-input-box">
-                            <textarea id="input-text" placeholder="Example: 'Trip to Jeju' or Paste Image..."></textarea>
-                            
+                            <textarea id="input-text"
+                                placeholder="Example: 'Trip to Jeju' or Paste Image..."></textarea>
+
                             <div id="file-preview-area" class="file-preview-area" style="display:none;">
                                 <div class="preview-card">
                                     <span class="preview-icon">📎</span>
@@ -1229,10 +1252,12 @@
                             </div>
 
                             <div class="input-actions">
-                                <button class="action-btn" onclick="document.getElementById('file-input').click()" title="Attach File">
+                                <button class="action-btn" onclick="document.getElementById('file-input').click()"
+                                    title="Attach File">
                                     <span class="icon">📷</span> <span class="label">Upload / Paste</span>
                                 </button>
-                                <input type="file" id="file-input" accept="image/*,.txt" style="display:none;" onchange="handleFileSelect(this.files)">
+                                <input type="file" id="file-input" accept="image/*,.txt" style="display:none;"
+                                    onchange="handleFileSelect(this.files)">
                             </div>
                         </div>
 
@@ -1273,8 +1298,7 @@
 
                     <div>
                         <div class="section-header">
-                             <span class="section-title"
-                                id="txt-step2">Details</span>
+                            <span class="section-title" id="txt-step2">Details</span>
                         </div>
 
                         <label id="lbl-title">Event Title</label>
@@ -1442,7 +1466,7 @@
         });
 
         // [NEW] Enter to Submit, Shift+Enter for New Line
-        document.getElementById('input-text').addEventListener('keydown', function(e) {
+        document.getElementById('input-text').addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault(); // Prevent default new line
                 handleUnifiedAction();
@@ -1453,7 +1477,7 @@
             const inputText = document.getElementById('input-text').value.trim();
             const btn = document.getElementById('extract-button');
             const btnText = document.getElementById('btn-extract-text');
-            
+
             // Priority: File -> Text
             if (selectedFile) {
                 await handleUploadExtract();
@@ -1490,8 +1514,8 @@
                 // alert("File analyzed successfully!"); // Optional
 
             } catch (e) { alert("Error analyzing file."); }
-            finally { 
-                document.getElementById('loading-spinner').style.display = 'none'; 
+            finally {
+                document.getElementById('loading-spinner').style.display = 'none';
                 btn.disabled = false;
             }
         }
@@ -1512,7 +1536,7 @@
                 document.getElementById('link-naver'),
                 document.getElementById('link-kakao')
             ];
-            
+
             if (loc) {
                 links.forEach(link => {
                     link.classList.remove('disabled');
@@ -1772,7 +1796,7 @@
         }
 
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             var calendarEl = document.getElementById('calendar');
             calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
@@ -1782,7 +1806,7 @@
                     right: 'dayGridMonth,timeGridWeek,timeGridDay'
                 },
                 events: [],
-                eventClick: function(info) {
+                eventClick: function (info) {
                     info.jsEvent.preventDefault();
                     openModal(info.event);
                 },

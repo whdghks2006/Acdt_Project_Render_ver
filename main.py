@@ -1,4 +1,4 @@
-import os
+﻿import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -508,8 +508,10 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
 
 @app.get('/login')
 async def login(request: Request):
-    fixed_redirect_uri = "https://snowmang-ai-scheduler-g14.hf.space/auth/callback"
-    return await oauth.google.authorize_redirect(request, fixed_redirect_uri)
+    # 현재 환경(로컬/Hugging Face)에 맞게 자동으로 redirect_uri 생성
+    redirect_uri = request.url_for('auth')
+    print(f" Generated redirect_uri: {redirect_uri}")
+    return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
 @app.get('/auth/callback')
