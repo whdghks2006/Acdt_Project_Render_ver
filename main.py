@@ -120,19 +120,6 @@ def run_ner_extraction(text, nlp_model):
 
     return date_str, time_str, loc_str, event_str
 
-
-def extract_info_with_gemini_json(text):
-    """Gemini를 이용한 정밀 2차 추출"""
-    if not GEMINI_API_KEY: return None
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-
-
-# --- 2. Image Analysis (Vision) ---
-@app.post("/extract-image", response_model=ExtractResponse)
-async def api_extract_image_schedule(file: UploadFile = File(...)):
-    try:
-        contents = await file.read()
-        
         # 1. Transcribe Image to Text
         transcribed_text = run_vision_transcription(contents)
         
