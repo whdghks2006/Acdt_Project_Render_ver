@@ -120,6 +120,336 @@ def run_ner_extraction(text, nlp_model):
 
     return date_str, time_str, loc_str, event_str
 
+
+def extract_info_with_gemini_json(text):
+    """Gemini를 이용한 정밀 2차 추출"""
+    if not GEMINI_API_KEY: return None
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    prompt = f"""
+    You are a smart scheduler assistant. Today is {today}.
+    Extract schedule details from: "{text}"
+    (Note: If this looks like a chat log, ignore message timestamps and focus on the conversation content.)
+
+    Rules:
+    1. Handle date ranges (start_date, end_date). If single day, start=end.
+    2. Summarize the event title concisely.
+    3. If no time is mentioned, set is_allday to true.
+    4. Separate start_time and end_time if a range is given (e.g. 2pm-4pm).
+
+    Return JSON ONLY: 
+    {{ "summary": "...", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM", "location": "...", "is_allday": boolean }}
+    """
+    try:
+        # [Updated] Try 2.5 -> Fallback 1.5
+        response = get_gemini_content(prompt, target_model='gemini-2.5-flash')
+        clean = re.sub(r'```json|```', '', response.text).strip()
+        return json.loads(clean)
+    except Exception as e:
+        print(f"Gemini Text Error: {e}")
+        return None
+
+
+def ask_gemini_for_missing_info(text, current_data, lang='en'):
+    """부족한 정보에 대한 역질문 생성"""
+    if not GEMINI_API_KEY: return ""
+    lang_instruction = "in Korean" if lang == 'ko' else "in English"
+
+    prompt = f"""
+    User Input: "{text}"
+    Current Info: {current_data}
+
+    Task:
+    Check if 'Date' or 'Time' (or 'is_allday') is missing.
+    If missing, ask a polite question {lang_instruction} to get that info.
+    If complete, return "OK".
+    """
+    try:
+        # [Updated] Try 2.5 -> Fallback 1.5
+        response = get_gemini_content(prompt, target_model='gemini-2.5-flash')
+        ans = response.text.strip()
+        return "" if "OK" in ans else ans
+    except:
+        return ""
+
+
+# ==============================================================================
+# AI Logic 2: Vision Analysis (Image/Screenshot)
+# ==============================================================================
+
+def run_vision_transcription(image_bytes):
+    """이미지에서 텍스트만 추출 (OCR)"""
+    if not GEMINI_API_KEY:
+        print("❌ GEMINI_API_KEY is missing.")
+        return ""
+    
+    try:
+        image = PIL.Image.open(io.BytesIO(image_bytes))
+        prompt = "Transcribe all text from this image exactly as it appears. Do not summarize."
+        
+        # Try 2.5 -> Fallback 1.5
+        response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
+        if not response or not response.text:
+            print("❌ Gemini returned empty response.")
+            return ""
+        return response.text.strip()
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"❌ Vision Transcription Error: {e}")
+        return ""
+
+
+
+def run_vision_analysis(image_bytes):
+    """이미지를 분석하여 일정 정보 추출"""
+    if not GEMINI_API_KEY: return {"error": "GEMINI_API_KEY not set"}
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    try:
+        image = PIL.Image.open(io.BytesIO(image_bytes))
+        prompt = f"""
+        You are a smart scheduler assistant. Today is {today}.
+        Analyze this image (screenshot of chat conversation or document).
+
+        Your Task:
+        1. Read all text in the image (Supports Korean & English).
+        2. Identify schedule details (Summary, Date, Time, Location).
+        3. If the text is in Korean, the 'summary' MUST be in Korean.
+        4. Detect start and end dates accurately.
+
+        Return JSON ONLY:
+        {{
+          "summary": "...",
+          "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD",
+          "start_time": "HH:MM", "end_time": "HH:MM",
+          "location": "...", "is_allday": boolean,
+          "question": "Follow-up question if info is missing"
+        }}
+        """
+        # [Updated] Try 2.5 -> Fallback 1.5 (With Error Reporting)
+        response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
+        clean = re.sub(r'```json|```', '', response.text).strip()
+        return json.loads(clean)
+
+    except HTTPException as he:
+        # 429 에러는 그대로 전달
+        return {"error": he.detail, "error_code": he.status_code}
+    except Exception as e:
+        error_msg = str(e)
+        print(f"❌ Vision Analysis Error: {error_msg}")
+        return {"error": error_msg}
+
+
+# ==============================================================================
+# Data Handling & Lifecycle
+# ==============================================================================
+def save_feedback_to_hub(original_text, translated_text, final_data):
+    try:
+        if not HF_TOKEN: return
+        new_row = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "original_text": original_text,
+            "final_summary": final_data.summary,
+            "final_start": final_data.start_date,
+            "final_end": final_data.end_date,
+            "final_loc": final_data.location
+        }
+        df = pd.DataFrame([new_row])
+        unique_filename = f"feedback_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        df.to_csv(unique_filename, index=False)
+
+        api = HfApi(token=HF_TOKEN)
+        api.upload_file(path_or_fileobj=unique_filename, path_in_repo=unique_filename, repo_id=DATASET_REPO_ID,
+                        repo_type="dataset")
+        print(f"✅ Feedback saved.")
+    except Exception as e:
+        print(f"❌ Save Error: {e}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("✅ App Started")
+    # Load spaCy model on startup
+    try:
+        if not spacy.util.is_package(NER_MODEL_NAME):
+            print(f"⚠️ Downloading {NER_MODEL_NAME}...")
+            spacy.cli.download(NER_MODEL_NAME)
+        models["nlp_sm"] = spacy.load(NER_MODEL_NAME)
+        print(f"✅ spaCy model '{NER_MODEL_NAME}' loaded.")
+    except Exception as e:
+        print(f"❌ Failed to load spaCy: {e}")
+    yield
+    print("✅ App Shutdown")
+
+
+app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    https_only=True,
+    same_site='none',
+    path='/',
+    max_age=3600
+)
+
+oauth = OAuth()
+oauth.register(
+    name='google',
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile https://www.googleapis.com/auth/calendar.events'},
+)
+
+
+# --- Pydantic Models ---
+class ExtractRequest(BaseModel):
+    text: str
+    lang: str = 'en'
+    mode: str = "full"  # 'fast' or 'full'
+
+
+class ExtractResponse(BaseModel):
+    original_text: str
+    translated_text: str
+    summary: str
+    start_date: str
+    end_date: str
+    start_time: str
+    end_time: str
+    location: str
+    is_allday: bool
+    ai_message: str = ""
+    used_model: str = ""
+    spacy_log: str = ""
+
+
+class AddEventRequest(BaseModel):
+    summary: str
+    start_date: str
+    end_date: str
+    start_time: str
+    end_time: str
+    location: str
+    description: str
+    is_allday: bool
+    original_text: str
+    translated_text: str
+    consent: bool = False
+
+
+class UpdateEventRequest(BaseModel):
+    summary: str
+    location: str
+    description: str
+    start_date: str | None = None
+    end_date: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    is_allday: bool = False
+
+
+# ==============================================================================
+# Endpoints
+# ==============================================================================
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+async def read_index():
+    return FileResponse('static/index.html')
+
+
+# --- 1. Text Analysis (Hybrid: Fast -> Smart) ---
+
+def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_ocr: bool = False):
+    """Shared logic for text analysis (Text -> spaCy -> Gemini)"""
+    original_text = text
+    is_korean_input = check_is_korean(original_text)
+
+    # 1. Translate & spaCy (Fast)
+    translated_text = translate_korean_to_english(original_text) if is_korean_input else original_text
+
+    date_str, time_str, loc_str, event_str = "", "", "", ""
+    if "nlp_sm" in models:
+        date_str, time_str, loc_str, event_str = run_ner_extraction(translated_text, models["nlp_sm"])
+
+    spacy_debug_str = f"Date=[{date_str}] Time=[{time_str}] Loc=[{loc_str}]"
+
+    # Set Initial Values
+    summary_val = original_text if is_korean_input else event_str
+    start_date_val = date_str
+    end_date_val = date_str
+    start_time_val = time_str
+    end_time_val = ""
+    loc_val = loc_str
+    is_allday_val = False
+    used_model = "Fast-Inference (spaCy)"
+    ai_message = ""
+
+    # [Branch] If fast mode, return immediately
+    if mode == "fast":
+        if is_korean_input: loc_val = translate_english_to_korean(loc_val)
+        return ExtractResponse(
+            original_text=original_text, translated_text=translated_text,
+            summary=summary_val, start_date=start_date_val, end_date=end_date_val,
+            start_time=start_time_val, end_time=end_time_val,
+            location=loc_val, is_allday=is_allday_val,
+            ai_message="", used_model="⚡ Fast (spaCy)",
+            spacy_log=spacy_debug_str
+        )
+
+    # 2. Gemini Extraction (Smart Fallback)
+    # If spaCy missed something OR if we are in 'full' mode and want to be sure
+    if is_ocr or not date_str or not time_str or " to " in translated_text:
+        print("⚠️ spaCy incomplete. Calling Gemini...")
+        gemini_data = extract_info_with_gemini_json(original_text)
+
+        if gemini_data:
+            summary_val = gemini_data.get("summary") or summary_val
+            start_date_val = gemini_data.get("start_date") or ""
+            end_date_val = gemini_data.get("end_date") or ""
+
+            g_start = gemini_data.get("start_time") or gemini_data.get("time")
+            start_time_val = g_start or ""
+            end_time_val = gemini_data.get("end_time") or ""
+
+            loc_val = gemini_data.get("location") or loc_val
+            is_allday_val = gemini_data.get("is_allday") or False
+            used_model = "✨ Smart (Gemini 2.5)"
+
+    # 3. Localization
+    if is_korean_input and used_model.startswith("Fast"):
+        loc_val = translate_english_to_korean(loc_val)
+
+    # 4. Interactive Question
+    if not start_date_val or (not start_time_val and not is_allday_val):
+        current_data = {'date': start_date_val, 'time': start_time_val, 'loc': loc_val}
+        ai_message = ask_gemini_for_missing_info(original_text, current_data, lang=lang)
+
+    return ExtractResponse(
+        original_text=original_text, translated_text=translated_text,
+        summary=summary_val, start_date=start_date_val, end_date=end_date_val,
+        start_time=start_time_val, end_time=end_time_val,
+        location=loc_val, is_allday=is_allday_val,
+        ai_message=ai_message, used_model=used_model,
+        spacy_log=spacy_debug_str
+    )
+
+
+@app.post("/extract", response_model=ExtractResponse)
+async def api_extract_schedule(request: ExtractRequest):
+    return process_text_schedule(request.text, request.mode, request.lang)
+
+
+# --- 2. Image Analysis (Vision) ---
+@app.post("/extract-image", response_model=ExtractResponse)
+async def api_extract_image_schedule(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        
         # 1. Transcribe Image to Text
         transcribed_text = run_vision_transcription(contents)
         
