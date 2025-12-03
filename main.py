@@ -510,6 +510,12 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
 async def login(request: Request):
     # 현재 환경(로컬/Hugging Face)에 맞게 자동으로 redirect_uri 생성
     redirect_uri = request.url_for('auth')
+    
+    # Hugging Face Spaces는 리버스 프록시 뒤에서 실행되므로 HTTPS로 변경 필요
+    # X-Forwarded-Proto 헤더가 있으면 HTTPS 환경
+    if request.headers.get('x-forwarded-proto') == 'https':
+        redirect_uri = str(redirect_uri).replace('http://', 'https://')
+    
     print(f" Generated redirect_uri: {redirect_uri}")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
