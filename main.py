@@ -1,4 +1,5 @@
-﻿import os
+﻿# -*- coding: utf-8 -*-
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,6 +15,10 @@ import json
 import re
 import io
 import PIL.Image  # 이미지 처리를 위한 라이브러리
+
+# [NEW] File format parsers
+import PyPDF2
+from docx import Document
 
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
@@ -40,7 +45,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 models = {}
 
-print(f"🔑 GEMINI_API_KEY Loaded: {bool(GEMINI_API_KEY)}")
+print(f"?? GEMINI_API_KEY Loaded: {bool(GEMINI_API_KEY)}")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -79,18 +84,64 @@ def get_gemini_content(prompt, image=None, target_model="gemini-2.5-flash"):
         return model.generate_content(prompt)
     except Exception as e:
         error_msg = str(e)
-        print(f"⚠️ {target_model} failed: {error_msg}")
+        print(f"?? {target_model} failed: {error_msg}")
 
         # 429 Quota Error는 모델 문제가 아니므로 즉시 에러 반환 (재시도 X)
         if "429" in error_msg or "Resource exhausted" in error_msg:
             raise HTTPException(status_code=429, detail="Google AI Quota Exceeded. Please try again in 1 min.")
 
         # 그 외 에러(모델 없음 등)는 1.5로 폴백
-        print(f"🔄 Falling back to gemini-1.5-flash...")
+        print(f"?? Falling back to gemini-1.5-flash...")
         fallback_model = genai.GenerativeModel("gemini-1.5-flash")
         if image:
             return fallback_model.generate_content([prompt, image])
         return fallback_model.generate_content(prompt)
+
+
+# ==============================================================================
+# File Format Parsers (PDF, DOCX, XLSX)
+# ==============================================================================
+
+def extract_text_from_pdf(file_bytes):
+    """PDF에서 텍스트 추출"""
+    try:
+        pdf_file = io.BytesIO(file_bytes)
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        text_parts = []
+        for page in pdf_reader.pages:
+            text_parts.append(page.extract_text())
+        return "\n".join(text_parts)
+    except Exception as e:
+        print(f"? PDF Extraction Error: {e}")
+        return ""
+
+def extract_text_from_docx(file_bytes):
+    """DOCX에서 텍스트 추출"""
+    try:
+        docx_file = io.BytesIO(file_bytes)
+        doc = Document(docx_file)
+        text_parts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()]
+        return "\n".join(text_parts)
+    except Exception as e:
+        print(f"? DOCX Extraction Error: {e}")
+        return ""
+
+def extract_text_from_xlsx(file_bytes):
+    """XLSX에서 텍스트 추출 (모든 셀을 행별로 결합)"""
+    try:
+        xlsx_file = io.BytesIO(file_bytes)
+        df = pd.read_excel(xlsx_file, sheet_name=None)  # 모든 시트 읽기
+        text_parts = []
+        for sheet_name, sheet_df in df.items():
+            # 각 행을 공백으로 결합
+            for _, row in sheet_df.iterrows():
+                row_text = " ".join([str(val) for val in row.values if pd.notna(val)])
+                if row_text.strip():
+                    text_parts.append(row_text)
+        return "\n".join(text_parts)
+    except Exception as e:
+        print(f"? XLSX Extraction Error: {e}")
+        return ""
 
 
 # ==============================================================================
@@ -180,7 +231,7 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
 def run_vision_transcription(image_bytes):
     """이미지에서 텍스트만 추출 (OCR)"""
     if not GEMINI_API_KEY:
-        print("❌ GEMINI_API_KEY is missing.")
+        print("? GEMINI_API_KEY is missing.")
         return ""
     
     try:
@@ -190,13 +241,13 @@ def run_vision_transcription(image_bytes):
         # Try 2.5 -> Fallback 1.5
         response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
         if not response or not response.text:
-            print("❌ Gemini returned empty response.")
+            print("? Gemini returned empty response.")
             return ""
         return response.text.strip()
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ Vision Transcription Error: {e}")
+        print(f"? Vision Transcription Error: {e}")
         return ""
 
 
@@ -237,7 +288,7 @@ def run_vision_analysis(image_bytes):
         return {"error": he.detail, "error_code": he.status_code}
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ Vision Analysis Error: {error_msg}")
+        print(f"? Vision Analysis Error: {error_msg}")
         return {"error": error_msg}
 
 
@@ -262,25 +313,25 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
         api = HfApi(token=HF_TOKEN)
         api.upload_file(path_or_fileobj=unique_filename, path_in_repo=unique_filename, repo_id=DATASET_REPO_ID,
                         repo_type="dataset")
-        print(f"✅ Feedback saved.")
+        print(f"? Feedback saved.")
     except Exception as e:
-        print(f"❌ Save Error: {e}")
+        print(f"? Save Error: {e}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("✅ App Started")
+    print("? App Started")
     # Load spaCy model on startup
     try:
         if not spacy.util.is_package(NER_MODEL_NAME):
-            print(f"⚠️ Downloading {NER_MODEL_NAME}...")
+            print(f"?? Downloading {NER_MODEL_NAME}...")
             spacy.cli.download(NER_MODEL_NAME)
         models["nlp_sm"] = spacy.load(NER_MODEL_NAME)
-        print(f"✅ spaCy model '{NER_MODEL_NAME}' loaded.")
+        print(f"? spaCy model '{NER_MODEL_NAME}' loaded.")
     except Exception as e:
-        print(f"❌ Failed to load spaCy: {e}")
+        print(f"? Failed to load spaCy: {e}")
     yield
-    print("✅ App Shutdown")
+    print("? App Shutdown")
 
 
 app = FastAPI(lifespan=lifespan)
@@ -397,14 +448,14 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
             summary=summary_val, start_date=start_date_val, end_date=end_date_val,
             start_time=start_time_val, end_time=end_time_val,
             location=loc_val, is_allday=is_allday_val,
-            ai_message="", used_model="⚡ Fast (spaCy)",
+            ai_message="", used_model="? Fast (spaCy)",
             spacy_log=spacy_debug_str
         )
 
     # 2. Gemini Extraction (Smart Fallback)
     # If spaCy missed something OR if we are in 'full' mode and want to be sure
     if is_ocr or not date_str or not time_str or " to " in translated_text:
-        print("⚠️ spaCy incomplete. Calling Gemini...")
+        print("?? spaCy incomplete. Calling Gemini...")
         gemini_data = extract_info_with_gemini_json(original_text)
 
         if gemini_data:
@@ -418,7 +469,7 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 
             loc_val = gemini_data.get("location") or loc_val
             is_allday_val = gemini_data.get("is_allday") or False
-            used_model = "✨ Smart (Gemini 2.5)"
+            used_model = "? Smart (Gemini 2.5)"
 
     # 3. Localization
     if is_korean_input and used_model.startswith("Fast"):
@@ -456,7 +507,7 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
         if not transcribed_text:
             return JSONResponse(status_code=500, content={"error": "Failed to read text from image."})
             
-        print(f"📷 Image Transcribed: {transcribed_text[:50]}...")
+        print(f"?? Image Transcribed: {transcribed_text[:50]}...")
 
         # 2. Process as Text (spaCy -> Gemini)
         # We force 'full' mode to ensure high quality extraction from OCR text
@@ -472,34 +523,57 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-# --- 3. File Analysis (Text Files) ---
+# --- 3. File Analysis (Enhanced: TXT, PDF, DOCX, XLSX) ---
 @app.post("/extract-file", response_model=ExtractResponse)
 async def api_extract_file_schedule(file: UploadFile = File(...)):
     contents = await file.read()
-    try:
-        text_content = contents.decode('utf-8')
-    except UnicodeDecodeError:
-        text_content = contents.decode('euc-kr', errors='ignore')
-
-    gemini_data = extract_info_with_gemini_json(text_content)
-
-    if gemini_data:
-        return ExtractResponse(
-            original_text="[File Analysis]",
-            translated_text="[File Analysis]",
-            summary=gemini_data.get("summary", ""),
-            start_date=gemini_data.get("start_date", ""),
-            end_date=gemini_data.get("end_date", ""),
-            start_time=gemini_data.get("start_time") or gemini_data.get("time") or "",
-            end_time=gemini_data.get("end_time", ""),
-            location=gemini_data.get("location", ""),
-            is_allday=gemini_data.get("is_allday", False),
-            ai_message=gemini_data.get("question", ""),
-            used_model="Gemini 2.5 Flash (File)",
-            spacy_log="Skipped (File)"
-        )
+    filename = file.filename.lower()
+    
+    # Determine file type and extract text
+    text_content = ""
+    
+    if filename.endswith('.pdf'):
+        print("?? Processing PDF file...")
+        text_content = extract_text_from_pdf(contents)
+    elif filename.endswith('.docx'):
+        print("?? Processing DOCX file...")
+        text_content = extract_text_from_docx(contents)
+    # elif filename.endswith(('.xlsx', '.xls')):
+    #     print("Processing XLSX file...")
+    #     text_content = extract_text_from_xlsx(contents)
+    elif filename.endswith('.txt'):
+        print("?? Processing TXT file...")
+        try:
+            text_content = contents.decode('utf-8')
+        except UnicodeDecodeError:
+            text_content = contents.decode('euc-kr', errors='ignore')
     else:
-        return JSONResponse(status_code=500, content={"error": "File analysis failed"})
+        return JSONResponse(status_code=400, content={"error": f"Unsupported file type: {filename}"})
+    
+    if not text_content or not text_content.strip():
+        return JSONResponse(status_code=500, content={"error": "Failed to extract text from file"})
+    
+    print(f"? Extracted {len(text_content)} characters from {filename}")
+    
+    # Use the unified text processing pipeline (spaCy + Gemini)
+    result = process_text_schedule(text_content, mode="full", is_ocr=False)
+    
+    # Create a new response with updated model name (Pydantic models are immutable)
+    file_type = filename.split('.')[-1].upper()
+    return ExtractResponse(
+        original_text=result.original_text,
+        translated_text=result.translated_text,
+        summary=result.summary,
+        start_date=result.start_date,
+        end_date=result.end_date,
+        start_time=result.start_time,
+        end_time=result.end_time,
+        location=result.location,
+        is_allday=result.is_allday,
+        ai_message=result.ai_message,
+        used_model=f"File ({file_type}) + {result.used_model}",
+        spacy_log=result.spacy_log
+    )
 
 
 # ==============================================================================
@@ -530,7 +604,7 @@ async def auth(request: Request):
         request.session['token'] = {'access_token': token.get('access_token'), 'token_type': token.get('token_type')}
         return RedirectResponse(url='/', status_code=303)
     except Exception as e:
-        print(f"❌ Auth Error: {e!r}")
+        print(f"? Auth Error: {e!r}")
         return JSONResponse(status_code=400, content={"error": f"Login failed: {str(e)}"})
 
 
@@ -608,9 +682,9 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
 
         if event_data.consent:
             save_feedback_to_hub(event_data.original_text, event_data.translated_text, event_data)
-            saved_msg = "✅ Data saved."
+            saved_msg = "? Data saved."
         else:
-            saved_msg = "ℹ️ Data NOT saved."
+            saved_msg = "?? Data NOT saved."
 
         return {"message": "Success", "link": result.get('htmlLink'), "saved_msg": saved_msg}
 
@@ -735,18 +809,18 @@ async def delete_event(request: Request, event_id: str):
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):
     key = request.query_params.get("key")
-    if key != "1234": return HTMLResponse("<h1>🚫 Access Denied</h1>", status_code=403)
+    if key != "1234": return HTMLResponse("<h1>?? Access Denied</h1>", status_code=403)
 
     try:
-        if not HF_TOKEN: return HTMLResponse("<h1>⚠️ HF_TOKEN not set.</h1>")
+        if not HF_TOKEN: return HTMLResponse("<h1>?? HF_TOKEN not set.</h1>")
         api = HfApi(token=HF_TOKEN)
         try:
             files = api.list_repo_files(repo_id=DATASET_REPO_ID, repo_type="dataset")
         except Exception as e:
-            return HTMLResponse(f"<h1>❌ Failed to list files.</h1><pre>{str(e)}</pre>")
+            return HTMLResponse(f"<h1>? Failed to list files.</h1><pre>{str(e)}</pre>")
 
         csv_files = [f for f in files if f.endswith('.csv')]
-        if not csv_files: return HTMLResponse("<h1>📭 No data found.</h1>")
+        if not csv_files: return HTMLResponse("<h1>?? No data found.</h1>")
 
         dfs = []
         for file in csv_files:
@@ -758,15 +832,15 @@ async def admin_dashboard(request: Request):
             except Exception:
                 continue
 
-        if not dfs: return HTMLResponse("<h1>❌ Error loading CSV.</h1>")
+        if not dfs: return HTMLResponse("<h1>? Error loading CSV.</h1>")
         final_df = pd.concat(dfs, ignore_index=True)
         if 'timestamp' in final_df.columns: final_df = final_df.sort_values(by='timestamp', ascending=False)
         table_html = final_df.to_html(classes="table table-striped", index=False)
         return HTMLResponse(
-            f"<html><head><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'></head><body><div class='container mt-4'><h1>📊 Feedback Log</h1><p>Total: {len(final_df)}</p>{table_html}</div></body></html>")
+            f"<html><head><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'></head><body><div class='container mt-4'><h1>?? Feedback Log</h1><p>Total: {len(final_df)}</p>{table_html}</div></body></html>")
 
     except Exception as e:
-        return HTMLResponse(f"<h1>❌ Error: {str(e)}</h1>")
+        return HTMLResponse(f"<h1>? Error: {str(e)}</h1>")
 
 
 if __name__ == "__main__":
@@ -774,3 +848,5 @@ if __name__ == "__main__":
 
     port = int(os.environ.get('PORT', 7860))
     uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, forwarded_allow_ips="*")
+
+
