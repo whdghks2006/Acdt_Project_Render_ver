@@ -715,6 +715,19 @@
             }
         }
 
+        /* Inline spinner for button */
+        .btn-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
         .time-row-container {
             display: flex;
             align-items: flex-end;
@@ -1318,6 +1331,218 @@
         .upload-formats {
             color: #94a3b8;
         }
+
+        /* Template Manager Styles - Redesigned */
+        .template-select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.7);
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .template-select:hover {
+            background: #fff;
+            border-color: #94a3b8;
+        }
+
+        .template-select:focus {
+            outline: none;
+            background: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+
+        /* Side Panel Modal */
+        .template-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .template-modal.show {
+            display: block;
+        }
+
+        .template-modal-content {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 400px;
+            max-width: 90%;
+            background: white;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .template-modal.show .template-modal-content {
+            transform: translateX(0);
+        }
+
+        .template-modal-header {
+            padding: 24px 30px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .template-modal-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        .template-modal-close {
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .template-modal-close:hover {
+            color: #ef4444;
+        }
+
+        .template-modal-body {
+            padding: 20px 30px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .template-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+        }
+
+        .template-item:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .template-info {
+            flex: 1;
+        }
+
+        .template-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .template-meta {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+
+        .template-date {
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            margin-top: 4px;
+        }
+
+        .template-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .btn-template-action {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1rem;
+        }
+
+        .btn-apply {
+            background: #e0e7ff;
+            color: var(--primary);
+        }
+
+        .btn-apply:hover {
+            background: #c7d2fe;
+        }
+
+        .btn-rename {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .btn-rename:hover {
+            background: #fde68a;
+        }
+
+        .btn-delete {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .btn-delete:hover {
+            background: #fecaca;
+        }
+
+        /* Toast Notification - Center Style */
+        .template-toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: white;
+            padding: 20px 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            font-size: 1rem;
+            font-weight: 600;
+            z-index: 10000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .template-toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .template-toast-success {
+            color: #059669;
+            border-left: 4px solid #059669;
+        }
+
+        .template-toast-error {
+            color: #dc2626;
+            border-left: 4px solid #dc2626;
+        }
+
+        .template-toast-warning {
+            color: #d97706;
+            border-left: 4px solid #d97706;
+        }
     </style>
 </head>
 
@@ -1331,6 +1556,10 @@
                     <button onclick="setLanguage('ko')" class="lang-btn" id="btn-ko">KO</button>
                     <button onclick="setLanguage('en')" class="lang-btn active" id="btn-en">EN</button>
                 </div>
+                <button onclick="openTemplateManager()" class="btn-login" style="padding: 8px 16px;">
+                    📋 Manage Templates
+                </button>
+
                 <div id="user-area">
                     <a href="/login" class="btn-login" id="btn-login-wrap">
                         <svg class="google-logo" viewBox="0 0 48 48">
@@ -1394,9 +1623,24 @@
                             </div>
                         </div>
 
-                        <button id="extract-button" class="btn-main" onclick="handleUnifiedAction()">
-                            <span id="btn-extract-text">Analyze</span>
-                        </button>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="extract-button" class="btn-main" onclick="handleUnifiedAction()"
+                                style="flex: 1;">
+                                <span id="btn-extract-text">Analyze</span>
+                                <span id="btn-spinner" class="btn-spinner" style="display: none;"></span>
+                            </button>
+                            <button id="stop-button" class="btn-sub" onclick="handleStopAnalysis()"
+                                style="display: none; flex: 0 0 auto; width: auto; padding: 16px 24px; background: #ef4444; color: white; margin-top: 10px;">
+                                ⏹ Stop
+                            </button>
+                        </div>
+                        <!-- Template Selector -->
+                        <div style="margin-top: 15px;">
+                            <select id="template-select" class="template-select" onchange="handleTemplateSelect()"
+                                style="background-position: right 10px center; padding-right: 35px;">
+                                <option value="" disabled selected>📋 Select a template...</option>
+                            </select>
+                        </div>
 
                         <button onclick="toggleAnalysisDetails()" class="analysis-toggle-btn">
                             <span id="btn-view-details">🔍 View Analysis Details</span> <span id="arrow-icon">▼</span>
@@ -1421,10 +1665,15 @@
                     <div class="vertical-divider"></div>
 
                     <div>
-                        <div class="section-header">
+                        <div class="section-header"
+                            style="display: flex; align-items: center; justify-content: space-between;">
                             <span class="section-title" id="txt-step2">Details</span>
+                            <button onclick="clearDetailsForm()" onmouseover="this.style.background='#c7d2fe'"
+                                onmouseout="this.style.background='#e0e7ff'"
+                                style="padding: 4px 10px; font-size: 0.75rem; background: #e0e7ff; color: #6366f1; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-weight: 500;">
+                                🔄
+                            </button>
                         </div>
-
                         <label id="lbl-title">Event Title</label>
                         <input type="text" id="summary-box" style="margin-bottom: 20px;">
 
@@ -1485,6 +1734,11 @@
                         <div id="result-output"
                             style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
                     </div>
+                    <!-- Save Template Button -->
+                    <button onclick="saveAsTemplate()" class="btn-sub"
+                        style="margin-top: 15px; padding: 8px 14px; font-size: 0.85rem;">
+                        💾 Save as Template
+                    </button>
 
                 </div>
             </div>
@@ -1566,6 +1820,21 @@
         let calendar;
         let currentEventId = null;
         let selectedFile = null;
+        let currentAbortController = null;
+
+        // Purple color palette for calendar events (5 variations)
+        const purpleColors = [
+            '#9333ea', // vibrant purple
+            '#a855f7', // medium purple
+            '#c084fc', // light purple
+            '#7c3aed', // deep purple
+            '#8b5cf6'  // indigo purple
+        ];
+
+        // Function to get random purple color
+        function getRandomPurpleColor() {
+            return purpleColors[Math.floor(Math.random() * purpleColors.length)];
+        }
 
         function switchView(id) {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
@@ -1600,6 +1869,19 @@
             } else {
                 container.style.display = 'none';
                 arrow.textContent = '▼';
+            }
+        }
+        function clearDetailsForm() {
+            if (confirm('Clear all details?')) {
+                document.getElementById('summary-box').value = '';
+                document.getElementById('start-date-box').value = '';
+                document.getElementById('end-date-box').value = '';
+                document.getElementById('start-time-box').value = '';
+                document.getElementById('end-time-box').value = '';
+                document.getElementById('loc-box').value = '';
+                document.getElementById('description-box').value = '';
+                document.getElementById('allday-check').checked = false;
+                updateMapLinks();
             }
         }
 
@@ -1643,12 +1925,27 @@
             const isImage = selectedFile.type.startsWith('image/');
             const endpoint = isImage ? '/extract-image' : '/extract-file';
 
+            // Create new abort controller
+            currentAbortController = new AbortController();
+
             document.getElementById('loading-spinner').style.display = 'block';
             const btn = document.getElementById('extract-button');
+            const btnText = document.getElementById('btn-extract-text');
+            const btnSpinner = document.getElementById('btn-spinner');
+            const stopBtn = document.getElementById('stop-button');
+            const originalLabel = btnText.innerText;
+
             btn.disabled = true;
+            stopBtn.style.display = 'block';
+            btnText.innerText = 'Analyzing...';
+            btnSpinner.style.display = 'inline-block';
 
             try {
-                const res = await fetch(endpoint, { method: 'POST', body: formData });
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData,
+                    signal: currentAbortController.signal
+                });
 
                 if (res.status === 429) {
                     alert("⚠️ 1분만 기다려주세요! (Google 무료 사용량 초과)");
@@ -1659,10 +1956,20 @@
                 updateUI(data);
                 // alert("File analyzed successfully!"); // Optional
 
-            } catch (e) { alert("Error analyzing file."); }
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    console.log('File analysis stopped by user');
+                } else {
+                    alert("Error analyzing file.");
+                }
+            }
             finally {
                 document.getElementById('loading-spinner').style.display = 'none';
+                btnText.innerText = originalLabel;
+                btnSpinner.style.display = 'none';
                 btn.disabled = false;
+                stopBtn.style.display = 'none';
+                currentAbortController = null;
             }
         }
 
@@ -1733,32 +2040,60 @@
         async function handleExtract() {
             const inputText = document.getElementById('input-text').value;
             const btnText = document.getElementById('btn-extract-text');
+            const btnSpinner = document.getElementById('btn-spinner');
             const btn = document.getElementById('extract-button');
+            const stopBtn = document.getElementById('stop-button');
             const originalLabel = btnText.innerText;
 
+            // Create new abort controller
+            currentAbortController = new AbortController();
+
             btn.disabled = true;
+            stopBtn.style.display = 'block';
+            btnText.innerText = 'Analyzing...';
+            btnSpinner.style.display = 'inline-block';
             document.getElementById('ai-message').style.display = 'none';
             document.getElementById('analysis-details').style.display = 'none';
 
             try {
                 // 1. FAST
-                btnText.innerText = "⚡ Quick Check...";
                 const fastRes = await fetch('/extract', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'fast' })
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'fast' }),
+                    signal: currentAbortController.signal
                 });
                 updateUI(await fastRes.json());
 
                 // 2. FULL
-                btnText.innerText = "✨ Refining...";
                 const fullRes = await fetch('/extract', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'full' })
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'full' }),
+                    signal: currentAbortController.signal
                 });
                 updateUI(await fullRes.json());
 
-            } catch (error) { console.error(error); }
-            finally { btnText.innerText = originalLabel; btn.disabled = false; }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('Analysis stopped by user');
+                } else {
+                    console.error(error);
+                }
+            }
+            finally {
+                btnText.innerText = originalLabel;
+                btnSpinner.style.display = 'none';
+                btn.disabled = false;
+                stopBtn.style.display = 'none';
+                currentAbortController = null;
+            }
+        }
+
+        function handleStopAnalysis() {
+            if (currentAbortController) {
+                currentAbortController.abort();
+            }
         }
 
         function handleAiReply() {
@@ -1857,7 +2192,12 @@
                 if (res.ok) {
                     const data = await res.json();
                     calendar.removeAllEvents();
-                    data.events.forEach(event => calendar.addEvent(event));
+                    data.events.forEach(event => {
+                        // Add random purple color to each event
+                        event.backgroundColor = getRandomPurpleColor();
+                        event.borderColor = event.backgroundColor;
+                        calendar.addEvent(event);
+                    });
                 }
             } catch (e) { }
         }
@@ -1982,6 +2322,7 @@
         updateOverlay();
     </script>
     <script src="/static/clipboard-monitor.js"></script>
+    <script src="/static/template-manager.js"></script>
 </body>
 
 </html>

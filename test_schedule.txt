@@ -1,0 +1,8 @@
+[Weekly Team Sync]
+Date: Next Friday
+Time: 2:00 PM - 3:00 PM
+Location: Conference Room A
+Description: 
+- Review weekly progress
+- Discuss upcoming sprint tasks
+- Q&A session
