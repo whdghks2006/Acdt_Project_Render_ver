@@ -22,6 +22,7 @@ from docx import Document
 
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
+from pattern_matcher import SchedulePatternMatcher  # [NEW] 커스텀 패턴 매처
 
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, HTMLResponse
@@ -147,19 +148,37 @@ def extract_text_from_xlsx(file_bytes):
 # ==============================================================================
 # AI Logic 1: Text Analysis (spaCy + Gemini Hybrid)
 # ==============================================================================
-def run_ner_extraction(text, nlp_model):
-    """spaCy를 이용한 빠른 1차 추출"""
+def run_ner_extraction(text, nlp_model, original_text=None):
+    """spaCy + Pattern Matcher를 이용한 고정밀 1차 추출"""
     if not text: return "", "", "", ""
+    
+    # Pattern Matcher는 원본 텍스트 우선 사용 (한국어 패턴 지원)
+    text_for_pm = original_text if original_text else text
+    
+    # Phase 1: Pattern Matcher (높은 정밀도)
+    pm_dates, pm_times, pm_loc = [], [], None
+    if "pattern_matcher" in models:
+        pm = models["pattern_matcher"]
+        pm_dates = pm.extract_dates(text_for_pm)
+        pm_times = pm.extract_times(text_for_pm)
+        pm_loc = pm.extract_locations(text_for_pm)
+    
+    # Phase 2: spaCy NER (보조)
     doc = nlp_model(text)
-
     dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
     times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
     locs = [ent.text for ent in doc.ents if ent.label_ == "LOC" or ent.label_ == "GPE"]
     events = [ent.text for ent in doc.ents if ent.label_ == "EVENT"]
 
-    date_str = ", ".join(dates) if dates else ""
-    time_str = ", ".join(times) if times else ""
-    loc_str = ", ".join(locs) if locs else ""
+    # Phase 3: 결과 병합 및 검증
+    # spaCy 결과 필터링 (잘못된 인식 제거)
+    filtered_times = [t for t in times if not _is_date_format(t)]  # "12/20" 같은 날짜 형식 제외
+    filtered_locs = [l for l in locs if not _contains_time_keywords(l)]  # "내일" 같은 시간 키워드 제외
+    
+    # Pattern Matcher 우선, 필터링된 spaCy 결과 사용
+    date_str = pm_dates[0] if pm_dates else (", ".join(dates) if dates else "")
+    time_str = pm_times[0] if pm_times else (", ".join(filtered_times) if filtered_times else "")
+    loc_str = pm_loc if pm_loc else (", ".join(filtered_locs) if filtered_locs else "")
 
     # 이벤트 제목 추론 (Heuristic)
     if events:
@@ -170,6 +189,18 @@ def run_ner_extraction(text, nlp_model):
         event_str = "New Schedule"
 
     return date_str, time_str, loc_str, event_str
+
+
+def _is_date_format(text: str) -> bool:
+    """날짜 형식인지 확인 (12/20 같은 패턴)"""
+    import re
+    return bool(re.match(r'^\d{1,2}/\d{1,2}$', text))
+
+
+def _contains_time_keywords(text: str) -> bool:
+    """시간 관련 키워드가 포함되어 있는지 확인"""
+    time_keywords = ['tomorrow', 'today', 'next', 'this', '내일', '오늘', '다음', '이번']
+    return any(keyword in text.lower() for keyword in time_keywords)
 
 
 def extract_info_with_gemini_json(text):
@@ -215,6 +246,53 @@ def extract_info_with_gemini_json(text):
         # Type check: Gemini should return a dict, not a list
         if not isinstance(parsed, dict):
             print(f"[WARN] Gemini returned unexpected type: {type(parsed)}")
+            return None
+        
+        return parsed
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] JSON Parse Error: {e}")
+        return None
+    except Exception as e:
+        print(f"[ERROR] Gemini Error: {e}")
+        return None
+
+
+def extract_multiple_schedules_with_gemini(text):
+    """Gemini를 이용한 여러 일정 추출"""
+    if not GEMINI_API_KEY: return None
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    
+    is_korean_input = check_is_korean(text)
+    lang_instruction = "IMPORTANT: The input text is in Korean. You MUST keep the 'summary' and 'description' in Korean." if is_korean_input else ""
+
+    prompt = f"""
+    You are a smart scheduler assistant. Today is {today}.
+    Extract ALL schedules from: "{text}"
+    {lang_instruction}
+    
+    CRITICAL RULES:
+    1. **Extract MULTIPLE schedules if mentioned** (e.g., "내일 3시 회의, 모레 5시 저녁" = 2 schedules)
+    2. **DO NOT invent dates/times** - if not mentioned, return empty string
+    3. Keep summary SHORT (max 5-7 words)
+    4. **Preserve original language** for summary and description
+    
+    Return JSON array of schedules:
+    [
+        {{"summary": "...", "description": "...", "start_date": "YYYY-MM-DD or empty", "end_date": "YYYY-MM-DD or empty", "start_time": "HH:MM or empty", "end_time": "HH:MM or empty", "location": "...", "is_allday": boolean}},
+        ...
+    ]
+    """
+    try:
+        response = get_gemini_content(prompt, target_model='gemini-2.5-flash')
+        clean = re.sub(r'```json|```', '', response.text).strip()
+        parsed = json.loads(clean)
+        
+        # 배열이어야 함
+        if not isinstance(parsed, list):
+            print(f"[WARN] Gemini returned non-list: {type(parsed)}")
+            # 단일 객체면 배열로 감싸기
+            if isinstance(parsed, dict):
+                return [parsed]
             return None
         
         return parsed
@@ -362,6 +440,14 @@ async def lifespan(app: FastAPI):
         print(f"? spaCy model '{NER_MODEL_NAME}' loaded.")
     except Exception as e:
         print(f"? Failed to load spaCy: {e}")
+    
+    # Initialize Pattern Matcher
+    try:
+        models["pattern_matcher"] = SchedulePatternMatcher()
+        print(f"? Custom Pattern Matcher initialized.")
+    except Exception as e:
+        print(f"? Failed to initialize Pattern Matcher: {e}")
+    
     yield
     print("? App Shutdown")
 
@@ -408,6 +494,7 @@ class ExtractResponse(BaseModel):
     ai_message: str = ""
     used_model: str = ""
     spacy_log: str = ""
+    schedules: list = []  # 여러 일정 지원
 
 
 class AddEventRequest(BaseModel):
@@ -458,9 +545,44 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 
     date_str, time_str, loc_str, event_str = "", "", "", ""
     if "nlp_sm" in models:
-        date_str, time_str, loc_str, event_str = run_ner_extraction(translated_text, models["nlp_sm"])
+        date_str, time_str, loc_str, event_str = run_ner_extraction(translated_text, models["nlp_sm"], original_text)
 
     spacy_debug_str = f"Date=[{date_str}] Time=[{time_str}] Loc=[{loc_str}]"
+    # ===== 여러 일정 감지 (하이브리드 방식) =====
+    # Pattern Matcher로 빠른 감지
+    multiple_dates = []
+    multiple_times = []
+    if "pattern_matcher" in models:
+        pm = models["pattern_matcher"]
+        multiple_dates = pm.extract_dates(original_text)
+        multiple_times = pm.extract_times(original_text)
+    
+    # 여러 날짜나 시간이 감지되면 Gemini에게 여러 일정 추출 요청
+    if len(multiple_dates) > 1 or len(multiple_times) > 1:
+        print(f"[AI] Multiple schedules detected (dates:{len(multiple_dates)}, times:{len(multiple_times)}). Calling Gemini...")
+        schedules = extract_multiple_schedules_with_gemini(original_text)
+        
+        if schedules and len(schedules) > 1:
+            # 여러 일정 반환
+            return ExtractResponse(
+                original_text=original_text,
+                translated_text=translated_text,
+                summary="",
+                description="",
+                start_date="",
+                end_date="",
+                start_time="",
+                end_time="",
+                location="",
+                is_allday=False,
+                ai_message="",
+                used_model="🧠 Smart (Gemini 2.5 - Multiple)",
+                spacy_log=spacy_debug_str,
+                schedules=schedules
+            )
+    
+    # ===== 단일 일정 처리 (기존 로직) =====
+
 
     # Set Initial Values
     summary_val = original_text if is_korean_input else event_str

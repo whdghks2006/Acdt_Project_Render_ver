@@ -806,6 +806,75 @@
             gap: 16px;
             margin-top: 10px;
         }
+        /* Schedule Pagination */
+        .schedule-pagination {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+        .schedule-pagination.active {
+            display: flex;
+        }
+        .page-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            border: 1px solid #e0e7ff;
+            background: #f3e8ff;
+            color: #6366f1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .page-btn:hover {
+            background: #c7d2fe;
+            border-color: #a5b4fc;
+        }
+        .page-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .page-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 12px;
+            background: #f3e8ff;
+            border-radius: 10px;
+            border: 1px solid #e0e7ff;
+        }
+        .page-current {
+            font-weight: 700;
+            color: #6366f1;
+            font-size: 0.9rem;
+        }
+        .page-total {
+            color: #8b5cf6;
+            font-size: 0.85rem;
+        }
+        .page-dots {
+            display: flex;
+            gap: 6px;
+        }
+        .page-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e0e7ff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .page-dot.active {
+            background: #6366f1;
+        }
+        .page-dot:hover {
+            background: #a5b4fc;
+        }
 
         .map-link {
             flex: 1;
@@ -1668,6 +1737,19 @@
                         <div class="section-header"
                             style="display: flex; align-items: center; justify-content: space-between;">
                             <span class="section-title" id="txt-step2">Details</span>
+                            
+                            <!-- Schedule Pagination -->
+                            <div id="schedule-pagination" class="schedule-pagination">
+                                <button class="page-btn" id="prev-schedule" onclick="navigateSchedule(-1)" title="Previous">◀</button>
+                                <div class="page-indicator">
+                                    <span class="page-current" id="current-page">1</span>
+                                    <span style="color: #a5b4fc; margin: 0 2px;">/</span>
+                                    <span class="page-total" id="total-pages">1</span>
+                                </div>
+                                <div class="page-dots" id="page-dots"></div>
+                                <button class="page-btn" id="next-schedule" onclick="navigateSchedule(1)" title="Next">▶</button>
+                            </div>
+                            
                             <button onclick="clearDetailsForm()" onmouseover="this.style.background='#c7d2fe'"
                                 onmouseout="this.style.background='#e0e7ff'"
                                 style="padding: 4px 10px; font-size: 0.75rem; background: #e0e7ff; color: #6366f1; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-weight: 500;">
@@ -1871,7 +1953,121 @@
                 arrow.textContent = '▼';
             }
         }
-        function clearDetailsForm() {
+
+        // =============================================
+        // Multiple Schedules Pagination
+        // =============================================
+        let allSchedules = [];  // 여러 일정 저장
+        let currentScheduleIndex = 0;
+        
+        function setSchedules(schedules) {
+            if (!schedules || schedules.length === 0) {
+                allSchedules = [];
+                hidePagination();
+                return;
+            }
+            
+            allSchedules = schedules;
+            currentScheduleIndex = 0;
+            
+            if (schedules.length > 1) {
+                showPagination(schedules.length);
+            } else {
+                hidePagination();
+            }
+            
+            displaySchedule(0);
+        }
+        
+        function showPagination(total) {
+            const pagination = document.getElementById('schedule-pagination');
+            if (pagination) {
+                pagination.classList.add('active');
+                updatePaginationUI();
+                createPageDots(total);
+            }
+        }
+        
+        function hidePagination() {
+            const pagination = document.getElementById('schedule-pagination');
+            if (pagination) {
+                pagination.classList.remove('active');
+            }
+        }
+        
+        function createPageDots(total) {
+            const dotsContainer = document.getElementById('page-dots');
+            if (!dotsContainer) return;
+            
+            dotsContainer.innerHTML = '';
+            for (let i = 0; i < total; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'page-dot' + (i === 0 ? ' active' : '');
+                dot.onclick = () => goToSchedule(i);
+                dotsContainer.appendChild(dot);
+            }
+        }
+        
+        function updatePaginationUI() {
+            const currentEl = document.getElementById('current-page');
+            const totalEl = document.getElementById('total-pages');
+            const prevBtn = document.getElementById('prev-schedule');
+            const nextBtn = document.getElementById('next-schedule');
+            const dots = document.querySelectorAll('.page-dot');
+            
+            if (currentEl) currentEl.textContent = currentScheduleIndex + 1;
+            if (totalEl) totalEl.textContent = allSchedules.length;
+            
+            if (prevBtn) prevBtn.disabled = currentScheduleIndex === 0;
+            if (nextBtn) nextBtn.disabled = currentScheduleIndex >= allSchedules.length - 1;
+            
+            dots.forEach((dot, i) => {
+                dot.classList.toggle('active', i === currentScheduleIndex);
+            });
+        }
+        
+        function navigateSchedule(direction) {
+            const newIndex = currentScheduleIndex + direction;
+            if (newIndex >= 0 && newIndex < allSchedules.length) {
+                currentScheduleIndex = newIndex;
+                displaySchedule(currentScheduleIndex);
+                updatePaginationUI();
+            }
+        }
+        
+        function goToSchedule(index) {
+            if (index >= 0 && index < allSchedules.length) {
+                currentScheduleIndex = index;
+                displaySchedule(currentScheduleIndex);
+                updatePaginationUI();
+            }
+        }
+        
+        function displaySchedule(index) {
+            const schedule = allSchedules[index];
+            if (!schedule) return;
+            
+            // 폼 필드에 데이터 채우기
+            const summaryBox = document.getElementById('summary-box');
+            const startDateBox = document.getElementById('start-date-box');
+            const endDateBox = document.getElementById('end-date-box');
+            const startTimeBox = document.getElementById('start-time-box');
+            const endTimeBox = document.getElementById('end-time-box');
+            const locBox = document.getElementById('loc-box');
+            const alldayCheck = document.getElementById('allday-check');
+            
+            if (summaryBox) summaryBox.value = schedule.summary || '';
+            if (startDateBox) startDateBox.value = schedule.start_date || '';
+            if (endDateBox) endDateBox.value = schedule.end_date || schedule.start_date || '';
+            if (startTimeBox) startTimeBox.value = schedule.start_time || '';
+            if (endTimeBox) endTimeBox.value = schedule.end_time || '';
+            if (locBox) locBox.value = schedule.location || '';
+            if (alldayCheck) alldayCheck.checked = schedule.all_day || false;
+            
+            updateMapLinks();
+        }
+
+                function clearDetailsForm() {
             if (confirm('Clear all details?')) {
                 document.getElementById('summary-box').value = '';
                 document.getElementById('start-date-box').value = '';
@@ -2017,15 +2213,26 @@
                 modelBadge.innerText = data.used_model;
                 modelBadge.className = 'model-badge ' + (data.used_model.includes('Gemini') ? 'smart' : 'fast');
             }
-
-            document.getElementById('summary-box').value = data.summary || '';
-            document.getElementById('start-date-box').value = data.start_date || '';
-            document.getElementById('end-date-box').value = data.end_date || '';
-            document.getElementById('start-time-box').value = data.start_time || '';
-            document.getElementById('end-time-box').value = data.end_time || '';
+            
+            // 여러 일정이 있는 경우 페이지네이션 사용
+            if (data.schedules && data.schedules.length > 0) {
+                setSchedules(data.schedules);
+            } else {
+                // 단일 일정 (기존 방식)
+                const singleSchedule = {
+                    summary: data.summary || '',
+                    start_date: data.start_date || '',
+                    end_date: data.end_date || '',
+                    start_time: data.start_time || '',
+                    end_time: data.end_time || '',
+                    location: data.location || '',
+                    all_day: !!data.is_allday
+                };
+                setSchedules([singleSchedule]);
+            }
+            
+            // Description은 별도 처리
             document.getElementById('description-box').value = data.description || '';
-            document.getElementById('loc-box').value = data.location || '';
-            document.getElementById('allday-check').checked = !!data.is_allday;
 
             if (typeof updateMapLinks === 'function') {
                 updateMapLinks();
