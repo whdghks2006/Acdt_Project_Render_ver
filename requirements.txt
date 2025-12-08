@@ -19,6 +19,6 @@ httpx==0.27.2
 itsdangerous
 python-dotenv
 # [NEW] Enhanced File Format Support
-PyPDF2
+PyMuPDF
 python-docx
 openpyxl

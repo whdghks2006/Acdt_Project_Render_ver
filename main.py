@@ -17,7 +17,7 @@ import io
 import PIL.Image  # 이미지 처리를 위한 라이브러리
 
 # [NEW] File format parsers
-import PyPDF2
+import fitz  # PyMuPDF - faster and more accurate than PyPDF2
 from docx import Document
 
 from deep_translator import GoogleTranslator
@@ -107,17 +107,354 @@ def get_gemini_content(prompt, image=None, target_model="gemini-2.5-flash"):
 # ==============================================================================
 
 def extract_text_from_pdf(file_bytes):
-    """PDF에서 텍스트 추출"""
+    """PDF에서 텍스트 추출 (PyMuPDF 사용 - 빠른 속도)"""
     try:
-        pdf_file = io.BytesIO(file_bytes)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        text_parts = []
-        for page in pdf_reader.pages:
-            text_parts.append(page.extract_text())
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        text_parts = [page.get_text() for page in doc]
+        doc.close()
         return "\n".join(text_parts)
     except Exception as e:
-        print(f"? PDF Extraction Error: {e}")
+        print(f"❌ PDF Extraction Error: {e}")
         return ""
+
+
+def clean_pdf_text(text: str) -> str:
+    """PDF 텍스트에서 특수 유니코드 문자 제거 (분석 정확도 향상)"""
+    import unicodedata
+    
+    # 제로폭 공백 및 특수 유니코드 제거
+    text = re.sub(r'[\u200b\u200c\u200d\ufeff\u00ad]', '', text)
+    # 특수 불릿 포인트 정규화
+    text = re.sub(r'[●○■□◆◇▶►▪▫•·]', '•', text)
+    # 연속 공백 정리
+    text = re.sub(r'[ \t]+', ' ', text)
+    # 연속 줄바꿈 정리 (3개 이상 -> 2개)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
+
+
+def analyze_assignment_pdf(text: str, nlp_model=None, pattern_matcher=None):
+    """
+    과제물/실라버스 PDF 전용 분석기 (v4 - spaCy 우선)
+    
+    핵심 전략:
+    1. 텍스트 전처리 (특수 문자 제거)
+    2. spaCy + Pattern Matcher로 최대한 추출
+    3. Gemini는 사용하지 않음 (호출하는 쪽에서 결정)
+    
+    Returns:
+        list: 추출된 일정 목록 (빈 리스트일 수 있음)
+    """
+    # 1단계: 텍스트 전처리
+    cleaned_text = clean_pdf_text(text)
+    print(f"[PDF] Cleaned text: {len(text)} -> {len(cleaned_text)} chars")
+    
+    schedules = []
+    
+    # 2단계: Pattern Matcher로 모든 날짜/시간 먼저 추출
+    all_dates = []
+    all_times = []
+    if pattern_matcher:
+        all_dates = pattern_matcher.extract_dates(cleaned_text)
+        all_times = pattern_matcher.extract_times(cleaned_text)
+        print(f"[PDF] Pattern Matcher found: {len(all_dates)} dates, {len(all_times)} times")
+    
+    # 3단계: "Submit to ... Due:" 블록 패턴으로 분석
+    # 전처리된 텍스트에서 더 유연한 패턴 사용
+    submit_due_pattern = re.compile(
+        r'Submit\s+to\s+([A-Za-z\s&]+?)\s*\([^)]*\)\s*'
+        r'Due[:\s]*(?:BY\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))\s+on\s+'
+        r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2})',
+        re.IGNORECASE
+    )
+    
+    matches = list(submit_due_pattern.finditer(cleaned_text))
+    print(f"[PDF] Submit-Due patterns found: {len(matches)}")
+    
+    # 4단계: 매치된 패턴 처리
+    for match in matches:
+        location = match.group(1).strip()
+        time_str = match.group(2)
+        date_str = match.group(3)
+        
+        schedule = {
+            "summary": "",
+            "description": "",
+            "start_date": "",
+            "end_date": "",
+            "start_time": "",
+            "end_time": "",
+            "location": location,
+            "is_allday": False
+        }
+        
+        # 날짜 파싱
+        if pattern_matcher and date_str:
+            parsed = pattern_matcher.extract_dates(date_str)
+            if parsed:
+                schedule["start_date"] = parsed[0]
+                schedule["end_date"] = parsed[0]
+        
+        # 시간 파싱
+        if pattern_matcher and time_str:
+            parsed = pattern_matcher.extract_times(time_str)
+            if parsed:
+                schedule["end_time"] = parsed[0]
+        
+        # 과제명 추출 (마감일 앞뒤 컨텍스트)
+        match_start = match.start()
+        match_end = match.end()
+        context_before = cleaned_text[max(0, match_start - 600):match_start]
+        context_after = cleaned_text[match_end:min(len(cleaned_text), match_end + 200)]
+        
+        task_name = ""
+        
+        # 블랙리스트: 과제명이 아닌 문구들
+        blacklist = [
+            'academic integrity', 'late submission', 'policy will be applied',
+            'turnitin report', 'ai writing', 'detection', 'gptZero', 'scribbr',
+            'one thing', 'what you', 'how to', 'will be', 'should be', 'must be',
+            'the', 'and', 'for', 'all', 'use', 'is', 'are', 'was', 'were'
+        ]
+        
+        def is_valid_task_name(name):
+            """과제명으로 적합한지 검증"""
+            if not name or len(name) < 4:
+                return False
+            name_lower = name.lower()
+            for bad in blacklist:
+                if bad in name_lower:
+                    return False
+            # 짧은 일반 단어 제외
+            if len(name) < 8 and name_lower in ['poster', 'video', 'essay', 'report']:
+                return True  # 이건 허용 (단독 키워드)
+            return True
+        
+        # 전략 A: 앞쪽 컨텍스트에서 과제 키워드 패턴 먼저 검색 (가장 정확)
+        keyword_patterns = [
+            r'(\d+[-–]\d+\s+page\s+[A-Za-z\s]+?)(?:\s+of|\s*:|\n)',  # 1-2 page Executive Summary
+            r'(Individual\s+[A-Za-z\s]+(?:Essay|Report|Reflection))',
+            r'((?:Group|Individual)\s+[A-Za-z\s]+(?:Presentation|Essay|Report|Summary|Video|Poster))',
+            r'\b(A0\s+[Pp]oster|Executive\s+Summary|Presentation\s+[Vv]ideo)',
+            r'(Final\s+Reflection[^.]{0,20})',
+            r'(Peer\s+Evaluation[^.]{0,20})',
+            r'(Group\s+Capstone\s+[A-Za-z\s]+)',
+            r'(Scientific\s+(?:Reflection\s+)?Essay)',
+        ]
+        for pat in keyword_patterns:
+            found = re.findall(pat, context_before, re.IGNORECASE)
+            if found:
+                candidate = found[-1].strip()
+                candidate = re.sub(r'^[\d.\s]+', '', candidate)
+                if is_valid_task_name(candidate) and len(candidate) > 5:
+                    task_name = candidate
+                    print(f"[PDF] Pattern found: '{task_name}'")
+                    break
+        
+        # 전략 B: spaCy NER 사용
+        if not task_name and nlp_model:
+            doc = nlp_model(context_before[-400:])
+            for ent in reversed(list(doc.ents)):
+                if ent.label_ in ["EVENT_TITLE", "EVENT"]:
+                    candidate = ent.text.strip()[:50]
+                    if is_valid_task_name(candidate):
+                        task_name = candidate
+                        print(f"[PDF] spaCy found: '{task_name}'")
+                        break
+        
+        # 전략 C: 마감일 바로 뒤 항목 (• Poster, • Video) - 필터링 강화
+        if not task_name:
+            after_match = re.search(r'^[•\s]*([A-Za-z][A-Za-z\s]+?)(?:\s*\(|$|\n)', context_after, re.MULTILINE)
+            if after_match:
+                potential = after_match.group(1).strip()
+                if is_valid_task_name(potential):
+                    task_name = potential
+        
+        # 전략 D: 라인 기반 키워드 검색 (앞쪽)
+        if not task_name:
+            keywords = ['poster', 'presentation', 'essay', 'video', 'summary', 
+                       'report', 'evaluation', 'reflection']
+            for line in reversed(context_before.split('\n')[-15:]):
+                line = line.strip()
+                if 5 < len(line) < 80:
+                    for kw in keywords:
+                        if kw in line.lower():
+                            candidate = re.sub(r'^[\d.•:\s]+', '', line)
+                            candidate = re.sub(r'[:.]+$', '', candidate).strip()
+                            if is_valid_task_name(candidate) and len(candidate) > 5:
+                                task_name = candidate
+                                break
+                    if task_name:
+                        break
+        
+        # 폴백: 제출처 + 날짜 기반
+        if not task_name or len(task_name) < 4:
+            task_name = f"Submission to {location}"
+        
+        # 제목 정리: 앞뒤 특수문자 제거
+        task_name = re.sub(r'^[-–—•·\s\d.]+', '', task_name)  # 앞 정리
+        task_name = re.sub(r'[-–—•·:.\s]+$', '', task_name)   # 뒤 정리
+        task_name = task_name.strip()
+        
+        # 첫 글자 대문자로
+        if task_name and len(task_name) > 1:
+            task_name = task_name[0].upper() + task_name[1:]
+        
+        schedule["summary"] = task_name[:60]
+        schedule["is_allday"] = not bool(schedule["end_time"])
+        
+        schedules.append(schedule)
+        print(f"[PDF] ✓ '{schedule['summary']}' -> {schedule['start_date']} {schedule['end_time']} @ {schedule['location']}")
+    
+    # 5단계: "Week X-Y" 패턴으로 추가 일정 탐색 (Peer Evaluation 등)
+    # PDF에서 "Final Reflection & Peer Evaluation (Google Form) • When: Week 15-16" 패턴 감지
+    week_pattern = re.compile(
+        r'((?:Final\s+)?(?:Reflection|Peer\s+Evaluation|Review)[A-Za-z\s&]*)'
+        r'\s*(?:\([^)]*\))?\s*•?\s*When[:\s]*Week\s*(\d+)[-–](\d+)',
+        re.IGNORECASE
+    )
+    
+    for week_match in week_pattern.finditer(cleaned_text):
+        event_name = week_match.group(1).strip()
+        week_start = int(week_match.group(2))
+        week_end = int(week_match.group(3))
+        
+        # 이벤트 이름 정리
+        event_name = re.sub(r'^[^A-Za-z]+', '', event_name)  # 앞 쓰레기 제거
+        event_name = re.sub(r'[^A-Za-z\s&]+$', '', event_name)  # 뒤 쓰레기 제거
+        event_name = event_name.strip()
+        
+        # 블랙리스트 체크
+        if any(bad in event_name.lower() for bad in ['policy', 'late', 'academic', 'integrity']):
+            continue
+        
+        if len(event_name) < 5:
+            event_name = "Peer Evaluation"  # 폴백
+        
+        # Week 15-16 => 대략 12월 중순 (학기 기준)
+        import datetime
+        base_date = datetime.date(2025, 12, 1)  # Week 14 시작 기준
+        start_offset = (week_start - 14) * 7
+        end_offset = (week_end - 14) * 7 + 6
+        
+        start_date = (base_date + datetime.timedelta(days=start_offset)).strftime("%Y-%m-%d")
+        end_date = (base_date + datetime.timedelta(days=end_offset)).strftime("%Y-%m-%d")
+        
+        # 이미 추출된 것과 중복 체크
+        existing_summaries = [s["summary"].lower()[:15] for s in schedules]
+        if event_name.lower()[:15] not in existing_summaries:
+            new_schedule = {
+                "summary": event_name[:50],
+                "description": f"Week {week_start}-{week_end}",
+                "start_date": start_date,
+                "end_date": end_date,
+                "start_time": "",
+                "end_time": "",
+                "location": "Google Form" if "evaluation" in event_name.lower() else "",
+                "is_allday": True
+            }
+            schedules.append(new_schedule)
+            print(f"[PDF] ✓ (Week pattern) '{new_schedule['summary']}' -> {start_date} ~ {end_date}")
+    
+    # 6단계: "Week X — Title" 패턴 (날짜 없이 Week만 표시)
+    # 예: "Week 9 — Service Concept & Dev Plan", "Week 10 — Data Collection"
+    # 더 유연한 패턴: 모든 종류의 대시/구분자 허용
+    week_title_pattern = re.compile(
+        r'Week\s*(\d+)(?:\s*[-–—]\s*(\d+))?\s*[—–\-:]+\s*([A-Za-z][A-Za-z\s&,]+)',
+        re.IGNORECASE
+    )
+    
+    for week_match in week_title_pattern.finditer(cleaned_text):
+        week_start = week_match.group(1)
+        week_end = week_match.group(2)  # None if single week
+        title = week_match.group(3).strip()
+        
+        # 제목 정리 - "Do this"나 뒤의 설명 제거
+        title = re.sub(r'\s*(Do this|Deliverables|Note that|What|●|•).*', '', title, flags=re.IGNORECASE)
+        title = re.sub(r'[:\s]+$', '', title).strip()
+        # 뒤의 "Weeks" 제거 (예: "Finalization & Showcase Weeks" -> "Finalization & Showcase")
+        title = re.sub(r'\s+Weeks?\s*$', '', title, flags=re.IGNORECASE).strip()
+        
+        # 블랙리스트 체크 - 주요 과제명만 허용
+        bad_words = ['project weeks:', 'feedback by', 'what you', 'this is', 'the ']
+        if any(bad in title.lower() for bad in bad_words):
+            continue
+        
+        if len(title) < 5 or len(title) > 50:
+            continue
+        
+        # Week 표시
+        if week_end:
+            week_str = f"Week {week_start}-{week_end}"
+        else:
+            week_str = f"Week {week_start}"
+        
+        # 이미 추출된 것과 중복 체크
+        existing_summaries = [s["summary"].lower()[:15] for s in schedules]
+        if title.lower()[:15] not in existing_summaries:
+            new_schedule = {
+                "summary": title[:50],
+                "description": week_str,
+                "start_date": "",
+                "end_date": "",
+                "start_time": "",
+                "end_time": "",
+                "location": "",
+                "is_allday": True
+            }
+            schedules.append(new_schedule)
+            print(f"[PDF] ✓ (Week title) '{new_schedule['summary']}' ({week_str})")
+    
+    # 7단계: spaCy로 추가 일정 탐색 (Submit-Due 패턴 외)
+    if nlp_model and len(schedules) < 3:
+        print("[PDF] Trying additional spaCy-based extraction...")
+        doc = nlp_model(cleaned_text[:3000])
+        
+        for ent in doc.ents:
+            if ent.label_ in ["START_DATE", "DATE"]:
+                date_text = ent.text
+                if pattern_matcher:
+                    parsed = pattern_matcher.extract_dates(date_text)
+                    if parsed:
+                        existing = [s["start_date"] for s in schedules]
+                        if parsed[0] not in existing:
+                            start_idx = max(0, ent.start_char - 200)
+                            end_idx = min(len(cleaned_text), ent.end_char + 100)
+                            context = cleaned_text[start_idx:end_idx]
+                            
+                            event_match = re.search(r'([A-Z][A-Za-z\s]+(?:Essay|Poster|Video|Report|Summary|Presentation|Evaluation))', context)
+                            if event_match:
+                                new_schedule = {
+                                    "summary": event_match.group(1).strip()[:50],
+                                    "start_date": parsed[0],
+                                    "end_date": parsed[0],
+                                    "end_time": "",
+                                    "location": "",
+                                    "is_allday": True
+                                }
+                                schedules.append(new_schedule)
+                                print(f"[PDF] ✓ (spaCy) '{new_schedule['summary']}' -> {new_schedule['start_date']}")
+    
+    # 중복 제거
+    seen = set()
+    unique = []
+    for s in schedules:
+        # 날짜가 없으면 summary만으로 중복 체크
+        if s.get("start_date"):
+            key = (s["start_date"], s["summary"][:20].lower())
+        else:
+            key = ("", s["summary"][:20].lower())
+        if key not in seen:
+            seen.add(key)
+            unique.append(s)
+    
+    print(f"[PDF] Final: {len(unique)} schedules extracted (spaCy + Pattern Matcher)")
+    return unique
+
+
+
+
 
 def extract_text_from_docx(file_bytes):
     """DOCX에서 텍스트 추출"""
@@ -1002,6 +1339,144 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
     if filename.endswith('.pdf'):
         print("[PDF] Processing PDF file...")
         text_content = extract_text_from_pdf(contents)
+        
+        # PDF 전용 분석: 커스텀 NER + Pattern Matcher 우선 사용
+        if text_content and "nlp_sm" in models:
+            print("[PDF] Step 1: Using spaCy + Pattern Matcher...")
+            nlp_model = models.get("nlp_sm")
+            pm = models.get("pattern_matcher")
+            
+            # spaCy + Pattern Matcher로 분석
+            spacy_schedules = analyze_assignment_pdf(text_content, nlp_model, pm)
+            spacy_count = len(spacy_schedules) if spacy_schedules else 0
+            
+            # 결과가 충분하면 (3개 이상) spaCy 결과만 반환
+            if spacy_schedules and spacy_count >= 3:
+                print(f"[PDF] ✓ spaCy extraction successful: {spacy_count} schedules")
+                if spacy_count > 1:
+                    return ExtractResponse(
+                        original_text=text_content[:500] + "..." if len(text_content) > 500 else text_content,
+                        translated_text="",
+                        summary="",
+                        description="",
+                        start_date="",
+                        end_date="",
+                        start_time="",
+                        end_time="",
+                        location="",
+                        is_allday=False,
+                        ai_message="",
+                        used_model="⚡ spaCy + Pattern Matcher (Fast)",
+                        spacy_log=f"Extracted {spacy_count} schedules using custom NER model",
+                        schedules=spacy_schedules
+                    )
+                else:
+                    s = spacy_schedules[0]
+                    return ExtractResponse(
+                        original_text=text_content[:500] + "..." if len(text_content) > 500 else text_content,
+                        translated_text="",
+                        summary=s.get("summary", ""),
+                        description=s.get("description", ""),
+                        start_date=s.get("start_date", ""),
+                        end_date=s.get("end_date", ""),
+                        start_time=s.get("start_time", ""),
+                        end_time=s.get("end_time", ""),
+                        location=s.get("location", ""),
+                        is_allday=s.get("is_allday", False),
+                        ai_message="",
+                        used_model="⚡ spaCy + Pattern Matcher (Fast)",
+                        spacy_log="Single schedule extracted with custom NER"
+                    )
+            
+            # 결과가 부족하면 (3개 미만) Gemini로 보완
+            print(f"[PDF] Step 2: spaCy found {spacy_count} schedules, trying Gemini enhancement...")
+            
+            # Gemini로 추가 분석
+            gemini_schedules = extract_multiple_schedules_with_gemini(text_content)
+            gemini_count = len(gemini_schedules) if gemini_schedules else 0
+            
+            if gemini_schedules and gemini_count > spacy_count:
+                print(f"[PDF] ✓ Gemini enhanced: {gemini_count} schedules (was {spacy_count})")
+                
+                # spaCy 결과가 있었다면 로그에 표시
+                spacy_log_msg = f"spaCy found {spacy_count}, Gemini enhanced to {gemini_count} schedules"
+                
+                if gemini_count > 1:
+                    return ExtractResponse(
+                        original_text=text_content[:500] + "..." if len(text_content) > 500 else text_content,
+                        translated_text="",
+                        summary="",
+                        description="",
+                        start_date="",
+                        end_date="",
+                        start_time="",
+                        end_time="",
+                        location="",
+                        is_allday=False,
+                        ai_message="",
+                        used_model="🔄 spaCy → Gemini (Enhanced)",
+                        spacy_log=spacy_log_msg,
+                        schedules=gemini_schedules
+                    )
+                else:
+                    s = gemini_schedules[0]
+                    return ExtractResponse(
+                        original_text=text_content[:500] + "..." if len(text_content) > 500 else text_content,
+                        translated_text="",
+                        summary=s.get("summary", ""),
+                        description=s.get("description", ""),
+                        start_date=s.get("start_date", ""),
+                        end_date=s.get("end_date", ""),
+                        start_time=s.get("start_time", ""),
+                        end_time=s.get("end_time", ""),
+                        location=s.get("location", ""),
+                        is_allday=s.get("is_allday", False),
+                        ai_message="",
+                        used_model="🔄 spaCy → Gemini (Enhanced)",
+                        spacy_log=spacy_log_msg
+                    )
+            
+            # spaCy 결과라도 있으면 반환
+            elif spacy_schedules and spacy_count > 0:
+                print(f"[PDF] Using spaCy results ({spacy_count} schedules)")
+                if spacy_count > 1:
+                    return ExtractResponse(
+                        original_text=text_content[:500] + "..." if len(text_content) > 500 else text_content,
+                        translated_text="",
+                        summary="",
+                        description="",
+                        start_date="",
+                        end_date="",
+                        start_time="",
+                        end_time="",
+                        location="",
+                        is_allday=False,
+                        ai_message="",
+                        used_model="⚡ spaCy + Pattern Matcher",
+                        spacy_log=f"Extracted {spacy_count} schedules (Gemini unavailable)",
+                        schedules=spacy_schedules
+                    )
+                else:
+                    s = spacy_schedules[0]
+                    return ExtractResponse(
+                        original_text=text_content[:500] + "..." if len(text_content) > 500 else text_content,
+                        translated_text="",
+                        summary=s.get("summary", ""),
+                        description=s.get("description", ""),
+                        start_date=s.get("start_date", ""),
+                        end_date=s.get("end_date", ""),
+                        start_time=s.get("start_time", ""),
+                        end_time=s.get("end_time", ""),
+                        location=s.get("location", ""),
+                        is_allday=s.get("is_allday", False),
+                        ai_message="",
+                        used_model="⚡ spaCy + Pattern Matcher",
+                        spacy_log="Single schedule extracted"
+                    )
+            
+            print("[PDF] No schedules found by either method, falling back to general processing...")
+
+        
     elif filename.endswith('.docx'):
         print("[DOCX] Processing DOCX file...")
         text_content = extract_text_from_docx(contents)
@@ -1038,8 +1513,10 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
         ai_message=result.ai_message,
         description=result.description,
         used_model=f"File ({file_type}) + {result.used_model}",
-        spacy_log=result.spacy_log
+        spacy_log=result.spacy_log,
+        schedules=result.schedules
     )
+
 
 
 # ==============================================================================

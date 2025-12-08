@@ -2077,6 +2077,7 @@
             const endTimeBox = document.getElementById('end-time-box');
             const locBox = document.getElementById('loc-box');
             const alldayCheck = document.getElementById('allday-check');
+            const descBox = document.getElementById('description-box');
 
             if (summaryBox) summaryBox.value = schedule.summary || '';
             if (startDateBox) startDateBox.value = schedule.start_date || '';
@@ -2084,7 +2085,8 @@
             if (startTimeBox) startTimeBox.value = schedule.start_time || '';
             if (endTimeBox) endTimeBox.value = schedule.end_time || '';
             if (locBox) locBox.value = schedule.location || '';
-            if (alldayCheck) alldayCheck.checked = schedule.all_day || false;
+            if (alldayCheck) alldayCheck.checked = schedule.all_day || schedule.is_allday || false;
+            if (descBox) descBox.value = schedule.description || '';
 
             updateMapLinks();
         }

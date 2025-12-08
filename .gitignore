@@ -31,3 +31,10 @@ output.txt
 
 # Development backup (training data, scripts, etc.)
 _dev_backup/
+
+# Test files and temp outputs
+*.pdf
+pdf_content.txt
+pdf_result.json
+project2_content.txt
+test_*.py
