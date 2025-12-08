@@ -28,3 +28,6 @@ restore_*.py
 apply_*.py
 refactor_*.py
 output.txt
+
+# Development backup (training data, scripts, etc.)
+_dev_backup/

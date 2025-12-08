@@ -35,7 +35,10 @@ from authlib.integrations.starlette_client import OAuth
 # ==============================================================================
 # Configuration
 # ==============================================================================
-NER_MODEL_NAME = "en_core_web_md"  # 문맥 이해도가 높은 Medium 모델 사용
+# Custom NER Model with 6 entity labels
+# Labels: START_DATE, START_TIME, END_DATE, END_TIME, LOC, EVENT_TITLE
+CUSTOM_NER_MODEL_PATH = "./output/new_ner_model"
+FALLBACK_NER_MODEL = "en_core_web_md"  # Fallback if custom model not found
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -163,24 +166,38 @@ def run_ner_extraction(text, nlp_model, original_text=None):
         pm_times = pm.extract_times(text_for_pm)
         pm_loc = pm.extract_locations(text_for_pm)
     
-    # Phase 2: spaCy NER (보조)
+    # Phase 2: spaCy NER (Custom Model with 6 labels)
     doc = nlp_model(text)
-    dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
-    times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
-    locs = [ent.text for ent in doc.ents if ent.label_ == "LOC" or ent.label_ == "GPE"]
-    events = [ent.text for ent in doc.ents if ent.label_ == "EVENT"]
-
-    # Phase 3: 결과 병합 및 검증
-    # spaCy 결과 필터링 (잘못된 인식 제거)
-    filtered_times = [t for t in times if not _is_date_format(t)]  # "12/20" 같은 날짜 형식 제외
-    filtered_locs = [l for l in locs if not _contains_time_keywords(l)]  # "내일" 같은 시간 키워드 제외
     
-    # Pattern Matcher 우선, 필터링된 spaCy 결과 사용
-    date_str = pm_dates[0] if pm_dates else (", ".join(dates) if dates else "")
+    # New 6-label extraction
+    start_dates = [ent.text for ent in doc.ents if ent.label_ == "START_DATE"]
+    start_times = [ent.text for ent in doc.ents if ent.label_ == "START_TIME"]
+    end_dates = [ent.text for ent in doc.ents if ent.label_ == "END_DATE"]
+    end_times = [ent.text for ent in doc.ents if ent.label_ == "END_TIME"]
+    locs = [ent.text for ent in doc.ents if ent.label_ == "LOC" or ent.label_ == "GPE"]
+    events = [ent.text for ent in doc.ents if ent.label_ == "EVENT_TITLE" or ent.label_ == "EVENT"]
+    
+    # Fallback to old labels if custom model labels not found
+    if not start_dates:
+        start_dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
+    if not start_times:
+        start_times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
+
+    # Phase 3: Merge and validate results
+    # Filter spaCy results (remove misidentified entities)
+    filtered_times = [t for t in start_times if not _is_date_format(t)]
+    filtered_locs = [l for l in locs if not _contains_time_keywords(l)]
+    
+    # Pattern Matcher takes priority, then filtered spaCy results
+    date_str = pm_dates[0] if pm_dates else (", ".join(start_dates) if start_dates else "")
     time_str = pm_times[0] if pm_times else (", ".join(filtered_times) if filtered_times else "")
     loc_str = pm_loc if pm_loc else (", ".join(filtered_locs) if filtered_locs else "")
+    
+    # End date/time from new labels
+    end_date_str = ", ".join(end_dates) if end_dates else ""
+    end_time_str = ", ".join(end_times) if end_times else ""
 
-    # 이벤트 제목 추론 (Heuristic)
+    # Event title inference (Heuristic)
     if events:
         event_str = ", ".join(events)
     elif locs:
@@ -188,17 +205,181 @@ def run_ner_extraction(text, nlp_model, original_text=None):
     else:
         event_str = "New Schedule"
 
-    return date_str, time_str, loc_str, event_str
+    return date_str, time_str, end_date_str, end_time_str, loc_str, event_str
+
+
+def extract_multiple_schedules_with_spacy(text, nlp_model):
+    """
+    Extract multiple schedules using sentence-based spaCy analysis.
+    Returns list of schedules or None if extraction quality is low.
+    """
+    doc = nlp_model(text)
+    schedules = []
+    
+    # Split into sentences
+    sentences = list(doc.sents)
+    
+    for sent in sentences:
+        sent_text = sent.text.strip()
+        if not sent_text or len(sent_text) < 10:  # Skip very short sentences
+            continue
+        
+        # Re-analyze each sentence
+        sent_doc = nlp_model(sent_text)
+        
+        # Extract entities from sentence
+        schedule = {
+            "summary": "",
+            "description": "",
+            "start_date": "",
+            "end_date": "",
+            "start_time": "",
+            "end_time": "",
+            "location": "",
+            "is_allday": False
+        }
+        
+        has_date_or_time = False
+        
+        for ent in sent_doc.ents:
+            if ent.label_ == "START_DATE" or ent.label_ == "DATE":
+                if not schedule["start_date"]:
+                    schedule["start_date"] = ent.text
+                    has_date_or_time = True
+            elif ent.label_ == "START_TIME" or ent.label_ == "TIME":
+                if not schedule["start_time"]:
+                    schedule["start_time"] = ent.text
+                    has_date_or_time = True
+            elif ent.label_ == "END_DATE":
+                if not schedule["end_date"]:
+                    schedule["end_date"] = ent.text
+            elif ent.label_ == "END_TIME":
+                if not schedule["end_time"]:
+                    schedule["end_time"] = ent.text
+            elif ent.label_ in ["LOC", "GPE"]:
+                if not schedule["location"]:
+                    schedule["location"] = ent.text
+            elif ent.label_ in ["EVENT_TITLE", "EVENT"]:
+                if not schedule["summary"]:
+                    schedule["summary"] = ent.text
+        
+        # Only add if sentence has date or time info
+        if has_date_or_time:
+            # Generate summary if not found - use smart extraction
+            if not schedule["summary"]:
+                schedule["summary"] = _extract_smart_summary(sent_text, schedule)
+            
+            # Set end_date to start_date if not specified
+            if schedule["start_date"] and not schedule["end_date"]:
+                schedule["end_date"] = schedule["start_date"]
+            
+            schedules.append(schedule)
+    
+    # Return None if no schedules found
+    if not schedules:
+        return None
+    
+    # If only one schedule found, use single schedule flow
+    if len(schedules) == 1:
+        return None
+    
+    # Quality check: if too many schedules have missing info, fall back to Gemini
+    quality_score = _calculate_quality_score(schedules)
+    if quality_score < 0.5:  # Less than 50% quality
+        print(f"[AI] spaCy quality score: {quality_score:.1%} (low) - falling back to Gemini")
+        return None
+    
+    print(f"[AI] spaCy quality score: {quality_score:.1%}")
+    return schedules
+
+
+def _extract_smart_summary(sentence, schedule):
+    """Extract a meaningful summary from the sentence."""
+    # Common event keywords
+    event_keywords = [
+        'meeting', 'presentation', 'workshop', 'conference', 'deadline', 
+        'appointment', 'interview', 'call', 'session', 'review', 'party',
+        'dinner', 'lunch', 'breakfast', 'event', 'ceremony', 'retreat',
+        '회의', '미팅', '발표', '워크샵', '마감', '면접', '약속'
+    ]
+    
+    sentence_lower = sentence.lower()
+    
+    # Find event keyword in sentence
+    for keyword in event_keywords:
+        if keyword in sentence_lower:
+            # Find the context around the keyword
+            idx = sentence_lower.find(keyword)
+            # Get a few words around it
+            start = max(0, sentence.rfind(' ', 0, idx - 10) + 1) if idx > 10 else 0
+            end = sentence.find('.', idx)
+            if end == -1:
+                end = min(len(sentence), idx + 30)
+            
+            summary = sentence[start:end].strip()
+            # Clean up
+            summary = summary.split(',')[0].strip()  # Take first part
+            if len(summary) > 50:
+                summary = summary[:47] + "..."
+            return summary.capitalize()
+    
+    # Fallback: use first meaningful words (skip common starters)
+    skip_starters = ['the', 'a', 'an', 'our', 'we', 'i', 'you', 'this', 'that', 'please', 'dear']
+    words = sentence.split()
+    
+    start_idx = 0
+    for i, word in enumerate(words[:3]):
+        if word.lower() in skip_starters:
+            start_idx = i + 1
+        else:
+            break
+    
+    summary_words = words[start_idx:start_idx + 4]
+    summary = " ".join(summary_words)
+    
+    if len(summary) > 40:
+        summary = summary[:37] + "..."
+    
+    return summary.capitalize() if summary else "Schedule"
+
+
+def _calculate_quality_score(schedules):
+    """Calculate quality score for extracted schedules (0-1)."""
+    if not schedules:
+        return 0
+    
+    total_score = 0
+    
+    for s in schedules:
+        score = 0
+        # Must have date OR time
+        if s.get("start_date") or s.get("start_time"):
+            score += 0.3
+        # Meaningful summary (not truncated)
+        if s.get("summary") and not s["summary"].endswith("..."):
+            score += 0.3
+        elif s.get("summary"):
+            score += 0.15
+        # Has location
+        if s.get("location"):
+            score += 0.2
+        # Both date and time
+        if s.get("start_date") and s.get("start_time"):
+            score += 0.2
+        
+        total_score += score
+    
+    return total_score / len(schedules)
 
 
 def _is_date_format(text: str) -> bool:
-    """날짜 형식인지 확인 (12/20 같은 패턴)"""
+    """Check if text matches date format (e.g., 12/20)"""
     import re
     return bool(re.match(r'^\d{1,2}/\d{1,2}$', text))
 
 
 def _contains_time_keywords(text: str) -> bool:
-    """시간 관련 키워드가 포함되어 있는지 확인"""
+    """Check if text contains time-related keywords"""
     time_keywords = ['tomorrow', 'today', 'next', 'this', '내일', '오늘', '다음', '이번']
     return any(keyword in text.lower() for keyword in time_keywords)
 
@@ -431,13 +612,20 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("? App Started")
-    # Load spaCy model on startup
+    # Load NER model on startup (Custom model with fallback)
     try:
-        if not spacy.util.is_package(NER_MODEL_NAME):
-            print(f"?? Downloading {NER_MODEL_NAME}...")
-            spacy.cli.download(NER_MODEL_NAME)
-        models["nlp_sm"] = spacy.load(NER_MODEL_NAME)
-        print(f"? spaCy model '{NER_MODEL_NAME}' loaded.")
+        if os.path.exists(CUSTOM_NER_MODEL_PATH):
+            models["nlp_sm"] = spacy.load(CUSTOM_NER_MODEL_PATH)
+            print(f"? Custom NER model loaded from '{CUSTOM_NER_MODEL_PATH}'")
+            print(f"  Labels: START_DATE, START_TIME, END_DATE, END_TIME, LOC, EVENT_TITLE")
+        else:
+            print(f"?? Custom model not found at '{CUSTOM_NER_MODEL_PATH}'")
+            print(f"   Falling back to '{FALLBACK_NER_MODEL}'...")
+            if not spacy.util.is_package(FALLBACK_NER_MODEL):
+                print(f"?? Downloading {FALLBACK_NER_MODEL}...")
+                spacy.cli.download(FALLBACK_NER_MODEL)
+            models["nlp_sm"] = spacy.load(FALLBACK_NER_MODEL)
+            print(f"? Fallback model '{FALLBACK_NER_MODEL}' loaded.")
     except Exception as e:
         print(f"? Failed to load spaCy: {e}")
     
@@ -543,11 +731,11 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
     # 1. Translate & spaCy (Fast)
     translated_text = translate_korean_to_english(original_text) if is_korean_input else original_text
 
-    date_str, time_str, loc_str, event_str = "", "", "", ""
+    date_str, time_str, end_date_str, end_time_str, loc_str, event_str = "", "", "", "", "", ""
     if "nlp_sm" in models:
-        date_str, time_str, loc_str, event_str = run_ner_extraction(translated_text, models["nlp_sm"], original_text)
+        date_str, time_str, end_date_str, end_time_str, loc_str, event_str = run_ner_extraction(translated_text, models["nlp_sm"], original_text)
 
-    spacy_debug_str = f"Date=[{date_str}] Time=[{time_str}] Loc=[{loc_str}]"
+    spacy_debug_str = f"StartDate=[{date_str}] StartTime=[{time_str}] EndDate=[{end_date_str}] EndTime=[{end_time_str}] Loc=[{loc_str}]"
     # ===== 여러 일정 감지 (하이브리드 방식) =====
     # Pattern Matcher로 빠른 감지
     multiple_dates = []
@@ -557,13 +745,54 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         multiple_dates = pm.extract_dates(original_text)
         multiple_times = pm.extract_times(original_text)
     
-    # 여러 날짜나 시간이 감지되면 Gemini에게 여러 일정 추출 요청
-    if len(multiple_dates) > 1 or len(multiple_times) > 1:
-        print(f"[AI] Multiple schedules detected (dates:{len(multiple_dates)}, times:{len(multiple_times)}). Calling Gemini...")
+    # Check for multiple schedules (but exclude time ranges like "10 AM to 4 PM")
+    # If " to " or " - " pattern exists with 2 times, it's likely a single schedule with time range
+    is_time_range = (len(multiple_times) == 2 and 
+                     (" to " in original_text.lower() or " - " in original_text or 
+                      "부터" in original_text or "~" in original_text))
+    
+    # Only treat as multiple schedules if:
+    # - More than 2 dates, OR
+    # - More than 2 times (not a simple range), OR
+    # - 2+ dates with 2+ times
+    is_multiple = (len(multiple_dates) > 2 or 
+                   (len(multiple_times) > 2) or 
+                   (len(multiple_dates) > 1 and len(multiple_times) > 1 and not is_time_range))
+    
+    if is_multiple:
+        print(f"[AI] Multiple schedules detected (dates:{len(multiple_dates)}, times:{len(multiple_times)})")
+        
+        # Try spaCy first (faster)
+        schedules = None
+        if "nlp_sm" in models:
+            print("[AI] Trying spaCy sentence-based extraction...")
+            schedules = extract_multiple_schedules_with_spacy(translated_text, models["nlp_sm"])
+        
+        # If spaCy succeeded
+        if schedules and len(schedules) > 1:
+            print(f"[AI] spaCy extracted {len(schedules)} schedules successfully!")
+            return ExtractResponse(
+                original_text=original_text,
+                translated_text=translated_text,
+                summary="",
+                description="",
+                start_date="",
+                end_date="",
+                start_time="",
+                end_time="",
+                location="",
+                is_allday=False,
+                ai_message="",
+                used_model="⚡ Fast (spaCy - Multiple)",
+                spacy_log=spacy_debug_str,
+                schedules=schedules
+            )
+        
+        # Fallback to Gemini if spaCy didn't work
+        print("[AI] spaCy insufficient, falling back to Gemini...")
         schedules = extract_multiple_schedules_with_gemini(original_text)
         
         if schedules and len(schedules) > 1:
-            # 여러 일정 반환
             return ExtractResponse(
                 original_text=original_text,
                 translated_text=translated_text,
@@ -588,9 +817,9 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
     summary_val = original_text if is_korean_input else event_str
     description_val = ""
     start_date_val = date_str
-    end_date_val = date_str
+    end_date_val = end_date_str if end_date_str else date_str  # Use NER end_date or fallback to start_date
     start_time_val = time_str
-    end_time_val = ""
+    end_time_val = end_time_str  # Use NER end_time
     loc_val = loc_str
     is_allday_val = False
     used_model = "Fast-Inference (spaCy)"
@@ -610,8 +839,14 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         )
 
     # 2. Gemini Extraction (Smart Fallback)
-    # If spaCy missed something OR if we are in 'full' mode and want to be sure
-    if is_ocr or not date_str or not time_str or " to " in translated_text:
+    # Only call if spaCy missed critical info
+    needs_gemini = is_ocr or not date_str or not time_str
+    
+    # " to " pattern: only call Gemini if END_TIME wasn't already extracted by spaCy
+    if " to " in translated_text and not end_time_str:
+        needs_gemini = True
+    
+    if needs_gemini:
         print("[AI] spaCy incomplete. Calling Gemini...")
         gemini_data = extract_info_with_gemini_json(original_text)
 
@@ -652,6 +887,79 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
     return process_text_schedule(request.text, request.mode, request.lang)
+
+
+# --- 1.5. Quality Enhancement (Force Gemini Re-analysis) ---
+class ReanalyzeRequest(BaseModel):
+    text: str
+    lang: str = 'en'
+
+@app.post("/reanalyze-gemini", response_model=ExtractResponse)
+async def api_reanalyze_with_gemini(request: ReanalyzeRequest):
+    """Force re-analysis using Gemini for better quality"""
+    original_text = request.text
+    is_korean_input = check_is_korean(original_text)
+    translated_text = translate_korean_to_english(original_text) if is_korean_input else original_text
+    
+    print("[AI] Quality Enhancement: Force Gemini re-analysis")
+    
+    # Check for multiple schedules first
+    schedules = extract_multiple_schedules_with_gemini(original_text)
+    
+    if schedules and len(schedules) > 1:
+        return ExtractResponse(
+            original_text=original_text,
+            translated_text=translated_text,
+            summary="",
+            description="",
+            start_date="",
+            end_date="",
+            start_time="",
+            end_time="",
+            location="",
+            is_allday=False,
+            ai_message="",
+            used_model="🧠 Smart (Gemini 2.5 - Enhanced)",
+            spacy_log="Quality Enhancement Mode",
+            schedules=schedules
+        )
+    
+    # Single schedule - use Gemini extraction
+    gemini_data = extract_info_with_gemini_json(original_text)
+    
+    if gemini_data:
+        return ExtractResponse(
+            original_text=original_text,
+            translated_text=translated_text,
+            summary=gemini_data.get("summary", ""),
+            description=gemini_data.get("description", ""),
+            start_date=gemini_data.get("start_date", ""),
+            end_date=gemini_data.get("end_date", ""),
+            start_time=gemini_data.get("start_time", ""),
+            end_time=gemini_data.get("end_time", ""),
+            location=gemini_data.get("location", ""),
+            is_allday=gemini_data.get("is_allday", False),
+            ai_message="",
+            used_model="🧠 Smart (Gemini 2.5 - Enhanced)",
+            spacy_log="Quality Enhancement Mode"
+        )
+    
+    # Fallback if Gemini fails
+    return ExtractResponse(
+        original_text=original_text,
+        translated_text=translated_text,
+        summary="Analysis failed",
+        description="",
+        start_date="",
+        end_date="",
+        start_time="",
+        end_time="",
+        location="",
+        is_allday=False,
+        ai_message="Gemini analysis failed. Please try again.",
+        used_model="Error",
+        spacy_log=""
+    )
 
 
 # --- 2. Image Analysis (Vision) ---

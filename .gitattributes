@@ -1,1 +1,2 @@
 my_ner_model/** filter=lfs diff=lfs merge=lfs -text
+output/**/* filter=lfs diff=lfs merge=lfs -text
