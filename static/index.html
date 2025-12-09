@@ -1831,12 +1831,21 @@
                                 improvement</label>
                         </div>
 
-                        <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
-                            <span id="btn-add-text">Add to Google Calendar</span>
-                        </button>
+                        <!-- Button Container -->
+                        <div style="display: flex; flex-direction: column; gap: 10px; align-items: stretch;">
+                            <button id="add-calendar-btn" class="btn-main" onclick="handleAddToCalendar()">
+                                <span id="btn-add-text">Add to Google Calendar</span>
+                            </button>
+                            <!-- Add All Button (shown only for multiple schedules) -->
+                            <button id="add-all-calendar-btn" class="btn-main" onclick="handleAddAllToCalendar()"
+                                style="display: none; background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);">
+                                <span id="btn-add-all-text">Add All to Calendar</span>
+                            </button>
+                        </div>
                         <div class="spinner" id="loading-spinner"></div>
                         <div id="result-output"
                             style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
+
                     </div>
                     <!-- Save Template Button -->
                     <button onclick="saveAsTemplate()" class="btn-sub"
@@ -1986,6 +1995,7 @@
             if (!schedules || schedules.length === 0) {
                 allSchedules = [];
                 hidePagination();
+                hideAddAllButton();
                 return;
             }
 
@@ -1994,12 +2004,31 @@
 
             if (schedules.length > 1) {
                 showPagination(schedules.length);
+                showAddAllButton(schedules.length);
             } else {
                 hidePagination();
+                hideAddAllButton();
             }
 
             displaySchedule(0);
         }
+
+        function showAddAllButton(count) {
+            const btn = document.getElementById('add-all-calendar-btn');
+            const btnText = document.getElementById('btn-add-all-text');
+            if (btn) {
+                btn.style.display = 'flex';
+                btn.style.justifyContent = 'center';
+                if (btnText) btnText.innerText = `📥 Add All (${count}) to Calendar`;
+            }
+        }
+
+
+        function hideAddAllButton() {
+            const btn = document.getElementById('add-all-calendar-btn');
+            if (btn) btn.style.display = 'none';
+        }
+
 
         function showPagination(total) {
             const pagination = document.getElementById('schedule-pagination');
@@ -2585,6 +2614,63 @@
             finally { btn.style.opacity = "1"; btn.disabled = false; }
         }
 
+        // Add All Schedules to Calendar
+        async function handleAddAllToCalendar() {
+            if (!isLoggedIn) {
+                alert("Please login first!");
+                return;
+            }
+
+            if (!allSchedules || allSchedules.length === 0) {
+                alert("No schedules to add.");
+                return;
+            }
+
+            const btn = document.getElementById('add-all-calendar-btn');
+            const btnText = document.getElementById('btn-add-all-text');
+            const output = document.getElementById('result-output');
+            const originalLabel = btnText.innerText;
+
+            btn.style.opacity = "0.7";
+            btn.disabled = true;
+            btnText.innerText = "⏳ Adding...";
+            output.innerHTML = "";
+
+            try {
+                const response = await fetch('/add-multiple-to-calendar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        schedules: allSchedules,
+                        consent: document.getElementById('data-consent').checked
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    output.innerHTML = `✅ ${data.message}`;
+                    fetchEvents();
+
+                    // Show detailed results if there were any errors
+                    if (data.error_count > 0) {
+                        const failedItems = data.results.filter(r => r.status === 'failed');
+                        console.warn('Failed to add some events:', failedItems);
+                        output.innerHTML += ` (⚠️ ${data.error_count} failed)`;
+                    }
+                } else {
+                    output.innerHTML = `❌ ${data.error}`;
+                }
+            } catch (error) {
+                console.error('Batch add error:', error);
+                output.innerHTML = `❌ Error adding events`;
+            }
+            finally {
+                btn.style.opacity = "1";
+                btn.disabled = false;
+                btnText.innerText = originalLabel;
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', function () {
             var calendarEl = document.getElementById('calendar');

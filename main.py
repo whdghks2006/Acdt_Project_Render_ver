@@ -1636,6 +1636,97 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+# --- Batch Add Multiple Schedules ---
+class BatchAddEventRequest(BaseModel):
+    schedules: list  # List of schedule objects
+    consent: bool = False
+
+
+@app.post("/add-multiple-to-calendar")
+async def add_multiple_to_calendar(request: Request, batch_data: BatchAddEventRequest):
+    """Add multiple schedules to Google Calendar at once"""
+    token_data = request.session.get('token')
+    if not token_data or 'access_token' not in token_data:
+        return JSONResponse(status_code=401, content={"error": "Login required"})
+
+    access_token = token_data['access_token']
+    headers = {'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}
+    
+    results = []
+    success_count = 0
+    error_count = 0
+    
+    for schedule in batch_data.schedules:
+        try:
+            s_date_obj = dateparser.parse(schedule.get('start_date', ''))
+            e_date_obj = dateparser.parse(schedule.get('end_date', '') or schedule.get('start_date', ''))
+            if not s_date_obj: 
+                s_date_obj = datetime.datetime.now()
+            if not e_date_obj: 
+                e_date_obj = s_date_obj
+
+            is_allday = schedule.get('is_allday', False) or schedule.get('all_day', False)
+            
+            if is_allday or not schedule.get('start_time'):
+                s_str = s_date_obj.strftime("%Y-%m-%d")
+                e_date_exclusive = e_date_obj + datetime.timedelta(days=1)
+                e_str = e_date_exclusive.strftime("%Y-%m-%d")
+
+                google_event = {
+                    'summary': schedule.get('summary', 'Untitled Event'),
+                    'location': schedule.get('location', ''),
+                    'description': schedule.get('description', ''),
+                    'start': {'date': s_str},
+                    'end': {'date': e_str},
+                }
+            else:
+                kst = pytz.timezone('Asia/Seoul')
+                start_full = f"{schedule.get('start_date', '')} {schedule.get('start_time', '')}"
+                start_dt = dateparser.parse(start_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                                  'RETURN_AS_TIMEZONE_AWARE': True})
+
+                if schedule.get('end_time'):
+                    end_full = f"{schedule.get('end_date', schedule.get('start_date', ''))} {schedule.get('end_time', '')}"
+                    end_dt = dateparser.parse(end_full, settings={'TIMEZONE': 'Asia/Seoul', 'TO_TIMEZONE': 'Asia/Seoul',
+                                                                  'RETURN_AS_TIMEZONE_AWARE': True})
+                else:
+                    if not start_dt: 
+                        start_dt = datetime.datetime.now(kst)
+                    end_dt = start_dt + datetime.timedelta(hours=1)
+
+                google_event = {
+                    'summary': schedule.get('summary', 'Untitled Event'),
+                    'location': schedule.get('location', ''),
+                    'description': schedule.get('description', ''),
+                    'start': {'dateTime': start_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
+                    'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'},
+                }
+
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                    json=google_event, headers=headers
+                )
+
+            if resp.status_code == 200:
+                success_count += 1
+                results.append({"summary": schedule.get('summary'), "status": "success"})
+            else:
+                error_count += 1
+                results.append({"summary": schedule.get('summary'), "status": "failed", "error": resp.text})
+                
+        except Exception as e:
+            error_count += 1
+            results.append({"summary": schedule.get('summary', 'Unknown'), "status": "failed", "error": str(e)})
+    
+    return {
+        "message": f"Added {success_count} of {len(batch_data.schedules)} events",
+        "success_count": success_count,
+        "error_count": error_count,
+        "results": results
+    }
+
+
 @app.get("/events")
 async def list_events(request: Request):
     token_data = request.session.get('token')
@@ -1643,12 +1734,14 @@ async def list_events(request: Request):
 
     access_token = token_data['access_token']
     headers = {'Authorization': f'Bearer {access_token}'}
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
+    
+    # Include past events (1 year back) to show recently added past dates
+    one_year_ago = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=365)).isoformat().replace('+00:00', 'Z')
 
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get('https://www.googleapis.com/calendar/v3/calendars/primary/events', headers=headers,
-                                    params={'timeMin': now, 'maxResults': 100, 'singleEvents': True,
+                                    params={'timeMin': one_year_ago, 'maxResults': 250, 'singleEvents': True,
                                             'orderBy': 'startTime'})
 
         if resp.status_code != 200: return JSONResponse(status_code=resp.status_code,
