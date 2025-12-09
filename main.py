@@ -997,10 +997,15 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
         new_row = {
             "timestamp": datetime.datetime.now().isoformat(),
             "original_text": original_text,
+            "translated_text": translated_text,
             "final_summary": final_data.summary,
-            "final_start": final_data.start_date,
-            "final_end": final_data.end_date,
-            "final_loc": final_data.location
+            "final_start_date": final_data.start_date,
+            "final_end_date": final_data.end_date,
+            "final_start_time": final_data.start_time,
+            "final_end_time": final_data.end_time,
+            "final_loc": final_data.location,
+            "final_description": final_data.description,
+            "is_allday": final_data.is_allday
         }
         df = pd.DataFrame([new_row])
         unique_filename = f"feedback_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -1009,9 +1014,9 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
         api = HfApi(token=HF_TOKEN)
         api.upload_file(path_or_fileobj=unique_filename, path_in_repo=unique_filename, repo_id=DATASET_REPO_ID,
                         repo_type="dataset")
-        print(f"? Feedback saved.")
+        print(f"📊 Feedback saved: {unique_filename}")
     except Exception as e:
-        print(f"? Save Error: {e}")
+        print(f"❌ Save Error: {e}")
 
 
 @asynccontextmanager
