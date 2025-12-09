@@ -846,29 +846,97 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
 
 
 # ==============================================================================
-# AI Logic 2: Vision Analysis (Image/Screenshot)
+# AI Logic 2: Vision Analysis (Image/Screenshot) - Gemini Only
 # ==============================================================================
 
-def run_vision_transcription(image_bytes):
-    """이미지에서 텍스트만 추출 (OCR)"""
+def run_vision_extraction(image_bytes):
+    """이미지에서 일정 정보 직접 추출 (OCR + 분석 통합 - 1회 호출)"""
     if not GEMINI_API_KEY:
-        print("? GEMINI_API_KEY is missing.")
+        return {"error": "GEMINI_API_KEY not set"}
+    
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    
+    try:
+        image = PIL.Image.open(io.BytesIO(image_bytes))
+        
+        # 통합 프롬프트: OCR + 일정 추출을 한 번에
+        prompt = f"""You are a smart scheduler assistant. Today is {today}.
+
+TASK: Read ALL text from this image and extract schedule information.
+
+Instructions:
+1. Read every text in the image (Korean & English supported)
+2. Extract schedule details:
+   - summary: Brief title (max 5-7 words, keep original language)
+   - description: Additional context
+   - start_date: YYYY-MM-DD format (or empty if not mentioned)
+   - end_date: YYYY-MM-DD format (or empty if not mentioned) 
+   - start_time: HH:MM format 24-hour (or empty if not mentioned)
+   - end_time: HH:MM format 24-hour (or empty if not mentioned)
+   - location: Place name (keep original language)
+   - is_allday: true/false
+   - transcribed_text: Raw text extracted from image
+
+CRITICAL RULES:
+- **Korean input → Korean output** (summary, description, location must be in Korean if input is Korean)
+- Do NOT invent dates/times not explicitly mentioned
+- For relative dates like "이번주 토요일" or "14일", convert to actual YYYY-MM-DD
+
+Return JSON ONLY:
+{{
+  "summary": "...",
+  "description": "...",
+  "start_date": "YYYY-MM-DD or empty",
+  "end_date": "YYYY-MM-DD or empty",
+  "start_time": "HH:MM or empty",
+  "end_time": "HH:MM or empty",
+  "location": "...",
+  "is_allday": false,
+  "transcribed_text": "raw text from image"
+}}"""
+        
+        response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
+        if not response or not response.text:
+            print("[Vision] Gemini returned empty response.")
+            return {"error": "Empty response from Gemini"}
+        
+        # JSON 파싱
+        clean = re.sub(r'```json|```', '', response.text).strip()
+        result = json.loads(clean)
+        print(f"[Vision] ✓ Extracted: {result.get('summary', 'N/A')}")
+        return result
+        
+    except json.JSONDecodeError as e:
+        print(f"[Vision] JSON parse error: {e}")
+        return {"error": f"JSON parse error: {e}", "raw": response.text if response else ""}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"[Vision] Extraction error: {e}")
+        return {"error": str(e)}
+
+
+def run_vision_transcription(image_bytes):
+    """이미지에서 텍스트만 추출 (OCR) - Gemini 사용"""
+    if not GEMINI_API_KEY:
+        print("[OCR] GEMINI_API_KEY is missing.")
         return ""
     
     try:
         image = PIL.Image.open(io.BytesIO(image_bytes))
         prompt = "Transcribe all text from this image exactly as it appears. Do not summarize."
         
-        # Try 2.5 -> Fallback 1.5
         response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
         if not response or not response.text:
-            print("? Gemini returned empty response.")
+            print("[OCR] Gemini returned empty response.")
             return ""
+        
+        print("[OCR] ✓ Gemini transcription complete")
         return response.text.strip()
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"? Vision Transcription Error: {e}")
+        print(f"[OCR] Vision Transcription Error: {e}")
         return ""
 
 
@@ -1149,22 +1217,59 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
     
     # ===== 단일 일정 처리 (기존 로직) =====
 
+    # [NEW] 한글 입력이면 Pattern Matcher 결과를 우선 사용!
+    pm_date = multiple_dates[0] if multiple_dates else ""
+    pm_time = multiple_times[0] if multiple_times else ""
+    pm_location = ""
+    if "pattern_matcher" in models:
+        pm_location = models["pattern_matcher"].extract_locations(original_text) or ""
+    
+    # 한글 입력: Pattern Matcher > spaCy
+    if is_korean_input:
+        start_date_val = pm_date if pm_date else date_str
+        start_time_val = pm_time if pm_time else time_str
+        loc_val = pm_location if pm_location else loc_str
+    else:
+        # 영어 입력: spaCy > Pattern Matcher
+        start_date_val = date_str if date_str else pm_date
+        start_time_val = time_str if time_str else pm_time
+        loc_val = loc_str if loc_str else pm_location
 
     # Set Initial Values
     summary_val = original_text if is_korean_input else event_str
     description_val = ""
-    start_date_val = date_str
-    end_date_val = end_date_str if end_date_str else date_str  # Use NER end_date or fallback to start_date
-    start_time_val = time_str
+    end_date_val = end_date_str if end_date_str else start_date_val
     end_time_val = end_time_str  # Use NER end_time
-    loc_val = loc_str
     is_allday_val = False
     used_model = "Fast-Inference (spaCy)"
     ai_message = ""
 
+    # [NEW] 한글 입력: 스마트 요약 생성 (Pattern Matcher로 추출된 정보 사용)
+    if is_korean_input:
+        # 장소 + 약속 키워드 기반 요약 생성
+        keywords = ['술', '밥', '미팅', '회의', '만나', '약속', '파티', '생일', '저녁', '점심', '아침', '커피', '카페']
+        found_keyword = ""
+        for kw in keywords:
+            if kw in original_text:
+                found_keyword = kw
+                break
+        
+        if loc_val and found_keyword:
+            summary_val = f"{loc_val}에서 {found_keyword}"
+        elif loc_val:
+            summary_val = f"{loc_val} 약속"
+        elif found_keyword:
+            summary_val = f"{found_keyword} 약속"
+        else:
+            # 첫 번째 의미 있는 문장 사용
+            lines = [l.strip() for l in original_text.split('\n') if len(l.strip()) > 5]
+            # 메시지 타임스탬프 제외
+            content_lines = [l for l in lines if not l.startswith('오후') and not l.startswith('오전') and '장지윤' not in l and 'HY' not in l]
+            if content_lines:
+                summary_val = content_lines[0][:30]
+
     # [Branch] If fast mode, return immediately
     if mode == "fast":
-        if is_korean_input: loc_val = translate_english_to_korean(loc_val)
         return ExtractResponse(
             original_text=original_text, translated_text=translated_text,
             summary=summary_val, description=description_val,
@@ -1176,8 +1281,25 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         )
 
     # 2. Gemini Extraction (Smart Fallback)
-    # Only call if spaCy missed critical info
-    needs_gemini = is_ocr or not date_str or not time_str
+    # [MODIFIED] Only call if BOTH date AND time are missing (more conservative)
+    has_date = bool(start_date_val)
+    has_time = bool(start_time_val)
+    
+    # Use Pattern Matcher results if spaCy failed
+    if not start_date_val and multiple_dates:
+        start_date_val = multiple_dates[0]
+        print(f"[AI] Using Pattern Matcher date: {start_date_val}")
+    if not start_time_val and multiple_times:
+        start_time_val = multiple_times[0]
+        print(f"[AI] Using Pattern Matcher time: {start_time_val}")
+    
+    # [MODIFIED] Skip Gemini if we have both date AND time from spaCy/PatternMatcher
+    needs_gemini = not (has_date and has_time)
+    
+    # For OCR, be more lenient - only call Gemini if critically missing
+    if is_ocr and has_date and has_time:
+        needs_gemini = False
+        print("[AI] ✓ OCR extraction complete (skipping Gemini)")
     
     # " to " pattern: only call Gemini if END_TIME wasn't already extracted by spaCy
     if " to " in translated_text and not end_time_str:
@@ -1200,13 +1322,16 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
             loc_val = gemini_data.get("location") or loc_val
             is_allday_val = gemini_data.get("is_allday") or False
             used_model = "🧠 Smart (Gemini 2.5)"
+    else:
+        # [NEW] Mark as spaCy-only success
+        used_model = "⚡ Fast (spaCy + PatternMatcher)"
 
     # 3. Localization
     if is_korean_input and used_model.startswith("Fast"):
         loc_val = translate_english_to_korean(loc_val)
 
-    # 4. Interactive Question
-    if not start_date_val or (not start_time_val and not is_allday_val):
+    # 4. Interactive Question (only if really missing)
+    if not start_date_val and not start_time_val:
         current_data = {'date': start_date_val, 'time': start_time_val, 'loc': loc_val}
         ai_message = ask_gemini_for_missing_info(original_text, current_data, lang=lang)
 
@@ -1299,31 +1424,42 @@ async def api_reanalyze_with_gemini(request: ReanalyzeRequest):
     )
 
 
-# --- 2. Image Analysis (Vision) ---
+# --- 2. Image Analysis (Vision) - Gemini 통합 (1회 호출) ---
 @app.post("/extract-image", response_model=ExtractResponse)
 async def api_extract_image_schedule(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         
-        # 1. Transcribe Image to Text
-        transcribed_text = run_vision_transcription(contents)
+        # [NEW] Gemini 통합 호출 - OCR + 분석을 한 번에!
+        result = run_vision_extraction(contents)
         
-        if not transcribed_text:
-            return JSONResponse(status_code=500, content={"error": "Failed to read text from image."})
-            
-        print(f"?? Image Transcribed: {transcribed_text[:50]}...")
-
-        # 2. Process as Text (spaCy -> Gemini)
-        # We force 'full' mode to ensure high quality extraction from OCR text
-        result = process_text_schedule(transcribed_text, mode="full", is_ocr=True)
+        if "error" in result:
+            return JSONResponse(status_code=500, content={"error": result["error"]})
         
-        # Update model name to indicate source
-        result.used_model = f"Image OCR + {result.used_model}"
-        return result
+        # 결과를 ExtractResponse 형식으로 변환
+        transcribed_text = result.get("transcribed_text", "")
+        print(f"📝 Image Extracted: {result.get('summary', 'N/A')}")
+        
+        return ExtractResponse(
+            original_text=transcribed_text,
+            translated_text=transcribed_text,  # 이미 원본 언어 유지
+            summary=result.get("summary", ""),
+            description=result.get("description", ""),
+            start_date=result.get("start_date", ""),
+            end_date=result.get("end_date", ""),
+            start_time=result.get("start_time", ""),
+            end_time=result.get("end_time", ""),
+            location=result.get("location", ""),
+            is_allday=result.get("is_allday", False),
+            ai_message="",
+            used_model="🧠 Gemini Vision (통합)",
+            spacy_log=f"Direct extraction from image"
+        )
 
     except HTTPException as he:
         return JSONResponse(status_code=he.status_code, content={"error": he.detail})
     except Exception as e:
+        print(f"[Vision API] Error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
@@ -1845,18 +1981,21 @@ async def delete_event(request: Request, event_id: str):
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):
     key = request.query_params.get("key")
-    if key != "1234": return HTMLResponse("<h1>?? Access Denied</h1>", status_code=403)
+    if key != "1234": 
+        return HTMLResponse("<h1>Access Denied</h1>", status_code=403)
 
     try:
-        if not HF_TOKEN: return HTMLResponse("<h1>?? HF_TOKEN not set.</h1>")
+        if not HF_TOKEN: 
+            return HTMLResponse("<h1>HF_TOKEN not set.</h1>")
         api = HfApi(token=HF_TOKEN)
         try:
             files = api.list_repo_files(repo_id=DATASET_REPO_ID, repo_type="dataset")
         except Exception as e:
-            return HTMLResponse(f"<h1>? Failed to list files.</h1><pre>{str(e)}</pre>")
+            return HTMLResponse(f"<h1>Failed to list files.</h1><pre>{str(e)}</pre>")
 
         csv_files = [f for f in files if f.endswith('.csv')]
-        if not csv_files: return HTMLResponse("<h1>?? No data found.</h1>")
+        if not csv_files: 
+            return HTMLResponse("<h1>No data found.</h1>")
 
         dfs = []
         for file in csv_files:
@@ -1868,15 +2007,150 @@ async def admin_dashboard(request: Request):
             except Exception:
                 continue
 
-        if not dfs: return HTMLResponse("<h1>? Error loading CSV.</h1>")
+        if not dfs: 
+            return HTMLResponse("<h1>Error loading CSV.</h1>")
+        
         final_df = pd.concat(dfs, ignore_index=True)
-        if 'timestamp' in final_df.columns: final_df = final_df.sort_values(by='timestamp', ascending=False)
-        table_html = final_df.to_html(classes="table table-striped", index=False)
-        return HTMLResponse(
-            f"<html><head><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'></head><body><div class='container mt-4'><h1>?? Feedback Log</h1><p>Total: {len(final_df)}</p>{table_html}</div></body></html>")
+        
+        # NaN 값을 빈 문자열로 변환
+        final_df = final_df.fillna('')
+        
+        # 긴 텍스트 truncation (100자 제한)
+        for col in ['original_text', 'translated_text']:
+            if col in final_df.columns:
+                final_df[col] = final_df[col].apply(
+                    lambda x: (str(x)[:100] + '...') if len(str(x)) > 100 else str(x)
+                )
+        
+        if 'timestamp' in final_df.columns: 
+            final_df = final_df.sort_values(by='timestamp', ascending=False)
+        
+        table_html = final_df.to_html(classes="table", index=False, escape=False)
+        
+        # 커스텀 CSS 스타일
+        custom_css = """
+        <style>
+            * { box-sizing: border-box; }
+            body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                margin: 0;
+                padding: 20px;
+            }
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+            .card {
+                background: rgba(255, 255, 255, 0.95);
+                border-radius: 16px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                padding: 24px;
+                backdrop-filter: blur(10px);
+            }
+            h1 {
+                color: #4a5568;
+                font-weight: 600;
+                margin-bottom: 8px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            h1::before {
+                content: '📊';
+                font-size: 1.2em;
+            }
+            .stats {
+                color: #718096;
+                font-size: 14px;
+                margin-bottom: 20px;
+                padding: 12px 16px;
+                background: linear-gradient(135deg, #f6f8ff 0%, #f0e6ff 100%);
+                border-radius: 8px;
+                display: inline-block;
+            }
+            .table-wrapper {
+                overflow-x: auto;
+                border-radius: 12px;
+                border: 1px solid #e2e8f0;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+            th {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 14px 12px;
+                text-align: left;
+                font-weight: 500;
+                text-transform: uppercase;
+                font-size: 11px;
+                letter-spacing: 0.5px;
+                position: sticky;
+                top: 0;
+                white-space: nowrap;
+            }
+            td {
+                padding: 12px;
+                border-bottom: 1px solid #e2e8f0;
+                color: #4a5568;
+                max-width: 200px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            tr:hover td {
+                background: #f7fafc;
+            }
+            tr:nth-child(even) td {
+                background: #fafafa;
+            }
+            tr:nth-child(even):hover td {
+                background: #f0f4f8;
+            }
+            td:first-child {
+                font-family: 'Consolas', monospace;
+                font-size: 11px;
+                color: #718096;
+            }
+            .empty-cell {
+                color: #cbd5e0;
+                font-style: italic;
+            }
+        </style>
+        """
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Admin - Feedback Log</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+            {custom_css}
+        </head>
+        <body>
+            <div class="container">
+                <div class="card">
+                    <h1>Feedback Log</h1>
+                    <div class="stats">Total Records: <strong>{len(final_df)}</strong></div>
+                    <div class="table-wrapper">
+                        {table_html}
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return HTMLResponse(html_content)
 
     except Exception as e:
-        return HTMLResponse(f"<h1>? Error: {str(e)}</h1>")
+        return HTMLResponse(f"<h1>Error: {str(e)}</h1>")
 
 
 if __name__ == "__main__":

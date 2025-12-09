@@ -1733,6 +1733,12 @@
                                 <span id="model-badge" class="model-badge">Pending</span>
                             </div>
                             <div class="detail-item">
+                                <span class="detail-label">🔤 Raw OCR Text (Original)</span>
+                                <div id="raw-ocr-output" class="detail-content"
+                                    style="background: #fef3c7; border: 1px solid #fbbf24; padding: 10px; border-radius: 8px; white-space: pre-wrap; max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.8rem;">
+                                    ...</div>
+                            </div>
+                            <div class="detail-item">
                                 <span class="detail-label" id="lbl-trans">Translated / Extracted Text</span>
                                 <div id="translated-output" class="detail-content">...</div>
                             </div>
@@ -2330,6 +2336,12 @@
         function updateUI(data) {
             originalText = data.original_text;
             translatedText = data.translated_text;
+
+            // Raw OCR Text (원본 - 번역 전)
+            const rawOcrOutput = document.getElementById('raw-ocr-output');
+            if (rawOcrOutput) {
+                rawOcrOutput.innerText = data.original_text || "(No raw text)";
+            }
 
             document.getElementById('translated-output').innerText = data.translated_text || "(No translation)";
             document.getElementById('spacy-log').innerText = data.spacy_log || "No internal logs.";
