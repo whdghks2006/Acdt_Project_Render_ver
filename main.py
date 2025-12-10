@@ -22,7 +22,7 @@ from docx import Document
 
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
-from pattern_matcher import SchedulePatternMatcher  # [NEW] 커스텀 패턴 매처
+# from pattern_matcher import SchedulePatternMatcher  # [DISABLED] 모델 성능 향상으로 비활성화
 
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, HTMLResponse
@@ -38,7 +38,7 @@ from authlib.integrations.starlette_client import OAuth
 # Custom NER Model with 6 entity labels
 # Labels: START_DATE, START_TIME, END_DATE, END_TIME, LOC, EVENT_TITLE
 CUSTOM_NER_MODEL_PATH = "./output/new_ner_model"
-FALLBACK_NER_MODEL = "en_core_web_md"  # Fallback if custom model not found
+FALLBACK_NER_MODEL = "en_core_web_lg"  # Fallback if custom model not found (lg for better NER)
 DATASET_REPO_ID = "snowmang/scheduler-feedback-data"
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -488,9 +488,106 @@ def extract_text_from_xlsx(file_bytes):
 # ==============================================================================
 # AI Logic 1: Text Analysis (spaCy + Gemini Hybrid)
 # ==============================================================================
+
+def _extract_date_from_text(text: str) -> str:
+    """
+    Extract date from text using regex patterns, then parse with dateparser.
+    Handles "next year" / "내년" by parsing date first, then adding 1 year.
+    Returns YYYY-MM-DD format or empty string.
+    """
+    if not text or len(text) < 3:
+        return ""
+    
+    # Check for "next year" / "내년" modifier BEFORE extraction
+    has_next_year = "next year" in text.lower() or "내년" in text
+    
+    # Date patterns to search for (in order of specificity)
+    # NOTE: Korean input is translated to English first, so only English patterns needed
+    date_patterns = [
+        # Full date with year: "January 5th 2026", "Dec 25, 2025"
+        (r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?)', 'month_day'),
+        # Day Month format: "5th January", "25 Dec"
+        (r'(\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*)', 'day_month'),
+        # Slash format: "12/25", "12/25/2025"
+        (r'(\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 'slash'),
+        # Relative weekday: "next Friday", "this Monday"
+        (r'((?:next|this)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))', 'relative_weekday'),
+        # Other relative: "next week", "next month"
+        (r'((?:next|this)\s+(?:week|month))', 'relative_period'),
+        # Simple relative: "tomorrow", "today"
+        (r'(tomorrow|today|yesterday)', 'simple_relative'),
+    ]
+    
+    extracted_date = ""
+    matched_pattern = ""
+    for pattern, pattern_name in date_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            extracted_date = match.group(1).strip()
+            matched_pattern = pattern_name
+            print(f"[DateExtract] Pattern '{pattern_name}' matched: '{extracted_date}'")
+            break
+    
+    if not extracted_date:
+        # No specific date pattern found - return empty
+        # Don't use "next year" fallback here because this function may be called
+        # with invalid candidates like "a New Year's party"
+        print(f"[DateExtract] No date pattern in: '{text[:50]}'")
+        return ""
+    
+    # Parse the extracted date
+    try:
+        # Common dateparser settings
+        common_settings = {
+            'RELATIVE_BASE': datetime.datetime.now(),
+            'PARSERS': ['relative-time', 'absolute-time', 'timestamp', 'custom-formats'],
+            'PREFER_LOCALE_DATE_ORDER': True
+        }
+        
+        # If "next year" is present, DON'T use PREFER_DATES_FROM: 'future'
+        # because it might already push the date to next year
+        if has_next_year:
+            # Parse with current year as base, then add 1 year
+            parsed = dateparser.parse(
+                extracted_date,
+                languages=['en'],
+                settings={
+                    **common_settings,
+                    'PREFER_DATES_FROM': 'past',  # Keep in current year first
+                }
+            )
+            if parsed:
+                from dateutil.relativedelta import relativedelta
+                parsed = parsed + relativedelta(years=1)
+                print(f"[DateExtract] With 'next year': {extracted_date} -> {parsed.strftime('%Y-%m-%d')}")
+        else:
+            # Normal parsing - prefer future dates
+            parsed = dateparser.parse(
+                extracted_date,
+                languages=['en'],
+                settings={
+                    **common_settings,
+                    'PREFER_DATES_FROM': 'future',
+                }
+            )
+        
+        if parsed:
+            
+            result = parsed.strftime("%Y-%m-%d")
+            print(f"[DateExtract] Final: '{extracted_date}' -> {result}")
+            return result
+        else:
+            print(f"[DateExtract] dateparser.parse failed for: '{extracted_date}'")
+    except Exception as e:
+        print(f"[DateExtract] Error: {e}")
+    
+    return ""
+
 def run_ner_extraction(text, nlp_model, original_text=None):
     """spaCy + Pattern Matcher를 이용한 고정밀 1차 추출"""
-    if not text: return "", "", "", ""
+    if not text: return "", "", "", "", "", ""
+    
+    print(f"[NER] Input text: {text[:80]}...")
     
     # Pattern Matcher는 원본 텍스트 우선 사용 (한국어 패턴 지원)
     text_for_pm = original_text if original_text else text
@@ -519,28 +616,111 @@ def run_ner_extraction(text, nlp_model, original_text=None):
         start_dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
     if not start_times:
         start_times = [ent.text for ent in doc.ents if ent.label_ == "TIME"]
+    
+    # [NEW] If no location found, try base model (better GPE/LOC recognition)
+    if not locs and "nlp_base" in models:
+        base_doc = models["nlp_base"](text)
+        base_locs = [ent.text for ent in base_doc.ents if ent.label_ in ["GPE", "LOC", "FAC", "ORG"]]
+        if base_locs:
+            locs = base_locs
+            print(f"[NER] Base model found location: {locs}")
 
     # Phase 3: Merge and validate results
     # Filter spaCy results (remove misidentified entities)
     filtered_times = [t for t in start_times if not _is_date_format(t)]
     filtered_locs = [l for l in locs if not _contains_time_keywords(l)]
     
-    # Pattern Matcher takes priority, then filtered spaCy results
-    date_str = pm_dates[0] if pm_dates else (", ".join(start_dates) if start_dates else "")
+    # [DEBUG] Log spaCy extraction results
+    print(f"[NER] spaCy found: dates={start_dates}, times={start_times}, locs={locs}")
+    
+    # [UPDATED] Try each spaCy date candidate until one parses successfully
+    # This handles cases like ["a New Year's party", "January 5th"] where first item is wrong
+    date_str = ""
+    all_date_candidates = pm_dates + start_dates  # Combine pattern matcher and spaCy results
+    
+    for candidate in all_date_candidates:
+        # Try parsing with "next year" context from original text
+        if "next year" in text.lower() and "next year" not in candidate.lower():
+            candidate_with_context = candidate + " next year"
+        else:
+            candidate_with_context = candidate
+        
+        parsed = _extract_date_from_text(candidate_with_context)
+        if parsed:
+            date_str = parsed
+            print(f"[NER] Parsed date from candidate: '{candidate}' -> {date_str}")
+            break
+    
+    # End date handling
+    raw_end_date = end_dates[0] if end_dates else ""
+    end_date_str = _extract_date_from_text(raw_end_date) if raw_end_date else ""
+    
+    # [NEW] If all candidates failed, try extracting directly from original text
+    if not date_str:
+        print(f"[NER] All candidates failed, trying direct extraction from: '{text[:60]}...'")
+        date_str = _extract_date_from_text(text)
+        if date_str:
+            print(f"[NER] Direct extraction success: {date_str}")
+    
     time_str = pm_times[0] if pm_times else (", ".join(filtered_times) if filtered_times else "")
     loc_str = pm_loc if pm_loc else (", ".join(filtered_locs) if filtered_locs else "")
     
-    # End date/time from new labels
-    end_date_str = ", ".join(end_dates) if end_dates else ""
+    # If no end date, use start date
+    if not end_date_str and date_str:
+        end_date_str = date_str
+    
     end_time_str = ", ".join(end_times) if end_times else ""
 
-    # Event title inference (Heuristic)
+    # Event title inference (Heuristic) - improved to extract from original text
     if events:
         event_str = ", ".join(events)
-    elif locs:
-        event_str = f"Meeting at {loc_str}"
     else:
-        event_str = "New Schedule"
+        # Define event keywords
+        en_keywords = ["party", "meeting", "conference", "dinner", "lunch", "breakfast", 
+                      "wedding", "birthday", "anniversary", "concert", "show", "event",
+                      "presentation", "seminar", "workshop", "class", "lesson", 
+                      "appointment", "interview", "call", "session"]
+        ko_keywords = ["파티", "미팅", "회의", "저녁", "점심", "아침", "결혼식", "생일", 
+                      "기념일", "콘서트", "공연", "행사", "발표", "세미나", "워크샵", 
+                      "수업", "레슨", "약속", "면접", "통화", "세션"]
+        
+        event_str = ""
+        original_for_event = text
+        
+        # Try to find event keywords and extract surrounding context
+        for keyword in en_keywords:
+            # Find keyword position
+            match = re.search(rf'\b(\S+\s+)?(\S+\s+)?{keyword}\b', original_for_event, re.IGNORECASE)
+            if match:
+                # Get the full match and clean it up
+                extracted = match.group(0).strip()
+                # Remove leading articles and common words
+                extracted = re.sub(r"^(a|an|the|have|let's|let us)\s+", "", extracted, flags=re.IGNORECASE)
+                if len(extracted) > 3:
+                    event_str = extracted.title()
+                    print(f"[NER] Extracted event title: '{event_str}'")
+                    break
+        
+        # Try Korean keywords if English didn't match
+        if not event_str:
+            for keyword in ko_keywords:
+                if keyword in original_for_event:
+                    # Find context before keyword (up to 10 chars)
+                    idx = original_for_event.find(keyword)
+                    start = max(0, idx - 10)
+                    extracted = original_for_event[start:idx + len(keyword)].strip()
+                    # Clean up
+                    extracted = re.sub(r'^[^\w가-힣]+', '', extracted)
+                    if len(extracted) > 2:
+                        event_str = extracted
+                        print(f"[NER] Extracted event title: '{event_str}'")
+                        break
+        
+        if not event_str:
+            if locs:
+                event_str = f"Meeting at {loc_str}"
+            else:
+                event_str = "New Schedule"
 
     return date_str, time_str, end_date_str, end_time_str, loc_str, event_str
 
@@ -845,6 +1025,49 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
         return ""
 
 
+def enhance_with_gemini_title(text: str) -> dict:
+    """
+    [NEW] Gemini로 제목/설명만 추출 (병렬 처리용)
+    날짜/시간은 다루지 않고 오직 제목과 설명만 생성
+    """
+    if not GEMINI_API_KEY:
+        return {"summary": "", "description": ""}
+    
+    is_korean_input = check_is_korean(text)
+    lang_instruction = "IMPORTANT: Input is Korean. Return summary and description in Korean." if is_korean_input else ""
+    
+    prompt = f"""
+    You are a smart scheduler assistant.
+    Generate a SHORT, meaningful title and description for this event:
+    "{text}"
+    {lang_instruction}
+    
+    Rules:
+    1. summary: 짧은 제목 (3-7 단어). 핵심 이벤트만. 날짜/시간 제외.
+    2. description: 추가 맥락이나 세부사항 (선택적)
+    3. 한국어 입력이면 한국어로 응답
+    
+    Return JSON ONLY:
+    {{ "summary": "...", "description": "..." }}
+    """
+    
+    try:
+        response = get_gemini_content(prompt, target_model='gemini-2.5-flash')
+        clean = re.sub(r'```json|```', '', response.text).strip()
+        parsed = json.loads(clean)
+        
+        if isinstance(parsed, dict):
+            print(f"[Gemini] Enhanced title: '{parsed.get('summary', '')}'")
+            return {
+                "summary": parsed.get("summary", ""),
+                "description": parsed.get("description", "")
+            }
+    except Exception as e:
+        print(f"[Gemini] Title enhancement failed: {e}")
+    
+    return {"summary": "", "description": ""}
+
+
 # ==============================================================================
 # AI Logic 2: Vision Analysis (Image/Screenshot) - Gemini Only
 # ==============================================================================
@@ -1061,12 +1284,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"? Failed to load spaCy: {e}")
     
-    # Initialize Pattern Matcher
+    # [NEW] Load base model for location extraction (GPE/LOC recognition)
     try:
-        models["pattern_matcher"] = SchedulePatternMatcher()
-        print(f"? Custom Pattern Matcher initialized.")
+        base_model = "en_core_web_md"
+        if not spacy.util.is_package(base_model):
+            print(f"?? Downloading {base_model} for location extraction...")
+            spacy.cli.download(base_model)
+        models["nlp_base"] = spacy.load(base_model)
+        print(f"? Base model '{base_model}' loaded for location extraction.")
     except Exception as e:
-        print(f"? Failed to initialize Pattern Matcher: {e}")
+        print(f"?? Failed to load base model: {e}")
     
     yield
     print("? App Shutdown")
@@ -1168,99 +1395,12 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         date_str, time_str, end_date_str, end_time_str, loc_str, event_str = run_ner_extraction(translated_text, models["nlp_sm"], original_text)
 
     spacy_debug_str = f"StartDate=[{date_str}] StartTime=[{time_str}] EndDate=[{end_date_str}] EndTime=[{end_time_str}] Loc=[{loc_str}]"
-    # ===== 여러 일정 감지 (하이브리드 방식) =====
-    # Pattern Matcher로 빠른 감지
-    multiple_dates = []
-    multiple_times = []
-    if "pattern_matcher" in models:
-        pm = models["pattern_matcher"]
-        multiple_dates = pm.extract_dates(original_text)
-        multiple_times = pm.extract_times(original_text)
     
-    # Check for multiple schedules (but exclude time ranges like "10 AM to 4 PM")
-    # If " to " or " - " pattern exists with 2 times, it's likely a single schedule with time range
-    is_time_range = (len(multiple_times) == 2 and 
-                     (" to " in original_text.lower() or " - " in original_text or 
-                      "부터" in original_text or "~" in original_text))
-    
-    # Only treat as multiple schedules if:
-    # - More than 2 dates, OR
-    # - More than 2 times (not a simple range), OR
-    # - 2+ dates with 2+ times
-    is_multiple = (len(multiple_dates) > 2 or 
-                   (len(multiple_times) > 2) or 
-                   (len(multiple_dates) > 1 and len(multiple_times) > 1 and not is_time_range))
-    
-    if is_multiple:
-        print(f"[AI] Multiple schedules detected (dates:{len(multiple_dates)}, times:{len(multiple_times)})")
-        
-        # Try spaCy first (faster)
-        schedules = None
-        if "nlp_sm" in models:
-            print("[AI] Trying spaCy sentence-based extraction...")
-            schedules = extract_multiple_schedules_with_spacy(translated_text, models["nlp_sm"])
-        
-        # If spaCy succeeded
-        if schedules and len(schedules) > 1:
-            print(f"[AI] spaCy extracted {len(schedules)} schedules successfully!")
-            return ExtractResponse(
-                original_text=original_text,
-                translated_text=translated_text,
-                summary="",
-                description="",
-                start_date="",
-                end_date="",
-                start_time="",
-                end_time="",
-                location="",
-                is_allday=False,
-                ai_message="",
-                used_model="⚡ Fast (spaCy - Multiple)",
-                spacy_log=spacy_debug_str,
-                schedules=schedules
-            )
-        
-        # Fallback to Gemini if spaCy didn't work
-        print("[AI] spaCy insufficient, falling back to Gemini...")
-        schedules = extract_multiple_schedules_with_gemini(original_text)
-        
-        if schedules and len(schedules) > 1:
-            return ExtractResponse(
-                original_text=original_text,
-                translated_text=translated_text,
-                summary="",
-                description="",
-                start_date="",
-                end_date="",
-                start_time="",
-                end_time="",
-                location="",
-                is_allday=False,
-                ai_message="",
-                used_model="🧠 Smart (Gemini 2.5 - Multiple)",
-                spacy_log=spacy_debug_str,
-                schedules=schedules
-            )
-    
-    # ===== 단일 일정 처리 (기존 로직) =====
-
-    # [NEW] 한글 입력이면 Pattern Matcher 결과를 우선 사용!
-    pm_date = multiple_dates[0] if multiple_dates else ""
-    pm_time = multiple_times[0] if multiple_times else ""
-    pm_location = ""
-    if "pattern_matcher" in models:
-        pm_location = models["pattern_matcher"].extract_locations(original_text) or ""
-    
-    # 한글 입력: Pattern Matcher > spaCy
-    if is_korean_input:
-        start_date_val = pm_date if pm_date else date_str
-        start_time_val = pm_time if pm_time else time_str
-        loc_val = pm_location if pm_location else loc_str
-    else:
-        # 영어 입력: spaCy > Pattern Matcher
-        start_date_val = date_str if date_str else pm_date
-        start_time_val = time_str if time_str else pm_time
-        loc_val = loc_str if loc_str else pm_location
+    # ===== 단일 일정 처리 (spaCy + Gemini) =====
+    # [SIMPLIFIED] Pattern Matcher 비활성화 - spaCy 결과 직접 사용
+    start_date_val = date_str
+    start_time_val = time_str
+    loc_val = loc_str
 
     # Set Initial Values
     summary_val = original_text if is_korean_input else event_str
@@ -1308,19 +1448,11 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         )
 
     # 2. Gemini Extraction (Smart Fallback)
-    # [MODIFIED] Only call if BOTH date AND time are missing (more conservative)
+    # [SIMPLIFIED] spaCy 결과가 부족하면 Gemini로 보완
     has_date = bool(start_date_val)
     has_time = bool(start_time_val)
     
-    # Use Pattern Matcher results if spaCy failed
-    if not start_date_val and multiple_dates:
-        start_date_val = multiple_dates[0]
-        print(f"[AI] Using Pattern Matcher date: {start_date_val}")
-    if not start_time_val and multiple_times:
-        start_time_val = multiple_times[0]
-        print(f"[AI] Using Pattern Matcher time: {start_time_val}")
-    
-    # [MODIFIED] Skip Gemini if we have both date AND time from spaCy/PatternMatcher
+    # [MODIFIED] Skip Gemini if we have both date AND time from spaCy
     needs_gemini = not (has_date and has_time)
     
     # For OCR, be more lenient - only call Gemini if critically missing
@@ -1350,8 +1482,8 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
             is_allday_val = gemini_data.get("is_allday") or False
             used_model = "🧠 Smart (Gemini 2.5)"
     else:
-        # [NEW] Mark as spaCy-only success
-        used_model = "⚡ Fast (spaCy + PatternMatcher)"
+        # [UPDATED] spaCy만 사용 성공
+        used_model = "⚡ Fast (spaCy)"
 
     # 3. Localization
     if is_korean_input and used_model.startswith("Fast"):
@@ -1376,6 +1508,40 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 @app.post("/extract", response_model=ExtractResponse)
 async def api_extract_schedule(request: ExtractRequest):
     return process_text_schedule(request.text, request.mode, request.lang)
+
+
+# --- 1.3. Title/Description Enhancement (Gemini Async) ---
+class EnhanceRequest(BaseModel):
+    text: str
+
+class EnhanceResponse(BaseModel):
+    summary: str
+    description: str
+    success: bool
+
+@app.post("/enhance", response_model=EnhanceResponse)
+async def api_enhance_title(request: EnhanceRequest):
+    """
+    [NEW] Gemini로 제목/설명만 향상 (병렬 처리용)
+    - 프론트엔드에서 /extract 호출 후 비동기로 /enhance 호출
+    - 날짜/시간/장소는 건드리지 않음
+    """
+    print(f"[Enhance] Requesting title enhancement for: {request.text[:50]}...")
+    
+    result = enhance_with_gemini_title(request.text)
+    
+    if result.get("summary"):
+        return EnhanceResponse(
+            summary=result["summary"],
+            description=result.get("description", ""),
+            success=True
+        )
+    else:
+        return EnhanceResponse(
+            summary="",
+            description="",
+            success=False
+        )
 
 
 # --- 1.5. Quality Enhancement (Force Gemini Re-analysis) ---

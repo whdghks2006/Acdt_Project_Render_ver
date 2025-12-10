@@ -2400,23 +2400,19 @@
             document.getElementById('analysis-details').style.display = 'none';
 
             try {
-                // 1. FAST
+                // 1. FAST - spaCy only (immediate response with date/time/location)
                 const fastRes = await fetch('/extract', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'fast' }),
                     signal: currentAbortController.signal
                 });
-                updateUI(await fastRes.json());
+                const fastData = await fastRes.json();
+                updateUI(fastData);
 
-                // 2. FULL
-                const fullRes = await fetch('/extract', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'full' }),
-                    signal: currentAbortController.signal
-                });
-                updateUI(await fullRes.json());
+                // 2. ASYNC ENHANCE - Gemini for title/description (parallel, non-blocking)
+                // This runs in background and updates title when ready
+                enhanceTitleAsync(inputText);
 
             } catch (error) {
                 if (error.name === 'AbortError') {
@@ -2433,6 +2429,58 @@
                 currentAbortController = null;
             }
         }
+
+        // [NEW] Async title enhancement - runs in background
+        async function enhanceTitleAsync(inputText) {
+            try {
+                console.log('[Enhance] Starting async title enhancement...');
+                const enhanceBtn = document.getElementById('enhance-quality-btn');
+                if (enhanceBtn) {
+                    enhanceBtn.innerHTML = '⏳ AI...';
+                    enhanceBtn.style.opacity = '0.7';
+                }
+
+                const res = await fetch('/enhance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: inputText })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.summary) {
+                        // Update title only if current one is generic
+                        const summaryBox = document.getElementById('summary-box');
+                        const currentTitle = summaryBox.value.toLowerCase();
+                        const genericTitles = ['new schedule', 's party', 'party', 'meeting'];
+
+                        if (!currentTitle || genericTitles.some(g => currentTitle.includes(g))) {
+                            summaryBox.value = data.summary;
+                            console.log('[Enhance] Title updated to:', data.summary);
+                        }
+
+                        // Update description if empty
+                        const descBox = document.getElementById('description-box');
+                        if (!descBox.value && data.description) {
+                            descBox.value = data.description;
+                        }
+                    }
+                }
+
+                if (enhanceBtn) {
+                    enhanceBtn.innerHTML = '✨ Enhance';
+                    enhanceBtn.style.opacity = '1';
+                }
+            } catch (error) {
+                console.log('[Enhance] Title enhancement skipped:', error.message);
+                const enhanceBtn = document.getElementById('enhance-quality-btn');
+                if (enhanceBtn) {
+                    enhanceBtn.innerHTML = '✨ Enhance';
+                    enhanceBtn.style.opacity = '1';
+                }
+            }
+        }
+
 
         function handleStopAnalysis() {
             if (currentAbortController) {

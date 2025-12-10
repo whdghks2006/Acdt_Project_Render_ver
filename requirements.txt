@@ -4,12 +4,13 @@ python-multipart  # [Added] For file uploads
 pillow            # [Added] For image processing
 
 spacy>=3.7.0
-https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.1/en_core_web_md-3.7.1-py3-none-any.whl
+https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.1/en_core_web_lg-3.7.1-py3-none-any.whl
 
 google-generativeai>=0.7.2
 deep_translator==1.11.4
 
 dateparser
+python-dateutil  # [Added] For relativedelta
 pytz
 pandas
 huggingface-hub>=0.16.0
