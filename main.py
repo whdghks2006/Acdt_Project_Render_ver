@@ -1350,9 +1350,13 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
             len(dates_found) >= 2 or
             "also" in translated_text.lower() or
             "그리고" in original_text or
-            "그리고" in translated_text.lower() or
+            "afterwards" in translated_text.lower() or
             ", and " in translated_text.lower()
         )
+        
+        # Debug logging
+        print(f"[Multi] dates_found={dates_found}, locs_found={locs_found}")
+        print(f"[Multi] has_multiple_signals={has_multiple_signals}, 'also' in text: {'also' in translated_text.lower()}, 'afterwards' in text: {'afterwards' in translated_text.lower()}")
         
         if has_multiple_signals:
             print(f"[AI] Multiple schedules detected: {len(dates_found)} dates, {len(locs_found)} locations")
