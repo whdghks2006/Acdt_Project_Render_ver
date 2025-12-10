@@ -992,31 +992,53 @@ def run_vision_analysis(image_bytes):
 # Data Handling & Lifecycle
 # ==============================================================================
 def save_feedback_to_hub(original_text, translated_text, final_data):
+    import traceback
+    unique_filename = None
     try:
-        if not HF_TOKEN: return
+        if not HF_TOKEN:
+            print("⚠️ HF_TOKEN not set, skipping feedback save")
+            return
+        
+        print(f"📝 Saving feedback... original_text={original_text[:50] if original_text else 'None'}...")
+        
         new_row = {
             "timestamp": datetime.datetime.now().isoformat(),
-            "original_text": original_text,
-            "translated_text": translated_text,
-            "final_summary": final_data.summary,
-            "final_start_date": final_data.start_date,
-            "final_end_date": final_data.end_date,
-            "final_start_time": final_data.start_time,
-            "final_end_time": final_data.end_time,
-            "final_loc": final_data.location,
-            "final_description": final_data.description,
-            "is_allday": final_data.is_allday
+            "original_text": original_text or "",
+            "translated_text": translated_text or "",
+            "final_summary": final_data.summary or "",
+            "final_start_date": final_data.start_date or "",
+            "final_end_date": final_data.end_date or "",
+            "final_start_time": final_data.start_time or "",
+            "final_end_time": final_data.end_time or "",
+            "final_loc": final_data.location or "",
+            "final_description": final_data.description or "",
+            "is_allday": final_data.is_allday or False
         }
         df = pd.DataFrame([new_row])
         unique_filename = f"feedback_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        df.to_csv(unique_filename, index=False)
+        df.to_csv(unique_filename, index=False, encoding='utf-8')
+        print(f"📄 CSV created: {unique_filename}")
 
         api = HfApi(token=HF_TOKEN)
-        api.upload_file(path_or_fileobj=unique_filename, path_in_repo=unique_filename, repo_id=DATASET_REPO_ID,
-                        repo_type="dataset")
-        print(f"📊 Feedback saved: {unique_filename}")
+        api.upload_file(
+            path_or_fileobj=unique_filename, 
+            path_in_repo=unique_filename, 
+            repo_id=DATASET_REPO_ID,
+            repo_type="dataset"
+        )
+        print(f"✅ Feedback saved to Hub: {unique_filename}")
+        
     except Exception as e:
         print(f"❌ Save Error: {e}")
+        print(f"❌ Traceback: {traceback.format_exc()}")
+    finally:
+        # 로컬 CSV 파일 삭제
+        if unique_filename and os.path.exists(unique_filename):
+            try:
+                os.remove(unique_filename)
+                print(f"🗑️ Local file deleted: {unique_filename}")
+            except:
+                pass
 
 
 @asynccontextmanager
