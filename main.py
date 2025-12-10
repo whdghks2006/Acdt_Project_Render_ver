@@ -1803,6 +1803,8 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
 class BatchAddEventRequest(BaseModel):
     schedules: list  # List of schedule objects
     consent: bool = False
+    original_text: str = ""
+    translated_text: str = ""
 
 
 @app.post("/add-multiple-to-calendar")
@@ -1892,8 +1894,8 @@ async def add_multiple_to_calendar(request: Request, batch_data: BatchAddEventRe
                 for schedule in batch_data.schedules:
                     rows.append({
                         "timestamp": datetime.datetime.now().isoformat(),
-                        "original_text": "",  # batch에서는 original_text 없음
-                        "translated_text": "",
+                        "original_text": batch_data.original_text,
+                        "translated_text": batch_data.translated_text,
                         "final_summary": schedule.get('summary', ''),
                         "final_start_date": schedule.get('start_date', ''),
                         "final_end_date": schedule.get('end_date', ''),

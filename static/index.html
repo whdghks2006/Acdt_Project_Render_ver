@@ -2654,7 +2654,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         schedules: allSchedules,
-                        consent: document.getElementById('data-consent').checked
+                        consent: document.getElementById('data-consent').checked,
+                        original_text: originalText || "",
+                        translated_text: translatedText || ""
                     })
                 });
 
