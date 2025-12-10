@@ -22,7 +22,6 @@ from docx import Document
 
 from deep_translator import GoogleTranslator
 from huggingface_hub import HfApi, hf_hub_download
-# from pattern_matcher import SchedulePatternMatcher  # [DISABLED] 모델 성능 향상으로 비활성화
 
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, HTMLResponse
@@ -134,13 +133,13 @@ def clean_pdf_text(text: str) -> str:
     return text.strip()
 
 
-def analyze_assignment_pdf(text: str, nlp_model=None, pattern_matcher=None):
+def analyze_assignment_pdf(text: str, nlp_model=None):
     """
     과제물/실라버스 PDF 전용 분석기 (v4 - spaCy 우선)
     
     핵심 전략:
     1. 텍스트 전처리 (특수 문자 제거)
-    2. spaCy + Pattern Matcher로 최대한 추출
+    2. 정규식 + spaCy로 일정 추출
     3. Gemini는 사용하지 않음 (호출하는 쪽에서 결정)
     
     Returns:
@@ -151,14 +150,6 @@ def analyze_assignment_pdf(text: str, nlp_model=None, pattern_matcher=None):
     print(f"[PDF] Cleaned text: {len(text)} -> {len(cleaned_text)} chars")
     
     schedules = []
-    
-    # 2단계: Pattern Matcher로 모든 날짜/시간 먼저 추출
-    all_dates = []
-    all_times = []
-    if pattern_matcher:
-        all_dates = pattern_matcher.extract_dates(cleaned_text)
-        all_times = pattern_matcher.extract_times(cleaned_text)
-        print(f"[PDF] Pattern Matcher found: {len(all_dates)} dates, {len(all_times)} times")
     
     # 3단계: "Submit to ... Due:" 블록 패턴으로 분석
     # 전처리된 텍스트에서 더 유연한 패턴 사용
@@ -189,18 +180,19 @@ def analyze_assignment_pdf(text: str, nlp_model=None, pattern_matcher=None):
             "is_allday": False
         }
         
-        # 날짜 파싱
-        if pattern_matcher and date_str:
-            parsed = pattern_matcher.extract_dates(date_str)
+        # 날짜 파싱 (dateparser 사용)
+        if date_str:
+            parsed = dateparser.parse(date_str, languages=['en'])
             if parsed:
-                schedule["start_date"] = parsed[0]
-                schedule["end_date"] = parsed[0]
+                date_formatted = parsed.strftime('%Y-%m-%d')
+                schedule["start_date"] = date_formatted
+                schedule["end_date"] = date_formatted
         
         # 시간 파싱
-        if pattern_matcher and time_str:
-            parsed = pattern_matcher.extract_times(time_str)
+        if time_str:
+            parsed = dateparser.parse(time_str, languages=['en'])
             if parsed:
-                schedule["end_time"] = parsed[0]
+                schedule["end_time"] = parsed.strftime('%H:%M')
         
         # 과제명 추출 (마감일 앞뒤 컨텍스트)
         match_start = match.start()
@@ -414,27 +406,28 @@ def analyze_assignment_pdf(text: str, nlp_model=None, pattern_matcher=None):
         for ent in doc.ents:
             if ent.label_ in ["START_DATE", "DATE"]:
                 date_text = ent.text
-                if pattern_matcher:
-                    parsed = pattern_matcher.extract_dates(date_text)
-                    if parsed:
-                        existing = [s["start_date"] for s in schedules]
-                        if parsed[0] not in existing:
-                            start_idx = max(0, ent.start_char - 200)
-                            end_idx = min(len(cleaned_text), ent.end_char + 100)
-                            context = cleaned_text[start_idx:end_idx]
-                            
-                            event_match = re.search(r'([A-Z][A-Za-z\s]+(?:Essay|Poster|Video|Report|Summary|Presentation|Evaluation))', context)
-                            if event_match:
-                                new_schedule = {
-                                    "summary": event_match.group(1).strip()[:50],
-                                    "start_date": parsed[0],
-                                    "end_date": parsed[0],
-                                    "end_time": "",
-                                    "location": "",
-                                    "is_allday": True
-                                }
-                                schedules.append(new_schedule)
-                                print(f"[PDF] ✓ (spaCy) '{new_schedule['summary']}' -> {new_schedule['start_date']}")
+                parsed = dateparser.parse(date_text, languages=['en'])
+                if parsed:
+                    date_formatted = parsed.strftime('%Y-%m-%d')
+                    existing = [s["start_date"] for s in schedules]
+                    if date_formatted not in existing:
+                        start_idx = max(0, ent.start_char - 200)
+                        end_idx = min(len(cleaned_text), ent.end_char + 100)
+                        context = cleaned_text[start_idx:end_idx]
+                        
+                        event_match = re.search(r'([A-Z][A-Za-z\s]+(?:Essay|Poster|Video|Report|Summary|Presentation|Evaluation))', context)
+                        if event_match:
+                            new_schedule = {
+                                "summary": event_match.group(1).strip()[:50],
+                                "start_date": date_formatted,
+                                "end_date": date_formatted,
+                                "end_time": "",
+                                "location": "",
+                                "is_allday": True
+                            }
+                            schedules.append(new_schedule)
+                            print(f"[PDF] ✓ (spaCy) '{new_schedule['summary']}' -> {new_schedule['start_date']}")
+
     
     # 중복 제거
     seen = set()
@@ -540,8 +533,8 @@ def _extract_date_from_text(text: str) -> str:
         # Common dateparser settings
         common_settings = {
             'RELATIVE_BASE': datetime.datetime.now(),
-            'PARSERS': ['relative-time', 'absolute-time', 'timestamp', 'custom-formats'],
-            'PREFER_LOCALE_DATE_ORDER': True
+            'PREFER_LOCALE_DATE_ORDER': True,
+            'PREFER_DAY_OF_MONTH': 'first'
         }
         
         # If "next year" is present, DON'T use PREFER_DATES_FROM: 'future'
@@ -572,11 +565,40 @@ def _extract_date_from_text(text: str) -> str:
             )
         
         if parsed:
-            
             result = parsed.strftime("%Y-%m-%d")
             print(f"[DateExtract] Final: '{extracted_date}' -> {result}")
             return result
         else:
+            # Fallback: Manual calculation for "next [weekday]" patterns
+            weekday_map = {
+                'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+                'friday': 4, 'saturday': 5, 'sunday': 6
+            }
+            lower_date = extracted_date.lower()
+            
+            for weekday_name, weekday_num in weekday_map.items():
+                if weekday_name in lower_date:
+                    today = datetime.date.today()
+                    days_ahead = weekday_num - today.weekday()
+                    
+                    # "next" means the upcoming one after this week
+                    if 'next' in lower_date:
+                        if days_ahead <= 0:
+                            days_ahead += 7
+                        days_ahead += 7  # Add extra week for "next"
+                    elif 'this' in lower_date:
+                        if days_ahead < 0:
+                            days_ahead += 7
+                    else:
+                        # Default: next occurrence
+                        if days_ahead <= 0:
+                            days_ahead += 7
+                    
+                    target_date = today + datetime.timedelta(days=days_ahead)
+                    result = target_date.strftime("%Y-%m-%d")
+                    print(f"[DateExtract] Manual fallback: '{extracted_date}' -> {result}")
+                    return result
+            
             print(f"[DateExtract] dateparser.parse failed for: '{extracted_date}'")
     except Exception as e:
         print(f"[DateExtract] Error: {e}")
@@ -584,24 +606,14 @@ def _extract_date_from_text(text: str) -> str:
     return ""
 
 def run_ner_extraction(text, nlp_model, original_text=None):
-    """spaCy + Pattern Matcher를 이용한 고정밀 1차 추출"""
+    """spaCy NER을 이용한 고정밀 1차 추출"""
     if not text: return "", "", "", "", "", ""
     
     print(f"[NER] Input text: {text[:80]}...")
     
-    # Pattern Matcher는 원본 텍스트 우선 사용 (한국어 패턴 지원)
-    text_for_pm = original_text if original_text else text
-    
-    # Phase 1: Pattern Matcher (높은 정밀도)
-    pm_dates, pm_times, pm_loc = [], [], None
-    if "pattern_matcher" in models:
-        pm = models["pattern_matcher"]
-        pm_dates = pm.extract_dates(text_for_pm)
-        pm_times = pm.extract_times(text_for_pm)
-        pm_loc = pm.extract_locations(text_for_pm)
-    
-    # Phase 2: spaCy NER (Custom Model with 6 labels)
+    # spaCy NER (Custom Model with 6 labels)
     doc = nlp_model(text)
+
     
     # New 6-label extraction
     start_dates = [ent.text for ent in doc.ents if ent.label_ == "START_DATE"]
@@ -636,7 +648,7 @@ def run_ner_extraction(text, nlp_model, original_text=None):
     # [UPDATED] Try each spaCy date candidate until one parses successfully
     # This handles cases like ["a New Year's party", "January 5th"] where first item is wrong
     date_str = ""
-    all_date_candidates = pm_dates + start_dates  # Combine pattern matcher and spaCy results
+    all_date_candidates = start_dates  # Use spaCy results
     
     for candidate in all_date_candidates:
         # Try parsing with "next year" context from original text
@@ -662,8 +674,8 @@ def run_ner_extraction(text, nlp_model, original_text=None):
         if date_str:
             print(f"[NER] Direct extraction success: {date_str}")
     
-    time_str = pm_times[0] if pm_times else (", ".join(filtered_times) if filtered_times else "")
-    loc_str = pm_loc if pm_loc else (", ".join(filtered_locs) if filtered_locs else "")
+    time_str = ", ".join(filtered_times) if filtered_times else ""
+    loc_str = ", ".join(filtered_locs) if filtered_locs else ""
     
     # If no end date, use start date
     if not end_date_str and date_str:
@@ -1139,78 +1151,6 @@ Return JSON ONLY:
         return {"error": str(e)}
 
 
-def run_vision_transcription(image_bytes):
-    """이미지에서 텍스트만 추출 (OCR) - Gemini 사용"""
-    if not GEMINI_API_KEY:
-        print("[OCR] GEMINI_API_KEY is missing.")
-        return ""
-    
-    try:
-        image = PIL.Image.open(io.BytesIO(image_bytes))
-        prompt = "Transcribe all text from this image exactly as it appears. Do not summarize."
-        
-        response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
-        if not response or not response.text:
-            print("[OCR] Gemini returned empty response.")
-            return ""
-        
-        print("[OCR] ✓ Gemini transcription complete")
-        return response.text.strip()
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        print(f"[OCR] Vision Transcription Error: {e}")
-        return ""
-
-
-
-def run_vision_analysis(image_bytes):
-    """이미지를 분석하여 일정 정보 추출"""
-    if not GEMINI_API_KEY: return {"error": "GEMINI_API_KEY not set"}
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-
-    try:
-        image = PIL.Image.open(io.BytesIO(image_bytes))
-        prompt = f"""
-        You are a smart scheduler assistant. Today is {today}.
-        Analyze this image (screenshot of chat conversation or document).
-
-        Your Task:
-        1. Read all text in the image (Supports Korean & English).
-        2. Identify schedule details (Summary, Date, Time, Location).
-        3. **If the text is in Korean, the 'summary' and 'description' MUST be in Korean.**
-        
-        CRITICAL RULES:
-        - **DO NOT invent or assume dates/times if they are not explicitly mentioned.**
-        - If no date is mentioned, return empty string "" for start_date and end_date.
-        - If no time is mentioned, return empty string "" for start_time and end_time.
-        - **Keep summary SHORT** (max 5-7 words). Put details in 'description'.
-        - **Preserve original language**: Korean input → Korean output.
-
-        Return JSON ONLY:
-        {{
-          "summary": "...",
-          "description": "...",
-          "start_date": "YYYY-MM-DD or empty", "end_date": "YYYY-MM-DD or empty",
-          "start_time": "HH:MM or empty", "end_time": "HH:MM or empty",
-          "location": "...", "is_allday": boolean,
-          "question": "Follow-up question if info is missing"
-        }}
-        """
-        # [Updated] Try 2.5 -> Fallback 1.5 (With Error Reporting)
-        response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
-        clean = re.sub(r'```json|```', '', response.text).strip()
-        return json.loads(clean)
-
-    except HTTPException as he:
-        # 429 에러는 그대로 전달
-        return {"error": he.detail, "error_code": he.status_code}
-    except Exception as e:
-        error_msg = str(e)
-        print(f"? Vision Analysis Error: {error_msg}")
-        return {"error": error_msg}
-
-
 # ==============================================================================
 # Data Handling & Lifecycle
 # ==============================================================================
@@ -1669,14 +1609,13 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
         print("[PDF] Processing PDF file...")
         text_content = extract_text_from_pdf(contents)
         
-        # PDF 전용 분석: 커스텀 NER + Pattern Matcher 우선 사용
+        # PDF 전용 분석: spaCy 우선 사용
         if text_content and "nlp_sm" in models:
-            print("[PDF] Step 1: Using spaCy + Pattern Matcher...")
+            print("[PDF] Step 1: Using spaCy...")
             nlp_model = models.get("nlp_sm")
-            pm = models.get("pattern_matcher")
             
-            # spaCy + Pattern Matcher로 분석
-            spacy_schedules = analyze_assignment_pdf(text_content, nlp_model, pm)
+            # spaCy로 분석
+            spacy_schedules = analyze_assignment_pdf(text_content, nlp_model)
             spacy_count = len(spacy_schedules) if spacy_schedules else 0
             
             # 결과가 충분하면 (3개 이상) spaCy 결과만 반환
