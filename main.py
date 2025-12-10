@@ -1336,8 +1336,52 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 
     spacy_debug_str = f"StartDate=[{date_str}] StartTime=[{time_str}] EndDate=[{end_date_str}] EndTime=[{end_time_str}] Loc=[{loc_str}]"
     
+    # ===== 다중 일정 감지 (spaCy 결과 기반) =====
+    # spaCy가 여러 날짜 또는 장소를 감지하면 다중 일정으로 처리
+    if "nlp_sm" in models and mode == "full":
+        doc = models["nlp_sm"](translated_text)
+        
+        # 여러 날짜 감지 확인
+        dates_found = [ent.text for ent in doc.ents if ent.label_ in ["START_DATE", "DATE"]]
+        locs_found = [ent.text for ent in doc.ents if ent.label_ in ["LOC", "GPE"]]
+        
+        # 2개 이상의 날짜 또는 "also", "그리고" 같은 키워드가 있으면 다중 일정으로 처리
+        has_multiple_signals = (
+            len(dates_found) >= 2 or
+            "also" in translated_text.lower() or
+            "그리고" in original_text or
+            "그리고" in translated_text.lower() or
+            ", and " in translated_text.lower()
+        )
+        
+        if has_multiple_signals:
+            print(f"[AI] Multiple schedules detected: {len(dates_found)} dates, {len(locs_found)} locations")
+            print(f"[AI] Calling Gemini for multiple schedule extraction...")
+            
+            # Gemini로 다중 일정 추출
+            schedules = extract_multiple_schedules_with_gemini(original_text)
+            
+            if schedules and len(schedules) > 1:
+                print(f"[AI] ✓ Extracted {len(schedules)} schedules")
+                return ExtractResponse(
+                    original_text=original_text,
+                    translated_text=translated_text,
+                    summary="",
+                    description="",
+                    start_date="",
+                    end_date="",
+                    start_time="",
+                    end_time="",
+                    location="",
+                    is_allday=False,
+                    ai_message="",
+                    used_model="🧠 Smart (Gemini 2.5 - Multi)",
+                    spacy_log=f"Multiple: {len(dates_found)} dates, {len(locs_found)} locs",
+                    schedules=schedules
+                )
+    
     # ===== 단일 일정 처리 (spaCy + Gemini) =====
-    # [SIMPLIFIED] Pattern Matcher 비활성화 - spaCy 결과 직접 사용
+    # spaCy 결과 직접 사용
     start_date_val = date_str
     start_time_val = time_str
     loc_val = loc_str
