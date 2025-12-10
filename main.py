@@ -1882,6 +1882,49 @@ async def add_multiple_to_calendar(request: Request, batch_data: BatchAddEventRe
             error_count += 1
             results.append({"summary": schedule.get('summary', 'Unknown'), "status": "failed", "error": str(e)})
     
+    # Consent가 체크되었으면 피드백 저장 (여러 일정을 하나의 CSV로)
+    if batch_data.consent and success_count > 0:
+        try:
+            import traceback
+            if HF_TOKEN:
+                print(f"📝 Saving batch feedback... {len(batch_data.schedules)} schedules")
+                rows = []
+                for schedule in batch_data.schedules:
+                    rows.append({
+                        "timestamp": datetime.datetime.now().isoformat(),
+                        "original_text": "",  # batch에서는 original_text 없음
+                        "translated_text": "",
+                        "final_summary": schedule.get('summary', ''),
+                        "final_start_date": schedule.get('start_date', ''),
+                        "final_end_date": schedule.get('end_date', ''),
+                        "final_start_time": schedule.get('start_time', ''),
+                        "final_end_time": schedule.get('end_time', ''),
+                        "final_loc": schedule.get('location', ''),
+                        "final_description": schedule.get('description', ''),
+                        "is_allday": schedule.get('is_allday', False) or schedule.get('all_day', False)
+                    })
+                df = pd.DataFrame(rows)
+                unique_filename = f"feedback_batch_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                df.to_csv(unique_filename, index=False, encoding='utf-8')
+                print(f"📄 Batch CSV created: {unique_filename}")
+                
+                api = HfApi(token=HF_TOKEN)
+                api.upload_file(
+                    path_or_fileobj=unique_filename, 
+                    path_in_repo=unique_filename, 
+                    repo_id=DATASET_REPO_ID,
+                    repo_type="dataset"
+                )
+                print(f"✅ Batch feedback saved to Hub: {unique_filename}")
+                
+                # 로컬 파일 삭제
+                if os.path.exists(unique_filename):
+                    os.remove(unique_filename)
+        except Exception as e:
+            print(f"❌ Batch Save Error: {e}")
+            import traceback
+            print(f"❌ Traceback: {traceback.format_exc()}")
+    
     return {
         "message": f"Added {success_count} of {len(batch_data.schedules)} events",
         "success_count": success_count,
