@@ -2400,19 +2400,24 @@
             document.getElementById('analysis-details').style.display = 'none';
 
             try {
-                // 1. FAST - spaCy only (immediate response with date/time/location)
+                // 1. FULL - spaCy + multi-schedule detection
                 const fastRes = await fetch('/extract', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'fast' }),
+                    body: JSON.stringify({ text: inputText, lang: currentLang, mode: 'full' }),
                     signal: currentAbortController.signal
                 });
                 const fastData = await fastRes.json();
                 updateUI(fastData);
 
-                // 2. ASYNC ENHANCE - Gemini for title/description (parallel, non-blocking)
-                // This runs in background and updates title when ready
-                enhanceTitleAsync(inputText);
+                // 2. ASYNC ENHANCE - Gemini reviews and improves the results
+                if (fastData.schedules && fastData.schedules.length > 1) {
+                    // Multiple schedules: enhance all of them
+                    enhanceSchedulesAsync(fastData.schedules, inputText);
+                } else {
+                    // Single schedule: just enhance title
+                    enhanceTitleAsync(inputText);
+                }
 
             } catch (error) {
                 if (error.name === 'AbortError') {
@@ -2449,15 +2454,10 @@
                 if (res.ok) {
                     const data = await res.json();
                     if (data.success && data.summary) {
-                        // Update title only if current one is generic
+                        // Always update title with Gemini-enhanced summary
                         const summaryBox = document.getElementById('summary-box');
-                        const currentTitle = summaryBox.value.toLowerCase();
-                        const genericTitles = ['new schedule', 's party', 'party', 'meeting'];
-
-                        if (!currentTitle || genericTitles.some(g => currentTitle.includes(g))) {
-                            summaryBox.value = data.summary;
-                            console.log('[Enhance] Title updated to:', data.summary);
-                        }
+                        summaryBox.value = data.summary;
+                        console.log('[Enhance] Title updated to:', data.summary);
 
                         // Update description if empty
                         const descBox = document.getElementById('description-box');
@@ -2466,13 +2466,62 @@
                         }
                     }
                 }
-
                 if (enhanceBtn) {
                     enhanceBtn.innerHTML = '✨ Enhance';
                     enhanceBtn.style.opacity = '1';
                 }
             } catch (error) {
                 console.log('[Enhance] Title enhancement skipped:', error.message);
+                const enhanceBtn = document.getElementById('enhance-quality-btn');
+                if (enhanceBtn) {
+                    enhanceBtn.innerHTML = '✨ Enhance';
+                    enhanceBtn.style.opacity = '1';
+                }
+            }
+        }
+
+
+        // [NEW] Async schedules enhancement - fills missing dates, improves titles
+        async function enhanceSchedulesAsync(schedules, originalText) {
+            try {
+                console.log('[Enhance] Starting async schedules enhancement for', schedules.length, 'schedules...');
+                const enhanceBtn = document.getElementById('enhance-quality-btn');
+                if (enhanceBtn) {
+                    enhanceBtn.innerHTML = '⏳ AI...';
+                    enhanceBtn.style.opacity = '0.7';
+                }
+
+                const res = await fetch('/enhance-schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        schedules: schedules,
+                        original_text: originalText
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.schedules && data.schedules.length > 0) {
+                        console.log('[Enhance] Schedules enhanced successfully');
+
+                        // Update the global schedules array
+                        allSchedules = data.schedules;
+
+                        // Re-display current schedule with enhanced data
+                        displaySchedule(currentScheduleIndex);
+
+                        // Update pagination if needed
+                        updatePaginationUI();
+                    }
+                }
+
+                if (enhanceBtn) {
+                    enhanceBtn.innerHTML = '✨ Enhance';
+                    enhanceBtn.style.opacity = '1';
+                }
+            } catch (error) {
+                console.log('[Enhance] Schedules enhancement skipped:', error.message);
                 const enhanceBtn = document.getElementById('enhance-quality-btn');
                 if (enhanceBtn) {
                     enhanceBtn.innerHTML = '✨ Enhance';

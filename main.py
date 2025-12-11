@@ -744,14 +744,27 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
     """
     doc = nlp_model(text)
     schedules = []
+    last_date = ""  # 이전 문장에서 추출한 날짜 저장
     
-    # Split into sentences
-    sentences = list(doc.sents)
+    # 문장 분리 전처리: "Also", "Additionally" 등의 키워드로 분리
+    import re
+    # ". Also" -> 마침표 후 새 문장으로 분리
+    split_text = re.sub(r'\.\s*Also,?\s*', '. SPLIT_MARKER', text)
+    split_text = re.sub(r',\s*and\s+also\s*', '. SPLIT_MARKER', split_text, flags=re.IGNORECASE)
+    
+    # SPLIT_MARKER를 기준으로 문장 분리
+    raw_sentences = split_text.split('SPLIT_MARKER')
+    sentences = [s.strip() for s in raw_sentences if s.strip() and len(s.strip()) >= 10]
+    
+    print(f"[spaCy Multi] Found {len(sentences)} sentences after split")
     
     for sent in sentences:
-        sent_text = sent.text.strip()
+        # sentences는 이제 문자열 리스트이므로 sent가 곧 텍스트
+        sent_text = sent.strip() if isinstance(sent, str) else sent.text.strip()
         if not sent_text or len(sent_text) < 10:  # Skip very short sentences
             continue
+        
+        print(f"[spaCy Multi] Processing sentence: '{sent_text[:60]}...'")
         
         # Re-analyze each sentence
         sent_doc = nlp_model(sent_text)
@@ -774,6 +787,7 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
             if ent.label_ == "START_DATE" or ent.label_ == "DATE":
                 if not schedule["start_date"]:
                     schedule["start_date"] = ent.text
+                    last_date = ent.text  # 날짜 저장
                     has_date_or_time = True
             elif ent.label_ == "START_TIME" or ent.label_ == "TIME":
                 if not schedule["start_time"]:
@@ -791,6 +805,30 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
             elif ent.label_ in ["EVENT_TITLE", "EVENT"]:
                 if not schedule["summary"]:
                     schedule["summary"] = ent.text
+        
+        # [NEW] spaCy가 시간을 놓친 경우 정규식으로 시간 패턴 직접 찾기
+        if not schedule["start_time"]:
+            import re
+            time_patterns = [
+                r'(\d{1,2}:\d{2}\s*(?:am|pm)?)',  # 12:30pm, 10:00
+                r'(\d{1,2}\s*(?:am|pm))',          # 10am, 2pm
+                r'at\s+(\d{1,2}(?::\d{2})?)',      # at 10, at 10:30
+            ]
+            for pattern in time_patterns:
+                match = re.search(pattern, sent_text.lower())
+                if match:
+                    schedule["start_time"] = match.group(1) if match.group(1) else match.group(0)
+                    has_date_or_time = True
+                    print(f"[spaCy Multi] Regex found time: '{schedule['start_time']}' in: {sent_text[:40]}...")
+                    break
+        
+        print(f"[spaCy Multi] Extracted: date={schedule['start_date']}, time={schedule['start_time']}, loc={schedule['location']}, has_dt={has_date_or_time}")
+        
+        # 날짜가 없지만 시간이 있으면, 이전 문장의 날짜 상속
+        if not schedule["start_date"] and schedule["start_time"] and last_date:
+            schedule["start_date"] = last_date
+            has_date_or_time = True
+            print(f"[spaCy Multi] Inherited date '{last_date}' for: {sent_text[:50]}...")
         
         # Only add if sentence has date or time info
         if has_date_or_time:
@@ -1309,6 +1347,12 @@ class UpdateEventRequest(BaseModel):
     is_allday: bool = False
 
 
+class EnhanceSchedulesRequest(BaseModel):
+    """spaCy가 추출한 일정 목록을 Gemini가 검토/보완하기 위한 요청"""
+    schedules: list  # spaCy가 추출한 일정 목록
+    original_text: str  # 원본 텍스트 (컨텍스트 참조용)
+
+
 # ==============================================================================
 # Endpoints
 # ==============================================================================
@@ -1360,13 +1404,13 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         
         if has_multiple_signals:
             print(f"[AI] Multiple schedules detected: {len(dates_found)} dates, {len(locs_found)} locations")
-            print(f"[AI] Calling Gemini for multiple schedule extraction...")
             
-            # Gemini로 다중 일정 추출
-            schedules = extract_multiple_schedules_with_gemini(original_text)
+            # [NEW] spaCy로 먼저 다중 일정 추출 (즉시 반환, Gemini는 프론트엔드에서 비동기 호출)
+            print(f"[AI] Using spaCy for immediate multi-schedule extraction...")
+            spacy_schedules = extract_multiple_schedules_with_spacy(translated_text, models["nlp_sm"])
             
-            if schedules and len(schedules) > 1:
-                print(f"[AI] ✓ Extracted {len(schedules)} schedules")
+            if spacy_schedules and len(spacy_schedules) > 1:
+                print(f"[AI] ✓ Extracted {len(spacy_schedules)} schedules with spaCy (Gemini will enhance async)")
                 return ExtractResponse(
                     original_text=original_text,
                     translated_text=translated_text,
@@ -1379,10 +1423,35 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
                     location="",
                     is_allday=False,
                     ai_message="",
-                    used_model="🧠 Smart (Gemini 2.5 - Multi)",
+                    used_model="⚡ Fast (spaCy - Multi)",
                     spacy_log=f"Multiple: {len(dates_found)} dates, {len(locs_found)} locs",
-                    schedules=schedules
+                    schedules=spacy_schedules
                 )
+            else:
+                # spaCy가 다중 일정 추출 실패 시 Gemini fallback (동기)
+                print(f"[AI] spaCy multi-schedule failed, falling back to Gemini...")
+                schedules = extract_multiple_schedules_with_gemini(original_text)
+                
+                if schedules and len(schedules) > 1:
+                    print(f"[AI] ✓ Extracted {len(schedules)} schedules with Gemini (fallback)")
+                    return ExtractResponse(
+                        original_text=original_text,
+                        translated_text=translated_text,
+                        summary="",
+                        description="",
+                        start_date="",
+                        end_date="",
+                        start_time="",
+                        end_time="",
+                        location="",
+                        is_allday=False,
+                        ai_message="",
+                        used_model="🧠 Smart (Gemini 2.5 - Multi)",
+                        spacy_log=f"Multiple: {len(dates_found)} dates, {len(locs_found)} locs",
+                        schedules=schedules
+                    )
+                else:
+                    print(f"[AI] Both spaCy and Gemini failed for multi-schedule, continuing with single schedule...")
     
     # ===== 단일 일정 처리 (spaCy + Gemini) =====
     # spaCy 결과 직접 사용
@@ -1530,6 +1599,127 @@ async def api_enhance_title(request: EnhanceRequest):
             description="",
             success=False
         )
+
+
+# --- 1.4. Schedule Enhancement (Gemini reviews spaCy results) ---
+@app.post("/enhance-schedules")
+async def api_enhance_schedules(request: EnhanceSchedulesRequest):
+    """
+    spaCy가 추출한 일정 목록을 Gemini가 검토/보완
+    - 누락된 날짜는 이전 일정에서 상속
+    - 누락된 시간 형식 정규화
+    - 제목 개선
+    """
+    print(f"[Enhance Schedules] Received {len(request.schedules)} schedules to enhance")
+    
+    if not request.schedules:
+        return {"schedules": [], "success": False}
+    
+    enhanced_schedules = []
+    last_valid_date = ""
+    
+    for i, schedule in enumerate(request.schedules):
+        enhanced = schedule.copy() if isinstance(schedule, dict) else dict(schedule)
+        
+        # 1. 날짜 상속 로직
+        if enhanced.get("start_date"):
+            # 날짜가 "next Friday" 같은 텍스트면 파싱
+            parsed_date = _extract_date_from_text(enhanced["start_date"])
+            if parsed_date:
+                enhanced["start_date"] = parsed_date
+                last_valid_date = parsed_date
+        elif last_valid_date:
+            # 날짜가 없으면 이전 일정에서 상속
+            enhanced["start_date"] = last_valid_date
+            print(f"[Enhance] Schedule {i+1}: Inherited date '{last_valid_date}'")
+        
+        # end_date도 start_date와 같게 설정
+        if enhanced.get("start_date") and not enhanced.get("end_date"):
+            enhanced["end_date"] = enhanced["start_date"]
+        
+        # 2. 시간 형식 정규화 (12:30pm -> 12:30)
+        if enhanced.get("start_time"):
+            time_str = enhanced["start_time"]
+            # "12:30pm" -> "12:30", "10am" -> "10:00"
+            enhanced["start_time"] = _normalize_time_format(time_str)
+        
+        enhanced_schedules.append(enhanced)
+    
+    # 3. Gemini로 제목 개선 (선택적 - 속도 고려)
+    try:
+        if GEMINI_API_KEY and len(enhanced_schedules) <= 5:  # 5개 이하만 처리
+            enhanced_schedules = _enhance_titles_with_gemini(enhanced_schedules, request.original_text)
+    except Exception as e:
+        print(f"[Enhance] Title enhancement skipped: {e}")
+    
+    print(f"[Enhance Schedules] ✓ Enhanced {len(enhanced_schedules)} schedules")
+    return {"schedules": enhanced_schedules, "success": True}
+
+
+def _normalize_time_format(time_str: str) -> str:
+    """시간 문자열 정규화 (12:30pm -> 12:30, 10am -> 10:00)"""
+    if not time_str:
+        return ""
+    
+    import re
+    time_str = time_str.lower().strip()
+    
+    # "at 10am" -> "10am"
+    time_str = re.sub(r'^at\s+', '', time_str)
+    
+    # "12:30pm" 형식 처리
+    match = re.match(r'(\d{1,2}):?(\d{2})?\s*(am|pm)?', time_str)
+    if match:
+        hour = int(match.group(1))
+        minute = match.group(2) or "00"
+        ampm = match.group(3)
+        
+        if ampm == "pm" and hour < 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        
+        return f"{hour:02d}:{minute}"
+    
+    return time_str
+
+
+def _enhance_titles_with_gemini(schedules: list, original_text: str) -> list:
+    """Gemini로 각 일정의 제목을 개선"""
+    if not GEMINI_API_KEY or not schedules:
+        return schedules
+    
+    is_korean_input = check_is_korean(original_text)
+    lang_instruction = "Return titles in Korean." if is_korean_input else ""
+    
+    # 일정 목록을 JSON으로 변환
+    schedules_json = json.dumps(schedules, ensure_ascii=False)
+    
+    prompt = f"""
+    Original text: "{original_text}"
+    
+    Current schedules (from spaCy):
+    {schedules_json}
+    
+    Task: Improve the "summary" field for each schedule to be more descriptive and clear.
+    {lang_instruction}
+    
+    Return ONLY a JSON array with the improved schedules, keeping all other fields unchanged.
+    Do NOT add any explanation, just the JSON array.
+    """
+    
+    try:
+        response = get_gemini_content(prompt, target_model='gemini-2.5-flash')
+        clean = re.sub(r'```json|```', '', response.text).strip()
+        enhanced = json.loads(clean)
+        
+        if isinstance(enhanced, list) and len(enhanced) == len(schedules):
+            print(f"[Enhance] ✓ Titles improved by Gemini")
+            return enhanced
+    except Exception as e:
+        print(f"[Enhance] Title improvement failed: {e}")
+    
+    return schedules
 
 
 # --- 1.5. Quality Enhancement (Force Gemini Re-analysis) ---
