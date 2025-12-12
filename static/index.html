@@ -888,11 +888,7 @@
             background: #a5b4fc;
         }
 
-        .map-link {
-            flex: 1;
-            padding: 12px;
-            font-size: 0.85rem;
-        }
+        /* .map-link styles are defined below (consolidated) */
 
         /* Unified Input Styles */
         .unified-input-box {
@@ -985,36 +981,7 @@
             color: #ef4444;
         }
 
-        text-decoration: none;
-        color: white;
-        font-weight: 600;
-        text-align: center;
-        border-radius: 12px;
-        transition: all 0.3s ease;
-        opacity: 1;
-        transform: translateY(0);
-        }
-
-        .map-link.disabled {
-            background-color: #e2e8f0 !important;
-            color: #94a3b8 !important;
-            pointer-events: none;
-            box-shadow: none;
-            transform: none;
-        }
-
-        .bg-google {
-            background: #4285F4;
-        }
-
-        .bg-naver {
-            background: #03C75A;
-        }
-
-        .bg-kakao {
-            background: #FEE500;
-            color: #191919 !important;
-        }
+        /* Map link styles consolidated - see below */
 
         .consent-box {
             background: transparent;
@@ -2437,6 +2404,10 @@
 
         // [NEW] Async title enhancement - runs in background
         async function enhanceTitleAsync(inputText) {
+            // Timeout controller (30 seconds)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+
             try {
                 console.log('[Enhance] Starting async title enhancement...');
                 const enhanceBtn = document.getElementById('enhance-quality-btn');
@@ -2448,8 +2419,11 @@
                 const res = await fetch('/enhance', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: inputText })
+                    body: JSON.stringify({ text: inputText }),
+                    signal: controller.signal
                 });
+
+                clearTimeout(timeoutId);
 
                 if (res.ok) {
                     const data = await res.json();
@@ -2471,7 +2445,8 @@
                     enhanceBtn.style.opacity = '1';
                 }
             } catch (error) {
-                console.log('[Enhance] Title enhancement skipped:', error.message);
+                clearTimeout(timeoutId);
+                console.log('[Enhance] Title enhancement skipped:', error.name === 'AbortError' ? 'Timeout (30s)' : error.message);
                 const enhanceBtn = document.getElementById('enhance-quality-btn');
                 if (enhanceBtn) {
                     enhanceBtn.innerHTML = '✨ Enhance';
@@ -2483,6 +2458,10 @@
 
         // [NEW] Async schedules enhancement - fills missing dates, improves titles
         async function enhanceSchedulesAsync(schedules, originalText) {
+            // Timeout controller (30 seconds)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+
             try {
                 console.log('[Enhance] Starting async schedules enhancement for', schedules.length, 'schedules...');
                 const enhanceBtn = document.getElementById('enhance-quality-btn');
@@ -2497,8 +2476,11 @@
                     body: JSON.stringify({
                         schedules: schedules,
                         original_text: originalText
-                    })
+                    }),
+                    signal: controller.signal
                 });
+
+                clearTimeout(timeoutId);
 
                 if (res.ok) {
                     const data = await res.json();
@@ -2521,7 +2503,8 @@
                     enhanceBtn.style.opacity = '1';
                 }
             } catch (error) {
-                console.log('[Enhance] Schedules enhancement skipped:', error.message);
+                clearTimeout(timeoutId);
+                console.log('[Enhance] Schedules enhancement skipped:', error.name === 'AbortError' ? 'Timeout (30s)' : error.message);
                 const enhanceBtn = document.getElementById('enhance-quality-btn');
                 if (enhanceBtn) {
                     enhanceBtn.innerHTML = '✨ Enhance';

@@ -1,8 +1,20 @@
 ﻿# -*- coding: utf-8 -*-
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ==============================================================================
+# Logging Configuration
+# ==============================================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger("scheduler")
+
 
 import spacy
 import dateparser
@@ -48,7 +60,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 models = {}
 
-print(f"?? GEMINI_API_KEY Loaded: {bool(GEMINI_API_KEY)}")
+logger.info(f"GEMINI_API_KEY Loaded: {bool(GEMINI_API_KEY)}")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -60,20 +72,53 @@ def check_is_korean(text):
     return any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in text)
 
 
+# [OPTIMIZED] Singleton GoogleTranslator instances
+_translator_ko_to_en = None
+_translator_en_to_ko = None
+
+def _get_translator_ko_en():
+    global _translator_ko_to_en
+    if _translator_ko_to_en is None:
+        _translator_ko_to_en = GoogleTranslator(source='auto', target='en')
+    return _translator_ko_to_en
+
+def _get_translator_en_ko():
+    global _translator_en_to_ko
+    if _translator_en_to_ko is None:
+        _translator_en_to_ko = GoogleTranslator(source='en', target='ko')
+    return _translator_en_to_ko
+
+
+# [OPTIMIZED] Translation with caching
+from functools import lru_cache
+
+@lru_cache(maxsize=256)
+def _cached_translate_ko_en(text: str) -> str:
+    """Cached Korean to English translation"""
+    return _get_translator_ko_en().translate(text)
+
+@lru_cache(maxsize=256)
+def _cached_translate_en_ko(text: str) -> str:
+    """Cached English to Korean translation"""
+    return _get_translator_en_ko().translate(text)
+
+
 def translate_korean_to_english(text):
     try:
         if check_is_korean(text):
-            return GoogleTranslator(source='auto', target='en').translate(text)
+            return _cached_translate_ko_en(text)
         return text
-    except:
+    except Exception as e:
+        logger.warning(f"Translation (KO→EN) failed: {e}")
         return text
 
 
 def translate_english_to_korean(text):
     if not text or not text.strip(): return ""
     try:
-        return GoogleTranslator(source='en', target='ko').translate(text)
-    except:
+        return _cached_translate_en_ko(text)
+    except Exception as e:
+        logger.warning(f"Translation (EN→KO) failed: {e}")
         return text
 
 
@@ -87,14 +132,14 @@ def get_gemini_content(prompt, image=None, target_model="gemini-2.5-flash"):
         return model.generate_content(prompt)
     except Exception as e:
         error_msg = str(e)
-        print(f"?? {target_model} failed: {error_msg}")
+        logger.warning(f"Gemini {target_model} failed: {error_msg}")
 
         # 429 Quota Error는 모델 문제가 아니므로 즉시 에러 반환 (재시도 X)
         if "429" in error_msg or "Resource exhausted" in error_msg:
             raise HTTPException(status_code=429, detail="Google AI Quota Exceeded. Please try again in 1 min.")
 
         # 그 외 에러(모델 없음 등)는 1.5로 폴백
-        print(f"?? Falling back to gemini-1.5-flash...")
+        logger.info("Falling back to gemini-1.5-flash...")
         fallback_model = genai.GenerativeModel("gemini-1.5-flash")
         if image:
             return fallback_model.generate_content([prompt, image])
@@ -113,7 +158,7 @@ def extract_text_from_pdf(file_bytes):
         doc.close()
         return "\n".join(text_parts)
     except Exception as e:
-        print(f"❌ PDF Extraction Error: {e}")
+        logger.error(f"PDF extraction failed: {e}")
         return ""
 
 
@@ -147,7 +192,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
     """
     # 1단계: 텍스트 전처리
     cleaned_text = clean_pdf_text(text)
-    print(f"[PDF] Cleaned text: {len(text)} -> {len(cleaned_text)} chars")
+    logger.debug(f"[PDF] Cleaned text: {len(text)} -> {len(cleaned_text)} chars")
     
     schedules = []
     
@@ -161,7 +206,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
     )
     
     matches = list(submit_due_pattern.finditer(cleaned_text))
-    print(f"[PDF] Submit-Due patterns found: {len(matches)}")
+    logger.debug(f"[PDF] Submit-Due patterns found: {len(matches)}")
     
     # 4단계: 매치된 패턴 처리
     for match in matches:
@@ -241,7 +286,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                 candidate = re.sub(r'^[\d.\s]+', '', candidate)
                 if is_valid_task_name(candidate) and len(candidate) > 5:
                     task_name = candidate
-                    print(f"[PDF] Pattern found: '{task_name}'")
+                    logger.debug(f"[PDF] Pattern found: '{task_name}'")
                     break
         
         # 전략 B: spaCy NER 사용
@@ -252,7 +297,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                     candidate = ent.text.strip()[:50]
                     if is_valid_task_name(candidate):
                         task_name = candidate
-                        print(f"[PDF] spaCy found: '{task_name}'")
+                        logger.debug(f"[PDF] spaCy found: '{task_name}'")
                         break
         
         # 전략 C: 마감일 바로 뒤 항목 (• Poster, • Video) - 필터링 강화
@@ -297,7 +342,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
         schedule["is_allday"] = not bool(schedule["end_time"])
         
         schedules.append(schedule)
-        print(f"[PDF] ✓ '{schedule['summary']}' -> {schedule['start_date']} {schedule['end_time']} @ {schedule['location']}")
+        logger.debug(f"[PDF] Extracted: '{schedule['summary']}' -> {schedule['start_date']} {schedule['end_time']} @ {schedule['location']}")
     
     # 5단계: "Week X-Y" 패턴으로 추가 일정 탐색 (Peer Evaluation 등)
     # PDF에서 "Final Reflection & Peer Evaluation (Google Form) • When: Week 15-16" 패턴 감지
@@ -347,7 +392,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                 "is_allday": True
             }
             schedules.append(new_schedule)
-            print(f"[PDF] ✓ (Week pattern) '{new_schedule['summary']}' -> {start_date} ~ {end_date}")
+            logger.debug(f"[PDF] Week pattern: '{new_schedule['summary']}' -> {start_date} ~ {end_date}")
     
     # 6단계: "Week X — Title" 패턴 (날짜 없이 Week만 표시)
     # 예: "Week 9 — Service Concept & Dev Plan", "Week 10 — Data Collection"
@@ -396,11 +441,11 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                 "is_allday": True
             }
             schedules.append(new_schedule)
-            print(f"[PDF] ✓ (Week title) '{new_schedule['summary']}' ({week_str})")
+            logger.debug(f"[PDF] Week title: '{new_schedule['summary']}' ({week_str})")
     
     # 7단계: spaCy로 추가 일정 탐색 (Submit-Due 패턴 외)
     if nlp_model and len(schedules) < 3:
-        print("[PDF] Trying additional spaCy-based extraction...")
+        logger.debug("[PDF] Trying additional spaCy-based extraction...")
         doc = nlp_model(cleaned_text[:3000])
         
         for ent in doc.ents:
@@ -426,7 +471,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                                 "is_allday": True
                             }
                             schedules.append(new_schedule)
-                            print(f"[PDF] ✓ (spaCy) '{new_schedule['summary']}' -> {new_schedule['start_date']}")
+                            logger.debug(f"[PDF] spaCy: '{new_schedule['summary']}' -> {new_schedule['start_date']}")
 
     
     # 중복 제거
@@ -442,7 +487,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
             seen.add(key)
             unique.append(s)
     
-    print(f"[PDF] Final: {len(unique)} schedules extracted (spaCy + Pattern Matcher)")
+    logger.info(f"[PDF] Extracted {len(unique)} schedules (spaCy + Pattern Matcher)")
     return unique
 
 
@@ -457,13 +502,46 @@ def extract_text_from_docx(file_bytes):
         text_parts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()]
         return "\n".join(text_parts)
     except Exception as e:
-        print(f"? DOCX Extraction Error: {e}")
+        logger.error(f"DOCX extraction failed: {e}")
         return ""
 
 
 # ==============================================================================
 # AI Logic 1: Text Analysis (spaCy + Gemini Hybrid)
 # ==============================================================================
+
+# [OPTIMIZED] Pre-compiled regex patterns for date extraction
+_DATE_PATTERNS_COMPILED = [
+    # Full date with year: "January 5th 2026", "Dec 25, 2025"
+    (re.compile(r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?)', re.IGNORECASE), 'month_day'),
+    # Day Month format: "5th January", "25 Dec"
+    (re.compile(r'(\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*)', re.IGNORECASE), 'day_month'),
+    # Slash format: "12/25", "12/25/2025"
+    (re.compile(r'(\d{1,2}/\d{1,2}(?:/\d{2,4})?)', re.IGNORECASE), 'slash'),
+    # Relative weekday: "next Friday", "this Monday"
+    (re.compile(r'((?:next|this)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))', re.IGNORECASE), 'relative_weekday'),
+    # Other relative: "next week", "next month"
+    (re.compile(r'((?:next|this)\s+(?:week|month))', re.IGNORECASE), 'relative_period'),
+    # Simple relative: "tomorrow", "today"
+    (re.compile(r'(tomorrow|today|yesterday)', re.IGNORECASE), 'simple_relative'),
+]
+
+# [OPTIMIZED] Cached dateparser function
+@lru_cache(maxsize=512)
+def _cached_dateparse(date_str: str, prefer_future: bool) -> str:
+    """Cached dateparser.parse wrapper - returns YYYY-MM-DD or empty string"""
+    try:
+        settings = {
+            'RELATIVE_BASE': datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),
+            'PREFER_LOCALE_DATE_ORDER': True,
+            'PREFER_DAY_OF_MONTH': 'first',
+            'PREFER_DATES_FROM': 'future' if prefer_future else 'past',
+        }
+        parsed = dateparser.parse(date_str, languages=['en'], settings=settings)
+        return parsed.strftime("%Y-%m-%d") if parsed else ""
+    except:
+        return ""
+
 
 def _extract_date_from_text(text: str) -> str:
     """
@@ -477,38 +555,22 @@ def _extract_date_from_text(text: str) -> str:
     # Check for "next year" / "내년" modifier BEFORE extraction
     has_next_year = "next year" in text.lower() or "내년" in text
     
-    # Date patterns to search for (in order of specificity)
-    # NOTE: Korean input is translated to English first, so only English patterns needed
-    date_patterns = [
-        # Full date with year: "January 5th 2026", "Dec 25, 2025"
-        (r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?)', 'month_day'),
-        # Day Month format: "5th January", "25 Dec"
-        (r'(\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*)', 'day_month'),
-        # Slash format: "12/25", "12/25/2025"
-        (r'(\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 'slash'),
-        # Relative weekday: "next Friday", "this Monday"
-        (r'((?:next|this)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))', 'relative_weekday'),
-        # Other relative: "next week", "next month"
-        (r'((?:next|this)\s+(?:week|month))', 'relative_period'),
-        # Simple relative: "tomorrow", "today"
-        (r'(tomorrow|today|yesterday)', 'simple_relative'),
-    ]
-    
+    # [OPTIMIZED] Use pre-compiled regex patterns
     extracted_date = ""
     matched_pattern = ""
-    for pattern, pattern_name in date_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
+    for compiled_pattern, pattern_name in _DATE_PATTERNS_COMPILED:
+        match = compiled_pattern.search(text)
         if match:
             extracted_date = match.group(1).strip()
             matched_pattern = pattern_name
-            print(f"[DateExtract] Pattern '{pattern_name}' matched: '{extracted_date}'")
+            logger.debug(f"[DateExtract] Pattern '{pattern_name}' matched: '{extracted_date}'")
             break
     
     if not extracted_date:
         # No specific date pattern found - return empty
         # Don't use "next year" fallback here because this function may be called
         # with invalid candidates like "a New Year's party"
-        print(f"[DateExtract] No date pattern in: '{text[:50]}'")
+        logger.debug(f"[DateExtract] No date pattern in: '{text[:50]}'")
         return ""
     
     # Parse the extracted date
@@ -535,7 +597,7 @@ def _extract_date_from_text(text: str) -> str:
             if parsed:
                 from dateutil.relativedelta import relativedelta
                 parsed = parsed + relativedelta(years=1)
-                print(f"[DateExtract] With 'next year': {extracted_date} -> {parsed.strftime('%Y-%m-%d')}")
+                logger.debug(f"[DateExtract] With 'next year': {extracted_date} -> {parsed.strftime('%Y-%m-%d')}")
         else:
             # Normal parsing - prefer future dates
             parsed = dateparser.parse(
@@ -549,7 +611,7 @@ def _extract_date_from_text(text: str) -> str:
         
         if parsed:
             result = parsed.strftime("%Y-%m-%d")
-            print(f"[DateExtract] Final: '{extracted_date}' -> {result}")
+            logger.debug(f"[DateExtract] Final: '{extracted_date}' -> {result}")
             return result
         else:
             # Fallback: Manual calculation for "next [weekday]" patterns
@@ -579,20 +641,20 @@ def _extract_date_from_text(text: str) -> str:
                     
                     target_date = today + datetime.timedelta(days=days_ahead)
                     result = target_date.strftime("%Y-%m-%d")
-                    print(f"[DateExtract] Manual fallback: '{extracted_date}' -> {result}")
+                    logger.debug(f"[DateExtract] Manual fallback: '{extracted_date}' -> {result}")
                     return result
             
-            print(f"[DateExtract] dateparser.parse failed for: '{extracted_date}'")
+            logger.debug(f"[DateExtract] dateparser.parse failed for: '{extracted_date}'")
     except Exception as e:
-        print(f"[DateExtract] Error: {e}")
+        logger.error(f"Date extraction failed: {e}")
     
     return ""
 
 def run_ner_extraction(text, nlp_model, original_text=None):
     """spaCy NER을 이용한 고정밀 1차 추출"""
-    if not text: return "", "", "", "", "", ""
+    if not text: return "", "", "", "", "", "", None  # [OPTIMIZED] 7 return values
     
-    print(f"[NER] Input text: {text[:80]}...")
+    logger.debug(f"[NER] Input text: {text[:80]}...")
     
     # spaCy NER (Custom Model with 6 labels)
     doc = nlp_model(text)
@@ -618,7 +680,7 @@ def run_ner_extraction(text, nlp_model, original_text=None):
         base_locs = [ent.text for ent in base_doc.ents if ent.label_ in ["GPE", "LOC", "FAC", "ORG"]]
         if base_locs:
             locs = base_locs
-            print(f"[NER] Base model found location: {locs}")
+            logger.debug(f"[NER] Base model found location: {locs}")
 
     # Phase 3: Merge and validate results
     # Filter spaCy results (remove misidentified entities)
@@ -626,7 +688,7 @@ def run_ner_extraction(text, nlp_model, original_text=None):
     filtered_locs = [l for l in locs if not _contains_time_keywords(l)]
     
     # [DEBUG] Log spaCy extraction results
-    print(f"[NER] spaCy found: dates={start_dates}, times={start_times}, locs={locs}")
+    logger.debug(f"[NER] spaCy found: dates={start_dates}, times={start_times}, locs={locs}")
     
     # [UPDATED] Try each spaCy date candidate until one parses successfully
     # This handles cases like ["a New Year's party", "January 5th"] where first item is wrong
@@ -643,7 +705,7 @@ def run_ner_extraction(text, nlp_model, original_text=None):
         parsed = _extract_date_from_text(candidate_with_context)
         if parsed:
             date_str = parsed
-            print(f"[NER] Parsed date from candidate: '{candidate}' -> {date_str}")
+            logger.debug(f"[NER] Parsed date from candidate: '{candidate}' -> {date_str}")
             break
     
     # End date handling
@@ -652,10 +714,10 @@ def run_ner_extraction(text, nlp_model, original_text=None):
     
     # [NEW] If all candidates failed, try extracting directly from original text
     if not date_str:
-        print(f"[NER] All candidates failed, trying direct extraction from: '{text[:60]}...'")
+        logger.debug(f"[NER] All candidates failed, trying direct extraction from: '{text[:60]}...'")
         date_str = _extract_date_from_text(text)
         if date_str:
-            print(f"[NER] Direct extraction success: {date_str}")
+            logger.debug(f"[NER] Direct extraction success: {date_str}")
     
     time_str = ", ".join(filtered_times) if filtered_times else ""
     loc_str = ", ".join(filtered_locs) if filtered_locs else ""
@@ -693,7 +755,7 @@ def run_ner_extraction(text, nlp_model, original_text=None):
                 extracted = re.sub(r"^(a|an|the|have|let's|let us)\s+", "", extracted, flags=re.IGNORECASE)
                 if len(extracted) > 3:
                     event_str = extracted.title()
-                    print(f"[NER] Extracted event title: '{event_str}'")
+                    logger.debug(f"[NER] Extracted event title: '{event_str}'")
                     break
         
         # Try Korean keywords if English didn't match
@@ -708,7 +770,7 @@ def run_ner_extraction(text, nlp_model, original_text=None):
                     extracted = re.sub(r'^[^\w가-힣]+', '', extracted)
                     if len(extracted) > 2:
                         event_str = extracted
-                        print(f"[NER] Extracted event title: '{event_str}'")
+                        logger.debug(f"[NER] Extracted event title: '{event_str}'")
                         break
         
         if not event_str:
@@ -717,7 +779,7 @@ def run_ner_extraction(text, nlp_model, original_text=None):
             else:
                 event_str = "New Schedule"
 
-    return date_str, time_str, end_date_str, end_time_str, loc_str, event_str
+    return date_str, time_str, end_date_str, end_time_str, loc_str, event_str, doc  # [OPTIMIZED] Return doc for reuse
 
 
 def extract_multiple_schedules_with_spacy(text, nlp_model):
@@ -739,7 +801,7 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
     raw_sentences = split_text.split('SPLIT_MARKER')
     sentences = [s.strip() for s in raw_sentences if s.strip() and len(s.strip()) >= 10]
     
-    print(f"[spaCy Multi] Found {len(sentences)} sentences after split")
+    logger.debug(f"[spaCy Multi] Found {len(sentences)} sentences after split")
     
     for sent in sentences:
         # sentences는 이제 문자열 리스트이므로 sent가 곧 텍스트
@@ -747,7 +809,7 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
         if not sent_text or len(sent_text) < 10:  # Skip very short sentences
             continue
         
-        print(f"[spaCy Multi] Processing sentence: '{sent_text[:60]}...'")
+        logger.debug(f"[spaCy Multi] Processing sentence: '{sent_text[:60]}...'")
         
         # Re-analyze each sentence
         sent_doc = nlp_model(sent_text)
@@ -802,16 +864,16 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
                 if match:
                     schedule["start_time"] = match.group(1) if match.group(1) else match.group(0)
                     has_date_or_time = True
-                    print(f"[spaCy Multi] Regex found time: '{schedule['start_time']}' in: {sent_text[:40]}...")
+                    logger.debug(f"[spaCy Multi] Regex found time: '{schedule['start_time']}' in: {sent_text[:40]}...")
                     break
         
-        print(f"[spaCy Multi] Extracted: date={schedule['start_date']}, time={schedule['start_time']}, loc={schedule['location']}, has_dt={has_date_or_time}")
+        logger.debug(f"[spaCy Multi] Extracted: date={schedule['start_date']}, time={schedule['start_time']}, loc={schedule['location']}, has_dt={has_date_or_time}")
         
         # 날짜가 없지만 시간이 있으면, 이전 문장의 날짜 상속
         if not schedule["start_date"] and schedule["start_time"] and last_date:
             schedule["start_date"] = last_date
             has_date_or_time = True
-            print(f"[spaCy Multi] Inherited date '{last_date}' for: {sent_text[:50]}...")
+            logger.debug(f"[spaCy Multi] Inherited date '{last_date}' for: {sent_text[:50]}...")
         
         # Only add if sentence has date or time info
         if has_date_or_time:
@@ -836,10 +898,10 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
     # Quality check: if too many schedules have missing info, fall back to Gemini
     quality_score = _calculate_quality_score(schedules)
     if quality_score < 0.5:  # Less than 50% quality
-        print(f"[AI] spaCy quality score: {quality_score:.1%} (low) - falling back to Gemini")
+        logger.debug(f"[AI] spaCy quality score: {quality_score:.1%} (low) - falling back to Gemini")
         return None
     
-    print(f"[AI] spaCy quality score: {quality_score:.1%}")
+    logger.debug(f"[AI] spaCy quality score: {quality_score:.1%}")
     return schedules
 
 
@@ -976,15 +1038,15 @@ def extract_info_with_gemini_json(text):
         
         # Type check: Gemini should return a dict, not a list
         if not isinstance(parsed, dict):
-            print(f"[WARN] Gemini returned unexpected type: {type(parsed)}")
+            logger.warning(f"Gemini returned unexpected type: {type(parsed)}")
             return None
         
         return parsed
     except json.JSONDecodeError as e:
-        print(f"[ERROR] JSON Parse Error: {e}")
+        logger.error(f"JSON parse error in Gemini response: {e}")
         return None
     except Exception as e:
-        print(f"[ERROR] Gemini Error: {e}")
+        logger.error(f"Gemini extraction failed: {e}")
         return None
 
 
@@ -1020,7 +1082,7 @@ def extract_multiple_schedules_with_gemini(text):
         
         # 배열이어야 함
         if not isinstance(parsed, list):
-            print(f"[WARN] Gemini returned non-list: {type(parsed)}")
+            logger.warning(f"Gemini returned non-list: {type(parsed)}")
             # 단일 객체면 배열로 감싸기
             if isinstance(parsed, dict):
                 return [parsed]
@@ -1028,10 +1090,10 @@ def extract_multiple_schedules_with_gemini(text):
         
         return parsed
     except json.JSONDecodeError as e:
-        print(f"[ERROR] JSON Parse Error: {e}")
+        logger.error(f"JSON parse error in multi-schedule Gemini response: {e}")
         return None
     except Exception as e:
-        print(f"[ERROR] Gemini Error: {e}")
+        logger.error(f"Multi-schedule Gemini extraction failed: {e}")
         return None
 
 
@@ -1090,13 +1152,13 @@ def enhance_with_gemini_title(text: str) -> dict:
         parsed = json.loads(clean)
         
         if isinstance(parsed, dict):
-            print(f"[Gemini] Enhanced title: '{parsed.get('summary', '')}'")
+            logger.info(f"[Gemini] Enhanced title: '{parsed.get('summary', '')}'")
             return {
                 "summary": parsed.get("summary", ""),
                 "description": parsed.get("description", "")
             }
     except Exception as e:
-        print(f"[Gemini] Title enhancement failed: {e}")
+        logger.warning(f"Gemini title enhancement failed: {e}")
     
     return {"summary": "", "description": ""}
 
@@ -1153,22 +1215,22 @@ Return JSON ONLY:
         
         response = get_gemini_content(prompt, image=image, target_model='gemini-2.5-flash')
         if not response or not response.text:
-            print("[Vision] Gemini returned empty response.")
+            logger.warning("[Vision] Gemini returned empty response.")
             return {"error": "Empty response from Gemini"}
         
         # JSON 파싱
         clean = re.sub(r'```json|```', '', response.text).strip()
         result = json.loads(clean)
-        print(f"[Vision] ✓ Extracted: {result.get('summary', 'N/A')}")
+        logger.info(f"[Vision] Extracted: {result.get('summary', 'N/A')}")
         return result
         
     except json.JSONDecodeError as e:
-        print(f"[Vision] JSON parse error: {e}")
+        logger.error(f"[Vision] JSON parse error: {e}")
         return {"error": f"JSON parse error: {e}", "raw": response.text if response else ""}
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"[Vision] Extraction error: {e}")
+        logger.error(f"[Vision] Extraction error: {e}")
         return {"error": str(e)}
 
 
@@ -1180,10 +1242,10 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
     unique_filename = None
     try:
         if not HF_TOKEN:
-            print("⚠️ HF_TOKEN not set, skipping feedback save")
+            logger.warning("HF_TOKEN not set, skipping feedback save")
             return
         
-        print(f"📝 Saving feedback... original_text={original_text[:50] if original_text else 'None'}...")
+        logger.debug(f"Saving feedback... original_text={original_text[:50] if original_text else 'None'}...")
         
         new_row = {
             "timestamp": datetime.datetime.now().isoformat(),
@@ -1201,7 +1263,7 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
         df = pd.DataFrame([new_row])
         unique_filename = f"feedback_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         df.to_csv(unique_filename, index=False, encoding='utf-8')
-        print(f"📄 CSV created: {unique_filename}")
+        logger.debug(f"CSV created: {unique_filename}")
 
         api = HfApi(token=HF_TOKEN)
         api.upload_file(
@@ -1210,54 +1272,54 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
             repo_id=DATASET_REPO_ID,
             repo_type="dataset"
         )
-        print(f"✅ Feedback saved to Hub: {unique_filename}")
+        logger.info(f"Feedback saved to Hub: {unique_filename}")
         
     except Exception as e:
-        print(f"❌ Save Error: {e}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        logger.error(f"Save feedback error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
     finally:
         # 로컬 CSV 파일 삭제
         if unique_filename and os.path.exists(unique_filename):
             try:
                 os.remove(unique_filename)
-                print(f"🗑️ Local file deleted: {unique_filename}")
+                logger.debug(f"Local file deleted: {unique_filename}")
             except:
                 pass
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("? App Started")
+    logger.info("App Started")
     # Load NER model on startup (Custom model with fallback)
     try:
         if os.path.exists(CUSTOM_NER_MODEL_PATH):
             models["nlp_sm"] = spacy.load(CUSTOM_NER_MODEL_PATH)
-            print(f"? Custom NER model loaded from '{CUSTOM_NER_MODEL_PATH}'")
-            print(f"  Labels: START_DATE, START_TIME, END_DATE, END_TIME, LOC, EVENT_TITLE")
+            logger.info(f"Custom NER model loaded from '{CUSTOM_NER_MODEL_PATH}'")
+            logger.info("  Labels: START_DATE, START_TIME, END_DATE, END_TIME, LOC, EVENT_TITLE")
         else:
-            print(f"?? Custom model not found at '{CUSTOM_NER_MODEL_PATH}'")
-            print(f"   Falling back to '{FALLBACK_NER_MODEL}'...")
+            logger.warning(f"Custom model not found at '{CUSTOM_NER_MODEL_PATH}'")
+            logger.warning(f"Falling back to '{FALLBACK_NER_MODEL}'...")
             if not spacy.util.is_package(FALLBACK_NER_MODEL):
-                print(f"?? Downloading {FALLBACK_NER_MODEL}...")
+                logger.info(f"Downloading {FALLBACK_NER_MODEL}...")
                 spacy.cli.download(FALLBACK_NER_MODEL)
             models["nlp_sm"] = spacy.load(FALLBACK_NER_MODEL)
-            print(f"? Fallback model '{FALLBACK_NER_MODEL}' loaded.")
+            logger.info(f"Fallback model '{FALLBACK_NER_MODEL}' loaded.")
     except Exception as e:
-        print(f"? Failed to load spaCy: {e}")
+        logger.error(f"Failed to load spaCy: {e}")
     
     # [NEW] Load base model for location extraction (GPE/LOC recognition)
     try:
         base_model = "en_core_web_md"
         if not spacy.util.is_package(base_model):
-            print(f"?? Downloading {base_model} for location extraction...")
+            logger.info(f"Downloading {base_model} for location extraction...")
             spacy.cli.download(base_model)
         models["nlp_base"] = spacy.load(base_model)
-        print(f"? Base model '{base_model}' loaded for location extraction.")
+        logger.info(f"Base model '{base_model}' loaded for location extraction.")
     except Exception as e:
-        print(f"?? Failed to load base model: {e}")
+        logger.warning(f"Failed to load base model: {e}")
     
     yield
-    print("? App Shutdown")
+    logger.info("App Shutdown")
 
 
 app = FastAPI(lifespan=lifespan)
@@ -1358,15 +1420,17 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
     translated_text = translate_korean_to_english(original_text) if is_korean_input else original_text
 
     date_str, time_str, end_date_str, end_time_str, loc_str, event_str = "", "", "", "", "", ""
+    spacy_doc = None  # [OPTIMIZED] Reuse spaCy doc object
     if "nlp_sm" in models:
-        date_str, time_str, end_date_str, end_time_str, loc_str, event_str = run_ner_extraction(translated_text, models["nlp_sm"], original_text)
+        date_str, time_str, end_date_str, end_time_str, loc_str, event_str, spacy_doc = run_ner_extraction(translated_text, models["nlp_sm"], original_text)
 
     spacy_debug_str = f"StartDate=[{date_str}] StartTime=[{time_str}] EndDate=[{end_date_str}] EndTime=[{end_time_str}] Loc=[{loc_str}]"
     
     # ===== 다중 일정 감지 (spaCy 결과 기반) =====
     # spaCy가 여러 날짜 또는 장소를 감지하면 다중 일정으로 처리
-    if "nlp_sm" in models and mode == "full":
-        doc = models["nlp_sm"](translated_text)
+    if "nlp_sm" in models and mode == "full" and spacy_doc:
+        # [OPTIMIZED] Reuse spacy_doc instead of calling nlp again
+        doc = spacy_doc
         
         # 여러 날짜 감지 확인
         dates_found = [ent.text for ent in doc.ents if ent.label_ in ["START_DATE", "DATE"]]
@@ -1382,18 +1446,18 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         )
         
         # Debug logging
-        print(f"[Multi] dates_found={dates_found}, locs_found={locs_found}")
-        print(f"[Multi] has_multiple_signals={has_multiple_signals}, 'also' in text: {'also' in translated_text.lower()}, 'afterwards' in text: {'afterwards' in translated_text.lower()}")
+        logger.debug(f"[Multi] dates_found={dates_found}, locs_found={locs_found}")
+        logger.debug(f"[Multi] has_multiple_signals={has_multiple_signals}, 'also' in text: {'also' in translated_text.lower()}, 'afterwards' in text: {'afterwards' in translated_text.lower()}")
         
         if has_multiple_signals:
-            print(f"[AI] Multiple schedules detected: {len(dates_found)} dates, {len(locs_found)} locations")
+            logger.info(f"[AI] Multiple schedules detected: {len(dates_found)} dates, {len(locs_found)} locations")
             
             # [NEW] spaCy로 먼저 다중 일정 추출 (즉시 반환, Gemini는 프론트엔드에서 비동기 호출)
-            print(f"[AI] Using spaCy for immediate multi-schedule extraction...")
+            logger.debug(f"[AI] Using spaCy for immediate multi-schedule extraction...")
             spacy_schedules = extract_multiple_schedules_with_spacy(translated_text, models["nlp_sm"])
             
             if spacy_schedules and len(spacy_schedules) > 1:
-                print(f"[AI] ✓ Extracted {len(spacy_schedules)} schedules with spaCy (Gemini will enhance async)")
+                logger.info(f"[AI] Extracted {len(spacy_schedules)} schedules with spaCy (Gemini will enhance async)")
                 return ExtractResponse(
                     original_text=original_text,
                     translated_text=translated_text,
@@ -1412,11 +1476,11 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
                 )
             else:
                 # spaCy가 다중 일정 추출 실패 시 Gemini fallback (동기)
-                print(f"[AI] spaCy multi-schedule failed, falling back to Gemini...")
+                logger.debug(f"[AI] spaCy multi-schedule failed, falling back to Gemini...")
                 schedules = extract_multiple_schedules_with_gemini(original_text)
                 
                 if schedules and len(schedules) > 1:
-                    print(f"[AI] ✓ Extracted {len(schedules)} schedules with Gemini (fallback)")
+                    logger.info(f"[AI] Extracted {len(schedules)} schedules with Gemini (fallback)")
                     return ExtractResponse(
                         original_text=original_text,
                         translated_text=translated_text,
@@ -1434,7 +1498,7 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
                         schedules=schedules
                     )
                 else:
-                    print(f"[AI] Both spaCy and Gemini failed for multi-schedule, continuing with single schedule...")
+                    logger.warning(f"[AI] Both spaCy and Gemini failed for multi-schedule, continuing with single schedule...")
     
     # ===== 단일 일정 처리 (spaCy + Gemini) =====
     # spaCy 결과 직접 사용
@@ -1498,14 +1562,14 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
     # For OCR, be more lenient - only call Gemini if critically missing
     if is_ocr and has_date and has_time:
         needs_gemini = False
-        print("[AI] ✓ OCR extraction complete (skipping Gemini)")
+        logger.debug("[AI] OCR extraction complete (skipping Gemini)")
     
     # " to " pattern: only call Gemini if END_TIME wasn't already extracted by spaCy
     if " to " in translated_text and not end_time_str:
         needs_gemini = True
     
     if needs_gemini:
-        print("[AI] spaCy incomplete. Calling Gemini...")
+        logger.debug("[AI] spaCy incomplete. Calling Gemini...")
         gemini_data = extract_info_with_gemini_json(original_text)
 
         if gemini_data:
@@ -1566,7 +1630,7 @@ async def api_enhance_title(request: EnhanceRequest):
     - 프론트엔드에서 /extract 호출 후 비동기로 /enhance 호출
     - 날짜/시간/장소는 건드리지 않음
     """
-    print(f"[Enhance] Requesting title enhancement for: {request.text[:50]}...")
+    logger.debug(f"[Enhance] Requesting title enhancement for: {request.text[:50]}...")
     
     result = enhance_with_gemini_title(request.text)
     
@@ -1593,7 +1657,7 @@ async def api_enhance_schedules(request: EnhanceSchedulesRequest):
     - 누락된 시간 형식 정규화
     - 제목 개선
     """
-    print(f"[Enhance Schedules] Received {len(request.schedules)} schedules to enhance")
+    logger.debug(f"[Enhance Schedules] Received {len(request.schedules)} schedules to enhance")
     
     if not request.schedules:
         return {"schedules": [], "success": False}
@@ -1614,7 +1678,7 @@ async def api_enhance_schedules(request: EnhanceSchedulesRequest):
         elif last_valid_date:
             # 날짜가 없으면 이전 일정에서 상속
             enhanced["start_date"] = last_valid_date
-            print(f"[Enhance] Schedule {i+1}: Inherited date '{last_valid_date}'")
+            logger.debug(f"[Enhance] Schedule {i+1}: Inherited date '{last_valid_date}'")
         
         # end_date도 start_date와 같게 설정
         if enhanced.get("start_date") and not enhanced.get("end_date"):
@@ -1633,9 +1697,9 @@ async def api_enhance_schedules(request: EnhanceSchedulesRequest):
         if GEMINI_API_KEY and len(enhanced_schedules) <= 5:  # 5개 이하만 처리
             enhanced_schedules = _enhance_titles_with_gemini(enhanced_schedules, request.original_text)
     except Exception as e:
-        print(f"[Enhance] Title enhancement skipped: {e}")
+        logger.warning(f"[Enhance] Title enhancement skipped: {e}")
     
-    print(f"[Enhance Schedules] ✓ Enhanced {len(enhanced_schedules)} schedules")
+    logger.info(f"[Enhance Schedules] Enhanced {len(enhanced_schedules)} schedules")
     return {"schedules": enhanced_schedules, "success": True}
 
 
@@ -1699,10 +1763,10 @@ def _enhance_titles_with_gemini(schedules: list, original_text: str) -> list:
         enhanced = json.loads(clean)
         
         if isinstance(enhanced, list) and len(enhanced) == len(schedules):
-            print(f"[Enhance] ✓ Titles improved by Gemini")
+            logger.info(f"[Enhance] Titles improved by Gemini")
             return enhanced
     except Exception as e:
-        print(f"[Enhance] Title improvement failed: {e}")
+        logger.warning(f"[Enhance] Title improvement failed: {e}")
     
     return schedules
 
@@ -1719,7 +1783,7 @@ async def api_reanalyze_with_gemini(request: ReanalyzeRequest):
     is_korean_input = check_is_korean(original_text)
     translated_text = translate_korean_to_english(original_text) if is_korean_input else original_text
     
-    print("[AI] Quality Enhancement: Force Gemini re-analysis")
+    logger.info("[AI] Quality Enhancement: Force Gemini re-analysis")
     
     # Check for multiple schedules first
     schedules = extract_multiple_schedules_with_gemini(original_text)
@@ -1794,7 +1858,7 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
         
         # 결과를 ExtractResponse 형식으로 변환
         transcribed_text = result.get("transcribed_text", "")
-        print(f"📝 Image Extracted: {result.get('summary', 'N/A')}")
+        logger.info(f"Image extracted: {result.get('summary', 'N/A')}")
         
         return ExtractResponse(
             original_text=transcribed_text,
@@ -1815,7 +1879,7 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
     except HTTPException as he:
         return JSONResponse(status_code=he.status_code, content={"error": he.detail})
     except Exception as e:
-        print(f"[Vision API] Error: {e}")
+        logger.error(f"[Vision API] Error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
@@ -1829,12 +1893,12 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
     text_content = ""
     
     if filename.endswith('.pdf'):
-        print("[PDF] Processing PDF file...")
+        logger.info("[PDF] Processing PDF file...")
         text_content = extract_text_from_pdf(contents)
         
         # PDF 전용 분석: spaCy 우선 사용
         if text_content and "nlp_sm" in models:
-            print("[PDF] Step 1: Using spaCy...")
+            logger.debug("[PDF] Step 1: Using spaCy...")
             nlp_model = models.get("nlp_sm")
             
             # spaCy로 분석
@@ -1843,7 +1907,7 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
             
             # 결과가 충분하면 (3개 이상) spaCy 결과만 반환
             if spacy_schedules and spacy_count >= 3:
-                print(f"[PDF] ✓ spaCy extraction successful: {spacy_count} schedules")
+                logger.info(f"[PDF] spaCy extraction successful: {spacy_count} schedules")
                 if spacy_count > 1:
                     return ExtractResponse(
                         original_text=text_content[:500] + "..." if len(text_content) > 500 else text_content,
@@ -1880,14 +1944,14 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
                     )
             
             # 결과가 부족하면 (3개 미만) Gemini로 보완
-            print(f"[PDF] Step 2: spaCy found {spacy_count} schedules, trying Gemini enhancement...")
+            logger.debug(f"[PDF] Step 2: spaCy found {spacy_count} schedules, trying Gemini enhancement...")
             
             # Gemini로 추가 분석
             gemini_schedules = extract_multiple_schedules_with_gemini(text_content)
             gemini_count = len(gemini_schedules) if gemini_schedules else 0
             
             if gemini_schedules and gemini_count > spacy_count:
-                print(f"[PDF] ✓ Gemini enhanced: {gemini_count} schedules (was {spacy_count})")
+                logger.info(f"[PDF] Gemini enhanced: {gemini_count} schedules (was {spacy_count})")
                 
                 # spaCy 결과가 있었다면 로그에 표시
                 spacy_log_msg = f"spaCy found {spacy_count}, Gemini enhanced to {gemini_count} schedules"
@@ -1929,7 +1993,7 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
             
             # spaCy 결과라도 있으면 반환
             elif spacy_schedules and spacy_count > 0:
-                print(f"[PDF] Using spaCy results ({spacy_count} schedules)")
+                logger.info(f"[PDF] Using spaCy results ({spacy_count} schedules)")
                 if spacy_count > 1:
                     return ExtractResponse(
                         original_text=text_content[:500] + "..." if len(text_content) > 500 else text_content,
@@ -1965,14 +2029,14 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
                         spacy_log="Single schedule extracted"
                     )
             
-            print("[PDF] No schedules found by either method, falling back to general processing...")
+            logger.warning("[PDF] No schedules found by either method, falling back to general processing...")
 
         
     elif filename.endswith('.docx'):
-        print("[DOCX] Processing DOCX file...")
+        logger.info("[DOCX] Processing DOCX file...")
         text_content = extract_text_from_docx(contents)
     elif filename.endswith('.txt'):
-        print("[TXT] Processing TXT file...")
+        logger.info("[TXT] Processing TXT file...")
         try:
             text_content = contents.decode('utf-8')
         except UnicodeDecodeError:
@@ -1983,7 +2047,7 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
     if not text_content or not text_content.strip():
         return JSONResponse(status_code=500, content={"error": "Failed to extract text from file"})
     
-    print(f"[OK] Extracted {len(text_content)} characters from {filename}")
+    logger.info(f"Extracted {len(text_content)} characters from {filename}")
     
     # Use the unified text processing pipeline (spaCy + Gemini)
     # Force Gemini usage for file analysis to ensure high-quality extraction
@@ -2024,7 +2088,7 @@ async def login(request: Request):
     if request.headers.get('x-forwarded-proto') == 'https':
         redirect_uri = str(redirect_uri).replace('http://', 'https://')
     
-    print(f" Generated redirect_uri: {redirect_uri}")
+    logger.info(f"Generated redirect_uri: {redirect_uri}")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
@@ -2038,7 +2102,7 @@ async def auth(request: Request):
         request.session['token'] = {'access_token': token.get('access_token'), 'token_type': token.get('token_type')}
         return RedirectResponse(url='/', status_code=303)
     except Exception as e:
-        print(f"? Auth Error: {e!r}")
+        logger.error(f"Auth callback error: {e!r}")
         return JSONResponse(status_code=400, content={"error": f"Login failed: {str(e)}"})
 
 
@@ -2123,7 +2187,7 @@ async def add_to_calendar(request: Request, event_data: AddEventRequest):
         return {"message": "Success", "link": result.get('htmlLink'), "saved_msg": saved_msg}
 
     except Exception as e:
-        print(f"Calendar Error: {e}")
+        logger.error(f"Calendar add event error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
@@ -2217,7 +2281,7 @@ async def add_multiple_to_calendar(request: Request, batch_data: BatchAddEventRe
         try:
             import traceback
             if HF_TOKEN:
-                print(f"📝 Saving batch feedback... {len(batch_data.schedules)} schedules")
+                logger.debug(f"Saving batch feedback... {len(batch_data.schedules)} schedules")
                 rows = []
                 for schedule in batch_data.schedules:
                     rows.append({
@@ -2236,7 +2300,7 @@ async def add_multiple_to_calendar(request: Request, batch_data: BatchAddEventRe
                 df = pd.DataFrame(rows)
                 unique_filename = f"feedback_batch_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
                 df.to_csv(unique_filename, index=False, encoding='utf-8')
-                print(f"📄 Batch CSV created: {unique_filename}")
+                logger.debug(f"Batch CSV created: {unique_filename}")
                 
                 api = HfApi(token=HF_TOKEN)
                 api.upload_file(
@@ -2245,15 +2309,15 @@ async def add_multiple_to_calendar(request: Request, batch_data: BatchAddEventRe
                     repo_id=DATASET_REPO_ID,
                     repo_type="dataset"
                 )
-                print(f"✅ Batch feedback saved to Hub: {unique_filename}")
+                logger.info(f"Batch feedback saved to Hub: {unique_filename}")
                 
                 # 로컬 파일 삭제
                 if os.path.exists(unique_filename):
                     os.remove(unique_filename)
         except Exception as e:
-            print(f"❌ Batch Save Error: {e}")
+            logger.error(f"Batch save error: {e}")
             import traceback
-            print(f"❌ Traceback: {traceback.format_exc()}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
     
     return {
         "message": f"Added {success_count} of {len(batch_data.schedules)} events",
@@ -2343,7 +2407,7 @@ async def update_event(request: Request, event_id: str, event_data: UpdateEventR
                 body['end'] = {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Seoul'}
 
     except Exception as e:
-        print(f"Date Parse Error in Update: {e}")
+        logger.error(f"Date parse error in update: {e}")
         pass
 
     try:
