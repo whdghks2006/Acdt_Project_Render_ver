@@ -102,7 +102,7 @@ def get_gemini_content(prompt, image=None, target_model="gemini-2.5-flash"):
 
 
 # ==============================================================================
-# File Format Parsers (PDF, DOCX, XLSX)
+# File Format Parsers (PDF, DOCX)
 # ==============================================================================
 
 def extract_text_from_pdf(file_bytes):
@@ -458,23 +458,6 @@ def extract_text_from_docx(file_bytes):
         return "\n".join(text_parts)
     except Exception as e:
         print(f"? DOCX Extraction Error: {e}")
-        return ""
-
-def extract_text_from_xlsx(file_bytes):
-    """XLSX에서 텍스트 추출 (모든 셀을 행별로 결합)"""
-    try:
-        xlsx_file = io.BytesIO(file_bytes)
-        df = pd.read_excel(xlsx_file, sheet_name=None)  # 모든 시트 읽기
-        text_parts = []
-        for sheet_name, sheet_df in df.items():
-            # 각 행을 공백으로 결합
-            for _, row in sheet_df.iterrows():
-                row_text = " ".join([str(val) for val in row.values if pd.notna(val)])
-                if row_text.strip():
-                    text_parts.append(row_text)
-        return "\n".join(text_parts)
-    except Exception as e:
-        print(f"? XLSX Extraction Error: {e}")
         return ""
 
 
@@ -1701,7 +1684,9 @@ def _enhance_titles_with_gemini(schedules: list, original_text: str) -> list:
     Current schedules (from spaCy):
     {schedules_json}
     
-    Task: Improve the "summary" field for each schedule to be more descriptive and clear.
+    Task: For each schedule:
+    1. Improve the "summary" field to be more descriptive and clear (max 5-7 words)
+    2. Generate a meaningful "description" with additional context or details about the event
     {lang_instruction}
     
     Return ONLY a JSON array with the improved schedules, keeping all other fields unchanged.

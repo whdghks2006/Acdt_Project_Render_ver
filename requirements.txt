@@ -22,4 +22,4 @@ python-dotenv
 # [NEW] Enhanced File Format Support
 PyMuPDF
 python-docx
-openpyxl
+
