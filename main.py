@@ -26,6 +26,7 @@ import google.generativeai as genai
 import json
 import re
 import io
+import hashlib  # [OPTIMIZE] For caching Gemini responses
 import PIL.Image  # 이미지 처리를 위한 라이브러리
 
 # [NEW] File format parsers
@@ -1120,13 +1121,26 @@ def ask_gemini_for_missing_info(text, current_data, lang='en'):
         return ""
 
 
+# [OPTIMIZE] Cache for Gemini enhance responses (saves API calls)
+_enhance_cache = {}
+_CACHE_MAX_SIZE = 100  # Maximum cache entries
+
 def enhance_with_gemini_title(text: str) -> dict:
     """
     [NEW] Gemini로 제목/설명만 추출 (병렬 처리용)
     날짜/시간은 다루지 않고 오직 제목과 설명만 생성
+    [OPTIMIZED] Cache를 사용해 동일 요청 시 API 호출 절약
     """
+    global _enhance_cache
+    
     if not GEMINI_API_KEY:
         return {"summary": "", "description": ""}
+    
+    # Check cache first
+    cache_key = hashlib.md5(text.encode()).hexdigest()
+    if cache_key in _enhance_cache:
+        logger.info(f"[Cache] HIT - returning cached enhance result")
+        return _enhance_cache[cache_key]
     
     is_korean_input = check_is_korean(text)
     lang_instruction = "IMPORTANT: Input is Korean. Return summary and description in Korean." if is_korean_input else ""
@@ -1153,10 +1167,18 @@ def enhance_with_gemini_title(text: str) -> dict:
         
         if isinstance(parsed, dict):
             logger.info(f"[Gemini] Enhanced title: '{parsed.get('summary', '')}'")
-            return {
+            result = {
                 "summary": parsed.get("summary", ""),
                 "description": parsed.get("description", "")
             }
+            # Save to cache
+            if len(_enhance_cache) >= _CACHE_MAX_SIZE:
+                # Remove oldest entries if cache is full
+                _enhance_cache.clear()
+                logger.debug("[Cache] Cleared due to size limit")
+            _enhance_cache[cache_key] = result
+            logger.debug(f"[Cache] SAVED - cache size: {len(_enhance_cache)}")
+            return result
     except Exception as e:
         logger.warning(f"Gemini title enhancement failed: {e}")
     
@@ -1418,11 +1440,60 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 
     # 1. Translate & spaCy (Fast)
     translated_text = translate_korean_to_english(original_text) if is_korean_input else original_text
-
+    
+    # [FIX] Option C: Remove chat timestamps like "[9:06 PM]" to avoid confusion
+    clean_translated = re.sub(r'\[\d{1,2}:\d{2}\s*(AM|PM|am|pm)?\]', '', translated_text)
+    clean_translated = re.sub(r'\[오전|오후\s*\d{1,2}:\d{2}\]', '', clean_translated)  # Korean timestamps
+    
     date_str, time_str, end_date_str, end_time_str, loc_str, event_str = "", "", "", "", "", ""
     spacy_doc = None  # [OPTIMIZED] Reuse spaCy doc object
     if "nlp_sm" in models:
-        date_str, time_str, end_date_str, end_time_str, loc_str, event_str, spacy_doc = run_ner_extraction(translated_text, models["nlp_sm"], original_text)
+        date_str, time_str, end_date_str, end_time_str, loc_str, event_str, spacy_doc = run_ner_extraction(clean_translated, models["nlp_sm"], original_text)
+    
+    # [FIX] Option A: Regex fallback for informal date/time patterns
+    # If spaCy missed date, try regex on cleaned translated text
+    if not date_str:
+        # Match "the 14th", "on the 25th", "December 14th"
+        date_match = re.search(r'(?:on\s+)?(?:the\s+)?(\d{1,2})(st|nd|rd|th)', clean_translated, re.IGNORECASE)
+        if date_match:
+            day = int(date_match.group(1))
+            # Use current month if not specified
+            import datetime
+            today = datetime.datetime.now()
+            target_date = today.replace(day=day)
+            # If day already passed this month, use next month
+            if target_date < today:
+                if today.month == 12:
+                    target_date = target_date.replace(year=today.year + 1, month=1)
+                else:
+                    target_date = target_date.replace(month=today.month + 1)
+            date_str = target_date.strftime("%Y-%m-%d")
+            logger.debug(f"[Regex] Extracted date: '{date_match.group(0)}' -> {date_str}")
+    
+    # If spaCy missed time OR returned invalid format, try regex
+    # Valid time should look like HH:MM or have AM/PM indicator
+    def _is_valid_time_format(t):
+        if not t:
+            return False
+        if re.match(r'^\d{1,2}:\d{2}$', t):
+            return True
+        if re.match(r'^\d{1,2}\s*(am|pm)$', t, re.IGNORECASE):
+            return True
+        return False
+    
+    if not _is_valid_time_format(time_str):
+        # Match "7 PM", "around 7 PM", "at 3pm", "7:30 PM"
+        time_match = re.search(r'(?:around\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)', clean_translated)
+        if time_match:
+            hour = int(time_match.group(1))
+            minute = time_match.group(2) or "00"
+            ampm = time_match.group(3).upper()
+            if ampm == "PM" and hour < 12:
+                hour += 12
+            elif ampm == "AM" and hour == 12:
+                hour = 0
+            time_str = f"{hour:02d}:{minute}"
+            logger.debug(f"[Regex] Extracted time: '{time_match.group(0)}' -> {time_str}")
 
     spacy_debug_str = f"StartDate=[{date_str}] StartTime=[{time_str}] EndDate=[{end_date_str}] EndTime=[{end_time_str}] Loc=[{loc_str}]"
     

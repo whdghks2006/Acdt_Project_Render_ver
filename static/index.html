@@ -2377,14 +2377,10 @@
                 const fastData = await fastRes.json();
                 updateUI(fastData);
 
-                // 2. ASYNC ENHANCE - Gemini reviews and improves the results
-                if (fastData.schedules && fastData.schedules.length > 1) {
-                    // Multiple schedules: enhance all of them
-                    enhanceSchedulesAsync(fastData.schedules, inputText);
-                } else {
-                    // Single schedule: just enhance title
-                    enhanceTitleAsync(inputText);
-                }
+                // [OPTIMIZED] Gemini is NO LONGER called automatically
+                // User can click "✨ Enhance" button to manually trigger Gemini
+                // This saves API calls (free tier: 20/day limit)
+                console.log('[API Saver] Skipping auto-enhance. Click "✨ Enhance" for AI improvement.');
 
             } catch (error) {
                 if (error.name === 'AbortError') {
