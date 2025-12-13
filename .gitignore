@@ -30,7 +30,7 @@ refactor_*.py
 output.txt
 
 # Development backup (training data, scripts, etc.)
-_dev_backup/
+# _dev_backup/  # Temporarily commented for model training access
 
 # Test files and temp outputs
 *.pdf
