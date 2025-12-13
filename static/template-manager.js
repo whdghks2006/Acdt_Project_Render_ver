@@ -204,23 +204,36 @@ function handleTemplateSelect() {
 
 /**
  * Save current form as template
+ * NOTE: This function is now defined inline in index.html to avoid loading issues
+ * Keeping this commented out to prevent duplicate function conflicts
  */
+/*
 function saveAsTemplate() {
-    if (!templateManager) return;
+    console.log('[Template] saveAsTemplate called');
+
+    if (!templateManager) {
+        console.error('[Template] templateManager is not initialized!');
+        alert('Template system not ready. Please refresh the page.');
+        return;
+    }
 
     // Get current form data
     const formData = templateManager.getCurrentFormData();
+    console.log('[Template] Form data:', formData);
 
     // Check if there's any data to save
     if (!formData.summary && !formData.start_date && !formData.location) {
-        showTemplateNotification('Please fill in some event details first', 'warning');
+        console.log('[Template] No data to save');
+        alert('Please fill in some event details first (Title, Date, or Location)');
         return;
     }
 
     // Prompt for template name
-    const templateName = prompt(getLocalizedText('prompt-template-name', 'Enter template name:'));
+    const templateName = prompt('Enter template name:');
+    console.log('[Template] User entered:', templateName);
 
     if (!templateName || templateName.trim() === '') {
+        console.log('[Template] User cancelled or empty name');
         return; // User cancelled or entered empty name
     }
 
@@ -228,16 +241,21 @@ function saveAsTemplate() {
     const template = templateManager.createTemplate(templateName.trim(), formData);
 
     if (template) {
+        console.log('[Template] Template created:', template);
         updateTemplateDropdown();
-        showTemplateNotification(`Template "${templateName}" saved! 💾`, 'success');
+        alert(`Template "${templateName}" saved successfully! 💾`);
     } else {
-        showTemplateNotification('Failed to save template', 'error');
+        console.error('[Template] Failed to create template');
+        alert('Failed to save template');
     }
 }
+*/
 
 /**
  * Open template management modal
+ * NOTE: This function is now defined inline in index.html
  */
+/*
 function openTemplateManager() {
     const modal = document.getElementById('template-modal');
     if (!modal) return;
@@ -248,16 +266,20 @@ function openTemplateManager() {
     // Show modal
     modal.style.display = 'flex';
 }
+*/
 
 /**
  * Close template management modal
+ * NOTE: This function is now defined inline in index.html
  */
+/*
 function closeTemplateManager() {
     const modal = document.getElementById('template-modal');
     if (modal) {
         modal.style.display = 'none';
     }
 }
+*/
 
 /**
  * Update template list in management modal

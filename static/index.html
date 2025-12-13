@@ -365,6 +365,192 @@
             }
         }
 
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .app-container {
+                border-radius: 16px;
+                min-height: auto;
+            }
+
+            /* Header Mobile Fixes */
+            .app-header {
+                flex-wrap: wrap;
+                padding: 15px;
+                gap: 10px;
+                border-radius: 16px 16px 0 0;
+            }
+
+            .app-header>div {
+                flex-wrap: wrap;
+                gap: 8px;
+                justify-content: flex-end;
+            }
+
+            .brand {
+                font-size: 1.1rem;
+                flex-shrink: 0;
+            }
+
+            .btn-login {
+                padding: 6px 10px;
+                font-size: 0.8rem;
+            }
+
+            .btn-login span {
+                display: none;
+            }
+
+            .btn-login::after {
+                content: '';
+            }
+
+            /* Hide "Manage Templates" text on mobile, show only icon */
+            .app-header .btn-login[onclick*="openTemplateManager"] {
+                padding: 8px 10px;
+            }
+
+            .lang-switch {
+                padding: 3px;
+            }
+
+            .lang-btn {
+                width: 38px;
+                padding: 5px 0;
+                font-size: 0.75rem;
+            }
+
+            /* Main Content Mobile Fixes */
+            .main-content {
+                padding: 15px;
+            }
+
+            .unified-card {
+                padding: 15px;
+            }
+
+            .hero-section {
+                margin-bottom: 20px;
+            }
+
+            .hero-section h1 {
+                font-size: 1.6rem;
+            }
+
+            .hero-section p {
+                font-size: 0.95rem;
+            }
+
+            /* Form Elements */
+            .form-row {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .time-row-container {
+                flex-wrap: wrap;
+            }
+
+            .time-input-group {
+                min-width: calc(50% - 10px);
+            }
+
+            /* Buttons */
+            .btn-main,
+            .btn-sub {
+                padding: 14px;
+                font-size: 0.9rem;
+            }
+
+            /* Template Modal Mobile */
+            .template-modal-content {
+                width: 100%;
+                max-width: 100%;
+            }
+
+            /* Schedule Pagination */
+            .schedule-pagination {
+                gap: 3px;
+            }
+
+            .page-btn {
+                padding: 4px 8px;
+                font-size: 0.7rem;
+            }
+
+            /* Section Header */
+            .section-header {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+        }
+
+        /* Extra Small Mobile */
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+
+            .app-header {
+                padding: 12px;
+            }
+
+            .brand {
+                font-size: 1rem;
+                width: 100%;
+                text-align: center;
+                margin-bottom: 8px;
+            }
+
+            .app-header>div {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .hero-section h1 {
+                font-size: 1.4rem;
+            }
+
+            .unified-card {
+                padding: 10px;
+            }
+
+            textarea {
+                min-height: 120px;
+            }
+
+            .drop-zone {
+                padding: 25px 15px;
+                min-height: 140px;
+            }
+
+            .time-input-group {
+                min-width: 100%;
+            }
+
+            .switch-wrapper {
+                width: 100%;
+                flex-direction: row;
+                justify-content: flex-start;
+                gap: 10px;
+                padding: 10px 0;
+            }
+
+            /* Hide profile name on very small screens */
+            .profile-name {
+                display: none;
+            }
+
+            /* Template select */
+            .template-select {
+                font-size: 0.85rem;
+                padding: 10px;
+            }
+        }
+
         .section-header {
             display: flex;
             align-items: center;
@@ -1816,16 +2002,17 @@
                             </button>
                         </div>
                         <div class="spinner" id="loading-spinner"></div>
+
+                        <!-- Save Template Button -->
+                        <button type="button" onclick="event.preventDefault(); saveAsTemplate();" class="btn-sub"
+                            style="margin-top: 15px; padding: 10px 16px; font-size: 0.9rem;">
+                            💾 Save as Template
+                        </button>
+
                         <div id="result-output"
                             style="margin-top: 20px; text-align: center; font-weight: 600; color: #059669;"></div>
 
                     </div>
-                    <!-- Save Template Button -->
-                    <button onclick="saveAsTemplate()" class="btn-sub"
-                        style="margin-top: 15px; padding: 8px 14px; font-size: 0.85rem;">
-                        💾 Save as Template
-                    </button>
-
                 </div>
             </div>
         </div>
@@ -1899,6 +2086,26 @@
         </div>
     </div>
 
+    <!-- Template Manager Modal -->
+    <div class="template-modal" id="template-modal" onclick="if(event.target === this) closeTemplateManager()">
+        <div class="template-modal-content">
+            <div class="template-modal-header">
+                <h3 class="template-modal-title" id="txt-manage-templates">📋 Manage Templates</h3>
+                <button class="template-modal-close" onclick="closeTemplateManager()">×</button>
+            </div>
+            <div class="template-modal-body" id="template-list">
+                <!-- Template list will be populated by JavaScript -->
+                <div style="text-align: center; padding: 40px; color: #94a3b8;">
+                    <div style="font-size: 3rem; margin-bottom: 10px;">📋</div>
+                    <div id="txt-no-templates">No templates saved yet</div>
+                    <p style="margin-top: 10px; font-size: 0.85rem;">
+                        Fill out the schedule details and click "Save as Template" to create your first template!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let originalText = "";
         let translatedText = "";
@@ -1920,6 +2127,381 @@
         // Function to get random purple color
         function getRandomPurpleColor() {
             return purpleColors[Math.floor(Math.random() * purpleColors.length)];
+        }
+
+        // =============================================
+        // TEMPLATE SAVE FUNCTION (Inline for reliability)
+        // =============================================
+        let pendingTemplateData = null;
+
+        function saveAsTemplate() {
+            console.log('[Template] saveAsTemplate called');
+
+            // Get form data directly
+            const formData = {
+                summary: document.getElementById('summary-box')?.value || '',
+                start_date: document.getElementById('start-date-box')?.value || '',
+                end_date: document.getElementById('end-date-box')?.value || '',
+                start_time: document.getElementById('start-time-box')?.value || '',
+                end_time: document.getElementById('end-time-box')?.value || '',
+                location: document.getElementById('loc-box')?.value || '',
+                description: document.getElementById('description-box')?.value || '',
+                allday: document.getElementById('allday-check')?.checked || false
+            };
+
+            console.log('[Template] Form data:', formData);
+
+            // Check if there's any data to save
+            if (!formData.summary && !formData.start_date && !formData.location) {
+                alert('Please fill in some event details first (Title, Date, or Location)');
+                return;
+            }
+
+            // Store form data and show custom modal
+            pendingTemplateData = formData;
+            showTemplateNameModal();
+        }
+
+        function showTemplateNameModal() {
+            // Create modal if it doesn't exist
+            let modal = document.getElementById('template-name-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'template-name-modal';
+                modal.style.cssText = `
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                    background: rgba(0,0,0,0.5); display: flex; align-items: center;
+                    justify-content: center; z-index: 9999;
+                `;
+                modal.innerHTML = `
+                    <div style="background: white; padding: 30px; border-radius: 16px; width: 90%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+                        <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.2rem;">💾 Save as Template</h3>
+                        <input type="text" id="template-name-input" placeholder="Enter template name..." 
+                            style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 1rem; box-sizing: border-box; margin-bottom: 20px;">
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button onclick="closeTemplateNameModal()" 
+                                style="padding: 10px 20px; border: none; border-radius: 8px; background: #e2e8f0; color: #475569; font-weight: 600; cursor: pointer;">
+                                Cancel
+                            </button>
+                            <button onclick="confirmTemplateSave()" 
+                                style="padding: 10px 20px; border: none; border-radius: 8px; background: #6366f1; color: white; font-weight: 600; cursor: pointer;">
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            } else {
+                modal.style.display = 'flex';
+            }
+
+            // Focus on input
+            setTimeout(() => {
+                document.getElementById('template-name-input').focus();
+            }, 100);
+        }
+
+        function closeTemplateNameModal() {
+            const modal = document.getElementById('template-name-modal');
+            if (modal) {
+                modal.style.display = 'none';
+                document.getElementById('template-name-input').value = '';
+            }
+            pendingTemplateData = null;
+        }
+
+        function confirmTemplateSave() {
+            const templateName = document.getElementById('template-name-input').value.trim();
+
+            if (!templateName) {
+                alert('Please enter a template name');
+                return;
+            }
+
+            if (!pendingTemplateData) {
+                alert('No template data to save');
+                closeTemplateNameModal();
+                return;
+            }
+
+            // Save to localStorage
+            try {
+                const storageKey = 'ai_scheduler_templates';
+                let templates = [];
+
+                const existing = localStorage.getItem(storageKey);
+                if (existing) {
+                    templates = JSON.parse(existing);
+                }
+
+                const newTemplate = {
+                    id: 'template_' + Date.now(),
+                    name: templateName,
+                    data: pendingTemplateData,
+                    created: new Date().toISOString()
+                };
+
+                templates.push(newTemplate);
+                localStorage.setItem(storageKey, JSON.stringify(templates));
+
+                console.log('[Template] Saved:', newTemplate);
+
+                // Update dropdown directly
+                const dropdown = document.getElementById('template-select');
+                if (dropdown) {
+                    // Add new option
+                    const option = document.createElement('option');
+                    option.value = newTemplate.id;
+                    option.textContent = newTemplate.name;
+                    dropdown.appendChild(option);
+                    console.log('[Template] Dropdown updated with:', newTemplate.name);
+                }
+
+                closeTemplateNameModal();
+                alert(`Template "${templateName}" saved successfully! 💾`);
+
+            } catch (error) {
+                console.error('[Template] Save error:', error);
+                alert('Failed to save template: ' + error.message);
+            }
+        }
+
+        // =============================================
+        // MANAGE TEMPLATES FUNCTIONS (Inline)
+        // =============================================
+        function openTemplateManager() {
+            console.log('[Template] openTemplateManager called');
+            const modal = document.getElementById('template-modal');
+            if (!modal) {
+                console.error('[Template] template-modal not found!');
+                alert('Template modal not found. Please refresh the page.');
+                return;
+            }
+
+            // Update template list
+            updateTemplateListInline();
+
+            // Show modal
+            modal.classList.add('show');
+            console.log('[Template] Modal opened');
+        }
+
+        function closeTemplateManager() {
+            const modal = document.getElementById('template-modal');
+            if (modal) {
+                modal.classList.remove('show');
+            }
+        }
+
+        function updateTemplateListInline() {
+            const listContainer = document.getElementById('template-list');
+            if (!listContainer) return;
+
+            // Get templates from localStorage
+            const storageKey = 'ai_scheduler_templates';
+            let templates = [];
+            try {
+                const existing = localStorage.getItem(storageKey);
+                if (existing) {
+                    templates = JSON.parse(existing);
+                }
+            } catch (e) {
+                console.error('Error loading templates:', e);
+            }
+
+            console.log('[Template] Found templates:', templates.length);
+
+            if (templates.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #94a3b8;">
+                        <div style="font-size: 3rem; margin-bottom: 10px;">📋</div>
+                        <div>No templates saved yet</div>
+                        <p style="margin-top: 10px; font-size: 0.85rem;">
+                            Fill out the schedule details and click "Save as Template" to create your first template!
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            listContainer.innerHTML = templates.map(template => `
+                <div class="template-item" data-id="${template.id}" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; margin-bottom: 12px; justify-content: space-between; align-items: center;">
+                    <div style="flex: 1;">
+                        <div style="font-size: 1rem; font-weight: 600; color: #1e293b; margin-bottom: 4px;">${escapeHtmlInline(template.name)}</div>
+                        <div style="font-size: 0.8rem; color: #94a3b8;">
+                            ${template.data.summary ? `📅 ${escapeHtmlInline(template.data.summary)}` : ''}
+                            ${template.data.location ? ` • 📍 ${escapeHtmlInline(template.data.location)}` : ''}
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="applyTemplateFromManager('${template.id}')" 
+                            style="padding: 8px 12px; border: none; border-radius: 8px; background: #6366f1; color: white; cursor: pointer; font-weight: 600;">
+                            ✓ Apply
+                        </button>
+                        <button onclick="deleteTemplateFromManager('${template.id}')" 
+                            style="padding: 8px 12px; border: none; border-radius: 8px; background: #ef4444; color: white; cursor: pointer; font-weight: 600;">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtmlInline(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function applyTemplateFromManager(templateId) {
+            const storageKey = 'ai_scheduler_templates';
+            let templates = [];
+            try {
+                const existing = localStorage.getItem(storageKey);
+                if (existing) {
+                    templates = JSON.parse(existing);
+                }
+            } catch (e) {
+                return;
+            }
+
+            const template = templates.find(t => t.id === templateId);
+            if (!template) {
+                alert('Template not found');
+                return;
+            }
+
+            const data = template.data;
+
+            // Apply to form
+            if (document.getElementById('summary-box'))
+                document.getElementById('summary-box').value = data.summary || '';
+            if (document.getElementById('start-date-box'))
+                document.getElementById('start-date-box').value = data.start_date || '';
+            if (document.getElementById('end-date-box'))
+                document.getElementById('end-date-box').value = data.end_date || '';
+            if (document.getElementById('start-time-box'))
+                document.getElementById('start-time-box').value = data.start_time || '';
+            if (document.getElementById('end-time-box'))
+                document.getElementById('end-time-box').value = data.end_time || '';
+            if (document.getElementById('loc-box')) {
+                document.getElementById('loc-box').value = data.location || '';
+                if (typeof updateMapLinks === 'function') updateMapLinks();
+            }
+            if (document.getElementById('description-box'))
+                document.getElementById('description-box').value = data.description || '';
+            if (document.getElementById('allday-check'))
+                document.getElementById('allday-check').checked = data.allday || false;
+
+            closeTemplateManager();
+            alert(`Template "${template.name}" applied! ✓`);
+        }
+
+        function deleteTemplateFromManager(templateId) {
+            if (!confirm('Are you sure you want to delete this template?')) {
+                return;
+            }
+
+            const storageKey = 'ai_scheduler_templates';
+            let templates = [];
+            try {
+                const existing = localStorage.getItem(storageKey);
+                if (existing) {
+                    templates = JSON.parse(existing);
+                }
+            } catch (e) {
+                return;
+            }
+
+            templates = templates.filter(t => t.id !== templateId);
+            localStorage.setItem(storageKey, JSON.stringify(templates));
+
+            // Refresh list
+            updateTemplateListInline();
+
+            // Update dropdown
+            refreshTemplateDropdown();
+
+            alert('Template deleted! 🗑️');
+        }
+
+        function refreshTemplateDropdown() {
+            const dropdown = document.getElementById('template-select');
+            if (!dropdown) return;
+
+            const storageKey = 'ai_scheduler_templates';
+            let templates = [];
+            try {
+                const existing = localStorage.getItem(storageKey);
+                if (existing) {
+                    templates = JSON.parse(existing);
+                }
+            } catch (e) {
+                return;
+            }
+
+            dropdown.innerHTML = '<option value="" disabled selected>📋 Select a template...</option>';
+            templates.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = template.name;
+                dropdown.appendChild(option);
+            });
+        }
+
+        // Handle template selection from dropdown
+        function handleTemplateSelect() {
+            const dropdown = document.getElementById('template-select');
+            if (!dropdown || !dropdown.value) return;
+
+            const templateId = dropdown.value;
+
+            // Get templates from localStorage
+            const storageKey = 'ai_scheduler_templates';
+            let templates = [];
+            try {
+                const existing = localStorage.getItem(storageKey);
+                if (existing) {
+                    templates = JSON.parse(existing);
+                }
+            } catch (e) {
+                return;
+            }
+
+            const template = templates.find(t => t.id === templateId);
+            if (!template) {
+                alert('Template not found');
+                return;
+            }
+
+            const data = template.data;
+
+            // Apply to form
+            if (document.getElementById('summary-box'))
+                document.getElementById('summary-box').value = data.summary || '';
+            if (document.getElementById('start-date-box'))
+                document.getElementById('start-date-box').value = data.start_date || '';
+            if (document.getElementById('end-date-box'))
+                document.getElementById('end-date-box').value = data.end_date || '';
+            if (document.getElementById('start-time-box'))
+                document.getElementById('start-time-box').value = data.start_time || '';
+            if (document.getElementById('end-time-box'))
+                document.getElementById('end-time-box').value = data.end_time || '';
+            if (document.getElementById('loc-box')) {
+                document.getElementById('loc-box').value = data.location || '';
+                if (typeof updateMapLinks === 'function') updateMapLinks();
+            }
+            if (document.getElementById('description-box'))
+                document.getElementById('description-box').value = data.description || '';
+            if (document.getElementById('allday-check'))
+                document.getElementById('allday-check').checked = data.allday || false;
+
+            // Reset dropdown selection
+            dropdown.value = '';
+
+            alert(`Template "${template.name}" applied! ✓`);
+            console.log('[Template] Applied from dropdown:', template.name);
         }
 
         function switchView(id) {
@@ -2779,6 +3361,12 @@
                 height: 'auto'
             });
             calendar.render();
+
+            // Initialize template dropdown on page load
+            if (typeof refreshTemplateDropdown === 'function') {
+                refreshTemplateDropdown();
+                console.log('[Template] Dropdown initialized on page load');
+            }
         });
         setLanguage('en');
         // Show/hide upload link overlay based on textarea content
@@ -2801,7 +3389,8 @@
         updateOverlay();
     </script>
     <script src="/static/clipboard-monitor.js"></script>
-    <script src="/static/template-manager.js"></script>
+    <!-- Template manager functions are now inline in this file -->
+    <!-- <script src="/static/template-manager.js"></script> -->
 </body>
 
 </html>
