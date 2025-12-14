@@ -882,6 +882,10 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
             if not schedule["summary"]:
                 schedule["summary"] = _extract_smart_summary(sent_text, schedule)
             
+            # [NEW] Generate description using smart extraction
+            if not schedule["description"]:
+                schedule["description"] = _extract_smart_description(sent_text, schedule, sent_text)
+            
             # Set end_date to start_date if not specified
             if schedule["start_date"] and not schedule["end_date"]:
                 schedule["end_date"] = schedule["start_date"]
@@ -954,6 +958,165 @@ def _extract_smart_summary(sentence, schedule):
         summary = summary[:37] + "..."
     
     return summary.capitalize() if summary else "Schedule"
+
+
+def _extract_smart_description(sentence: str, schedule: dict, original_text: str = None) -> str:
+    """
+    Extract a meaningful description from the sentence.
+    Provides context beyond the summary - participants, purpose, additional details.
+    
+    Args:
+        sentence: The sentence being analyzed
+        schedule: Dict with extracted info (summary, location, start_time, etc.)
+        original_text: Original unprocessed text (optional)
+    
+    Returns:
+        A short, contextual description string
+    """
+    if not sentence:
+        return ""
+    
+    text_to_analyze = original_text if original_text else sentence
+    description_parts = []
+    
+    # 1. Extract participant information (Korean)
+    ko_participant_patterns = [
+        (r'(친구들?과|가족과|팀원들?과|동료들?과|부모님과|선배[님]?과|후배[님]?과)', '참석자'),
+        (r'([가-힣]{2,4}[님]?(?:이랑|하고|과))', '참석자'),
+    ]
+    
+    # 2. Extract participant information (English)
+    en_participant_patterns = [
+        (r'with\s+(friends?|family|team|colleagues?|parents?|[\w]+)', 'participant'),
+    ]
+    
+    # 3. Purpose/action keywords
+    ko_purpose_keywords = {
+        '회의': '업무 회의',
+        '미팅': '미팅 예정',
+        '발표': '발표 예정',
+        '면접': '면접 일정',
+        '저녁': '저녁 식사',
+        '점심': '점심 식사',
+        '술': '회식/모임',
+        '커피': '커피 타임',
+        '파티': '파티 모임',
+        '생일': '생일 축하',
+        '결혼': '결혼 관련',
+        '데이트': '데이트',
+    }
+    
+    en_purpose_keywords = {
+        'meeting': 'Business meeting',
+        'presentation': 'Presentation scheduled',
+        'interview': 'Interview session',
+        'dinner': 'Dinner gathering',
+        'lunch': 'Lunch meeting',
+        'party': 'Party event',
+        'birthday': 'Birthday celebration',
+        'wedding': 'Wedding event',
+        'coffee': 'Coffee meetup',
+        'call': 'Phone/Video call',
+    }
+    
+    import re
+    
+    # Check Korean patterns
+    is_korean = check_is_korean(text_to_analyze)
+    
+    if is_korean:
+        # Find participants
+        for pattern, _ in ko_participant_patterns:
+            match = re.search(pattern, text_to_analyze)
+            if match:
+                participant = match.group(1).strip()
+                # Clean up: remove postpositions
+                participant = re.sub(r'(이랑|하고|과|와)$', '', participant)
+                if participant and len(participant) >= 2:
+                    description_parts.append(f"{participant}와 함께")
+                break
+        
+        # Find purpose
+        for keyword, desc in ko_purpose_keywords.items():
+            if keyword in text_to_analyze:
+                if desc not in description_parts:
+                    description_parts.append(desc)
+                break
+        
+        # Add location context if available
+        if schedule.get("location") and schedule["location"] not in str(description_parts):
+            loc = schedule["location"]
+            # Avoid duplicating location in description if it's in summary
+            if schedule.get("summary") and loc not in schedule["summary"]:
+                description_parts.append(f"{loc}에서")
+        
+        # Add time context
+        if schedule.get("start_time"):
+            time_str = schedule["start_time"]
+            # Parse time to add context (아침/점심/저녁)
+            try:
+                hour = int(re.search(r'(\d{1,2})', time_str).group(1))
+                if 'pm' in time_str.lower() or hour >= 12:
+                    if hour < 17 or hour >= 12:
+                        time_context = "오후"
+                    else:
+                        time_context = "저녁"
+                else:
+                    if hour < 12:
+                        time_context = "오전"
+                    else:
+                        time_context = ""
+                if time_context and time_context not in str(description_parts):
+                    description_parts.append(f"{time_context} 일정")
+            except:
+                pass
+    else:
+        # English processing
+        for pattern, _ in en_participant_patterns:
+            match = re.search(pattern, text_to_analyze, re.IGNORECASE)
+            if match:
+                participant = match.group(1).strip()
+                description_parts.append(f"With {participant}")
+                break
+        
+        # Find purpose
+        for keyword, desc in en_purpose_keywords.items():
+            if keyword in text_to_analyze.lower():
+                if desc not in description_parts:
+                    description_parts.append(desc)
+                break
+        
+        # Add location context
+        if schedule.get("location") and schedule["location"] not in str(description_parts):
+            loc = schedule["location"]
+            if schedule.get("summary") and loc not in schedule["summary"]:
+                description_parts.append(f"at {loc}")
+        
+        # Add time context
+        if schedule.get("start_time"):
+            time_str = schedule["start_time"]
+            try:
+                hour = int(re.search(r'(\d{1,2})', time_str).group(1))
+                if 'pm' in time_str.lower():
+                    hour = hour if hour == 12 else hour + 12
+                if hour < 12:
+                    time_context = "Morning"
+                elif hour < 17:
+                    time_context = "Afternoon"
+                else:
+                    time_context = "Evening"
+                if time_context and time_context not in str(description_parts):
+                    description_parts.append(f"{time_context} schedule")
+            except:
+                pass
+    
+    # Combine parts
+    if description_parts:
+        description = " · ".join(description_parts[:3])  # Max 3 parts
+        return description[:100]  # Max 100 chars
+    
+    # Fallback: return empty if no meaningful info found
+    return ""
 
 
 def _calculate_quality_score(schedules):
@@ -1588,7 +1751,6 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 
     # Set Initial Values
     summary_val = original_text if is_korean_input else event_str
-    description_val = ""
     end_date_val = end_date_str if end_date_str else start_date_val
     end_time_val = end_time_str  # Use NER end_time
     is_allday_val = False
@@ -1618,6 +1780,17 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
             content_lines = [l for l in lines if not l.startswith('오후') and not l.startswith('오전') and '장지윤' not in l and 'HY' not in l]
             if content_lines:
                 summary_val = content_lines[0][:30]
+
+    # [NEW] spaCy 기반 Description 생성 (Gemini 없이)
+    temp_schedule = {
+        "summary": summary_val,
+        "location": loc_val,
+        "start_time": start_time_val,
+        "start_date": start_date_val,
+    }
+    description_val = _extract_smart_description(original_text, temp_schedule, original_text)
+    logger.debug(f"[AI] Generated spaCy description: '{description_val}'")
+
 
     # [Branch] If fast mode, return immediately
     if mode == "fast":
