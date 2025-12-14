@@ -1528,6 +1528,15 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
             spacy_schedules = extract_multiple_schedules_with_spacy(translated_text, models["nlp_sm"])
             
             if spacy_schedules and len(spacy_schedules) > 1:
+                # [FIX] 한국어 입력인 경우 location과 summary를 한국어로 역변환
+                if is_korean_input:
+                    for schedule in spacy_schedules:
+                        if schedule.get("location"):
+                            schedule["location"] = translate_english_to_korean(schedule["location"])
+                        if schedule.get("summary"):
+                            schedule["summary"] = translate_english_to_korean(schedule["summary"])
+                    logger.debug(f"[AI] Translated {len(spacy_schedules)} schedules back to Korean")
+                
                 logger.info(f"[AI] Extracted {len(spacy_schedules)} schedules with spaCy (Gemini will enhance async)")
                 return ExtractResponse(
                     original_text=original_text,
@@ -1660,9 +1669,12 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         # [UPDATED] spaCy만 사용 성공
         used_model = "⚡ Fast (spaCy)"
 
-    # 3. Localization
-    if is_korean_input and used_model.startswith("Fast"):
+    # 3. Localization - 한국어 입력인 경우 location과 summary를 한국어로 역변환
+    if is_korean_input and "Fast" in used_model:
         loc_val = translate_english_to_korean(loc_val)
+        # [FIX] summary(title)도 영어로 추출되었을 수 있으므로 한국어로 역변환
+        if summary_val and not check_is_korean(summary_val):
+            summary_val = translate_english_to_korean(summary_val)
 
     # 4. Interactive Question (only if really missing)
     if not start_date_val and not start_time_val:
