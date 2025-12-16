@@ -27,7 +27,7 @@ import json
 import re
 import io
 import hashlib  # [OPTIMIZE] For caching Gemini responses
-import PIL.Image  # 이미지 처리를 위한 라이브러리
+import PIL.Image  # Image processing library
 
 # [NEW] File format parsers
 import fitz  # PyMuPDF - faster and more accurate than PyPDF2
@@ -124,7 +124,7 @@ def translate_english_to_korean(text):
 
 
 # [NEW] Smart Model Selector (Debugging Logic)
-# 2.5 버전을 먼저 시도하고, 실패하면(404 등) 1.5로 자동 전환하여 서버 다운 방지
+# Try version 2.5 first, fallback to 1.5 on failure (e.g., 404) to prevent server crashes
 def get_gemini_content(prompt, image=None, target_model="gemini-2.5-flash"):
     try:
         model = genai.GenerativeModel(target_model)
@@ -135,11 +135,11 @@ def get_gemini_content(prompt, image=None, target_model="gemini-2.5-flash"):
         error_msg = str(e)
         logger.warning(f"Gemini {target_model} failed: {error_msg}")
 
-        # 429 Quota Error는 모델 문제가 아니므로 즉시 에러 반환 (재시도 X)
+        # 429 Quota Error is not a model issue, return error immediately (no retry)
         if "429" in error_msg or "Resource exhausted" in error_msg:
             raise HTTPException(status_code=429, detail="Google AI Quota Exceeded. Please try again in 1 min.")
 
-        # 그 외 에러(모델 없음 등)는 1.5로 폴백
+        # Other errors (e.g., model not found) fallback to 1.5
         logger.info("Falling back to gemini-1.5-flash...")
         fallback_model = genai.GenerativeModel("gemini-1.5-flash")
         if image:
@@ -152,7 +152,7 @@ def get_gemini_content(prompt, image=None, target_model="gemini-2.5-flash"):
 # ==============================================================================
 
 def extract_text_from_pdf(file_bytes):
-    """PDF에서 텍스트 추출 (PyMuPDF 사용 - 빠른 속도)"""
+    """Extract text from PDF (using PyMuPDF - fast performance)"""
     try:
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         text_parts = [page.get_text() for page in doc]
@@ -164,16 +164,16 @@ def extract_text_from_pdf(file_bytes):
 
 
 def clean_pdf_text(text: str) -> str:
-    """PDF 텍스트에서 특수 유니코드 문자 제거 (분석 정확도 향상)"""
+    """Remove special Unicode characters from PDF text (improves analysis accuracy)"""
     import unicodedata
     
-    # 제로폭 공백 및 특수 유니코드 제거
+    # Remove zero-width spaces and special Unicode characters
     text = re.sub(r'[\u200b\u200c\u200d\ufeff\u00ad]', '', text)
-    # 특수 불릿 포인트 정규화
+    # Normalize special bullet points
     text = re.sub(r'[●○■□◆◇▶►▪▫•·]', '•', text)
-    # 연속 공백 정리
+    # Clean up consecutive spaces
     text = re.sub(r'[ \t]+', ' ', text)
-    # 연속 줄바꿈 정리 (3개 이상 -> 2개)
+    # Reduce consecutive newlines (3+ -> 2)
     text = re.sub(r'\n{3,}', '\n\n', text)
     
     return text.strip()
@@ -181,24 +181,24 @@ def clean_pdf_text(text: str) -> str:
 
 def analyze_assignment_pdf(text: str, nlp_model=None):
     """
-    과제물/실라버스 PDF 전용 분석기 (v4 - spaCy 우선)
+    Assignment/Syllabus PDF Analyzer (v4 - spaCy Priority)
     
-    핵심 전략:
-    1. 텍스트 전처리 (특수 문자 제거)
-    2. 정규식 + spaCy로 일정 추출
-    3. Gemini는 사용하지 않음 (호출하는 쪽에서 결정)
+    Core Strategy:
+    1. Text preprocessing (remove special characters)
+    2. Extract schedules using regex + spaCy
+    3. Gemini is not used (caller decides when to use it)
     
     Returns:
-        list: 추출된 일정 목록 (빈 리스트일 수 있음)
+        list: Extracted schedule list (may be empty)
     """
-    # 1단계: 텍스트 전처리
+    # Step 1: Text preprocessing
     cleaned_text = clean_pdf_text(text)
     logger.debug(f"[PDF] Cleaned text: {len(text)} -> {len(cleaned_text)} chars")
     
     schedules = []
     
-    # 3단계: "Submit to ... Due:" 블록 패턴으로 분석
-    # 전처리된 텍스트에서 더 유연한 패턴 사용
+    # Step 2: Analyze using "Submit to ... Due:" block patterns
+    # Use more flexible patterns on preprocessed text
     submit_due_pattern = re.compile(
         r'Submit\s+to\s+([A-Za-z\s&]+?)\s*\([^)]*\)\s*'
         r'Due[:\s]*(?:BY\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))\s+on\s+'
@@ -209,7 +209,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
     matches = list(submit_due_pattern.finditer(cleaned_text))
     logger.debug(f"[PDF] Submit-Due patterns found: {len(matches)}")
     
-    # 4단계: 매치된 패턴 처리
+    # Step 3: Process matched patterns
     for match in matches:
         location = match.group(1).strip()
         time_str = match.group(2)
@@ -226,7 +226,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
             "is_allday": False
         }
         
-        # 날짜 파싱 (dateparser 사용)
+        # Parse date (using dateparser)
         if date_str:
             parsed = dateparser.parse(date_str, languages=['en'])
             if parsed:
@@ -234,13 +234,13 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                 schedule["start_date"] = date_formatted
                 schedule["end_date"] = date_formatted
         
-        # 시간 파싱
+        # Parse time
         if time_str:
             parsed = dateparser.parse(time_str, languages=['en'])
             if parsed:
                 schedule["end_time"] = parsed.strftime('%H:%M')
         
-        # 과제명 추출 (마감일 앞뒤 컨텍스트)
+        # Extract assignment name (context before/after deadline)
         match_start = match.start()
         match_end = match.end()
         context_before = cleaned_text[max(0, match_start - 600):match_start]
@@ -248,7 +248,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
         
         task_name = ""
         
-        # 블랙리스트: 과제명이 아닌 문구들
+        # Blacklist: phrases that are not assignment names
         blacklist = [
             'academic integrity', 'late submission', 'policy will be applied',
             'turnitin report', 'ai writing', 'detection', 'gptZero', 'scribbr',
@@ -257,19 +257,19 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
         ]
         
         def is_valid_task_name(name):
-            """과제명으로 적합한지 검증"""
+            """Verify if valid as assignment name"""
             if not name or len(name) < 4:
                 return False
             name_lower = name.lower()
             for bad in blacklist:
                 if bad in name_lower:
                     return False
-            # 짧은 일반 단어 제외
+            # Exclude short common words
             if len(name) < 8 and name_lower in ['poster', 'video', 'essay', 'report']:
-                return True  # 이건 허용 (단독 키워드)
+                return True  # Allow these (standalone keywords)
             return True
         
-        # 전략 A: 앞쪽 컨텍스트에서 과제 키워드 패턴 먼저 검색 (가장 정확)
+        # Strategy A: Search for assignment keyword patterns in preceding context (most accurate)
         keyword_patterns = [
             r'(\d+[-–]\d+\s+page\s+[A-Za-z\s]+?)(?:\s+of|\s*:|\n)',  # 1-2 page Executive Summary
             r'(Individual\s+[A-Za-z\s]+(?:Essay|Report|Reflection))',
@@ -290,7 +290,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                     logger.debug(f"[PDF] Pattern found: '{task_name}'")
                     break
         
-        # 전략 B: spaCy NER 사용
+        # Strategy B: Use spaCy NER
         if not task_name and nlp_model:
             doc = nlp_model(context_before[-400:])
             for ent in reversed(list(doc.ents)):
@@ -301,7 +301,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                         logger.debug(f"[PDF] spaCy found: '{task_name}'")
                         break
         
-        # 전략 C: 마감일 바로 뒤 항목 (• Poster, • Video) - 필터링 강화
+        # Strategy C: Items right after deadline (• Poster, • Video) - enhanced filtering
         if not task_name:
             after_match = re.search(r'^[•\s]*([A-Za-z][A-Za-z\s]+?)(?:\s*\(|$|\n)', context_after, re.MULTILINE)
             if after_match:
@@ -309,7 +309,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                 if is_valid_task_name(potential):
                     task_name = potential
         
-        # 전략 D: 라인 기반 키워드 검색 (앞쪽)
+        # Strategy D: Line-based keyword search (preceding context)
         if not task_name:
             keywords = ['poster', 'presentation', 'essay', 'video', 'summary', 
                        'report', 'evaluation', 'reflection']
@@ -326,16 +326,16 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                     if task_name:
                         break
         
-        # 폴백: 제출처 + 날짜 기반
+        # Fallback: submission destination + date based
         if not task_name or len(task_name) < 4:
             task_name = f"Submission to {location}"
         
-        # 제목 정리: 앞뒤 특수문자 제거
-        task_name = re.sub(r'^[-–—•·\s\d.]+', '', task_name)  # 앞 정리
-        task_name = re.sub(r'[-–—•·:.\s]+$', '', task_name)   # 뒤 정리
+        # Clean title: remove leading/trailing special characters
+        task_name = re.sub(r'^[-–—•·\s\d.]+', '', task_name)  # Clean front
+        task_name = re.sub(r'[-–—•·:.\s]+$', '', task_name)   # Clean back
         task_name = task_name.strip()
         
-        # 첫 글자 대문자로
+        # Capitalize first letter
         if task_name and len(task_name) > 1:
             task_name = task_name[0].upper() + task_name[1:]
         
@@ -345,8 +345,8 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
         schedules.append(schedule)
         logger.debug(f"[PDF] Extracted: '{schedule['summary']}' -> {schedule['start_date']} {schedule['end_time']} @ {schedule['location']}")
     
-    # 5단계: "Week X-Y" 패턴으로 추가 일정 탐색 (Peer Evaluation 등)
-    # PDF에서 "Final Reflection & Peer Evaluation (Google Form) • When: Week 15-16" 패턴 감지
+    # Step 4: Search for additional schedules using "Week X-Y" patterns (e.g., Peer Evaluation)
+    # Detect patterns like "Final Reflection & Peer Evaluation (Google Form) • When: Week 15-16" in PDF
     week_pattern = re.compile(
         r'((?:Final\s+)?(?:Reflection|Peer\s+Evaluation|Review)[A-Za-z\s&]*)'
         r'\s*(?:\([^)]*\))?\s*•?\s*When[:\s]*Week\s*(\d+)[-–](\d+)',
@@ -358,28 +358,28 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
         week_start = int(week_match.group(2))
         week_end = int(week_match.group(3))
         
-        # 이벤트 이름 정리
-        event_name = re.sub(r'^[^A-Za-z]+', '', event_name)  # 앞 쓰레기 제거
-        event_name = re.sub(r'[^A-Za-z\s&]+$', '', event_name)  # 뒤 쓰레기 제거
+        # Clean event name
+        event_name = re.sub(r'^[^A-Za-z]+', '', event_name)  # Remove leading junk
+        event_name = re.sub(r'[^A-Za-z\s&]+$', '', event_name)  # Remove trailing junk
         event_name = event_name.strip()
         
-        # 블랙리스트 체크
+        # Blacklist check
         if any(bad in event_name.lower() for bad in ['policy', 'late', 'academic', 'integrity']):
             continue
         
         if len(event_name) < 5:
-            event_name = "Peer Evaluation"  # 폴백
+            event_name = "Peer Evaluation"  # Fallback
         
-        # Week 15-16 => 대략 12월 중순 (학기 기준)
+        # Week 15-16 => approximately mid-December (semester-based)
         import datetime
-        base_date = datetime.date(2025, 12, 1)  # Week 14 시작 기준
+        base_date = datetime.date(2025, 12, 1)  # Week 14 start reference
         start_offset = (week_start - 14) * 7
         end_offset = (week_end - 14) * 7 + 6
         
         start_date = (base_date + datetime.timedelta(days=start_offset)).strftime("%Y-%m-%d")
         end_date = (base_date + datetime.timedelta(days=end_offset)).strftime("%Y-%m-%d")
         
-        # 이미 추출된 것과 중복 체크
+        # Check for duplicates with already extracted items
         existing_summaries = [s["summary"].lower()[:15] for s in schedules]
         if event_name.lower()[:15] not in existing_summaries:
             new_schedule = {
@@ -395,9 +395,9 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
             schedules.append(new_schedule)
             logger.debug(f"[PDF] Week pattern: '{new_schedule['summary']}' -> {start_date} ~ {end_date}")
     
-    # 6단계: "Week X — Title" 패턴 (날짜 없이 Week만 표시)
-    # 예: "Week 9 — Service Concept & Dev Plan", "Week 10 — Data Collection"
-    # 더 유연한 패턴: 모든 종류의 대시/구분자 허용
+    # Step 5: "Week X — Title" patterns (Week only without dates)
+    # e.g., "Week 9 — Service Concept & Dev Plan", "Week 10 — Data Collection"
+    # More flexible pattern: allow all types of dashes/separators
     week_title_pattern = re.compile(
         r'Week\s*(\d+)(?:\s*[-–—]\s*(\d+))?\s*[—–\-:]+\s*([A-Za-z][A-Za-z\s&,]+)',
         re.IGNORECASE
@@ -408,13 +408,13 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
         week_end = week_match.group(2)  # None if single week
         title = week_match.group(3).strip()
         
-        # 제목 정리 - "Do this"나 뒤의 설명 제거
+        # Clean title - remove "Do this" or trailing descriptions
         title = re.sub(r'\s*(Do this|Deliverables|Note that|What|●|•).*', '', title, flags=re.IGNORECASE)
         title = re.sub(r'[:\s]+$', '', title).strip()
-        # 뒤의 "Weeks" 제거 (예: "Finalization & Showcase Weeks" -> "Finalization & Showcase")
+        # Remove trailing "Weeks" (e.g., "Finalization & Showcase Weeks" -> "Finalization & Showcase")
         title = re.sub(r'\s+Weeks?\s*$', '', title, flags=re.IGNORECASE).strip()
         
-        # 블랙리스트 체크 - 주요 과제명만 허용
+        # Blacklist check - allow only major assignment names
         bad_words = ['project weeks:', 'feedback by', 'what you', 'this is', 'the ']
         if any(bad in title.lower() for bad in bad_words):
             continue
@@ -422,13 +422,13 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
         if len(title) < 5 or len(title) > 50:
             continue
         
-        # Week 표시
+        # Week display
         if week_end:
             week_str = f"Week {week_start}-{week_end}"
         else:
             week_str = f"Week {week_start}"
         
-        # 이미 추출된 것과 중복 체크
+        # Check for duplicates with already extracted items
         existing_summaries = [s["summary"].lower()[:15] for s in schedules]
         if title.lower()[:15] not in existing_summaries:
             new_schedule = {
@@ -444,7 +444,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
             schedules.append(new_schedule)
             logger.debug(f"[PDF] Week title: '{new_schedule['summary']}' ({week_str})")
     
-    # 7단계: spaCy로 추가 일정 탐색 (Submit-Due 패턴 외)
+    # Step 6: Search for additional schedules using spaCy (outside Submit-Due patterns)
     if nlp_model and len(schedules) < 3:
         logger.debug("[PDF] Trying additional spaCy-based extraction...")
         doc = nlp_model(cleaned_text[:3000])
@@ -475,11 +475,11 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
                             logger.debug(f"[PDF] spaCy: '{new_schedule['summary']}' -> {new_schedule['start_date']}")
 
     
-    # 중복 제거
+    # Remove duplicates
     seen = set()
     unique = []
     for s in schedules:
-        # 날짜가 없으면 summary만으로 중복 체크
+        # If no date, check duplicates using summary only
         if s.get("start_date"):
             key = (s["start_date"], s["summary"][:20].lower())
         else:
@@ -496,7 +496,7 @@ def analyze_assignment_pdf(text: str, nlp_model=None):
 
 
 def extract_text_from_docx(file_bytes):
-    """DOCX에서 텍스트 추출"""
+    """Extract text from DOCX"""
     try:
         docx_file = io.BytesIO(file_bytes)
         doc = Document(docx_file)
@@ -790,22 +790,22 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
     """
     doc = nlp_model(text)
     schedules = []
-    last_date = ""  # 이전 문장에서 추출한 날짜 저장
+    last_date = ""  # Store date extracted from previous sentence
     
-    # 문장 분리 전처리: "Also", "Additionally" 등의 키워드로 분리
+    # Sentence splitting preprocessing: split by keywords like "Also", "Additionally"
     import re
-    # ". Also" -> 마침표 후 새 문장으로 분리
+    # ". Also" -> split as new sentence after period
     split_text = re.sub(r'\.\s*Also,?\s*', '. SPLIT_MARKER', text)
     split_text = re.sub(r',\s*and\s+also\s*', '. SPLIT_MARKER', split_text, flags=re.IGNORECASE)
     
-    # SPLIT_MARKER를 기준으로 문장 분리
+    # Split by SPLIT_MARKER
     raw_sentences = split_text.split('SPLIT_MARKER')
     sentences = [s.strip() for s in raw_sentences if s.strip() and len(s.strip()) >= 10]
     
     logger.debug(f"[spaCy Multi] Found {len(sentences)} sentences after split")
     
     for sent in sentences:
-        # sentences는 이제 문자열 리스트이므로 sent가 곧 텍스트
+        # sentences is now a list of strings, so sent is the text itself
         sent_text = sent.strip() if isinstance(sent, str) else sent.text.strip()
         if not sent_text or len(sent_text) < 10:  # Skip very short sentences
             continue
@@ -852,7 +852,7 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
                 if not schedule["summary"]:
                     schedule["summary"] = ent.text
         
-        # [NEW] spaCy가 시간을 놓친 경우 정규식으로 시간 패턴 직접 찾기
+        # [NEW] Use regex to find time patterns if spaCy missed them
         if not schedule["start_time"]:
             import re
             time_patterns = [
@@ -870,7 +870,7 @@ def extract_multiple_schedules_with_spacy(text, nlp_model):
         
         logger.debug(f"[spaCy Multi] Extracted: date={schedule['start_date']}, time={schedule['start_time']}, loc={schedule['location']}, has_dt={has_date_or_time}")
         
-        # 날짜가 없지만 시간이 있으면, 이전 문장의 날짜 상속
+        # If no date but has time, inherit date from previous sentence
         if not schedule["start_date"] and schedule["start_time"] and last_date:
             schedule["start_date"] = last_date
             has_date_or_time = True
@@ -1165,7 +1165,7 @@ def extract_info_with_gemini_json(text):
     if not GEMINI_API_KEY: return None
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     
-    # 입력 언어 감지
+    # Detect input language
     is_korean_input = check_is_korean(text)
     lang_instruction = "IMPORTANT: The input text is in Korean. You MUST keep the 'summary' and 'description' in Korean." if is_korean_input else ""
 
@@ -1244,10 +1244,10 @@ def extract_multiple_schedules_with_gemini(text):
         clean = re.sub(r'```json|```', '', response.text).strip()
         parsed = json.loads(clean)
         
-        # 배열이어야 함
+        # Must be an array
         if not isinstance(parsed, list):
             logger.warning(f"Gemini returned non-list: {type(parsed)}")
-            # 단일 객체면 배열로 감싸기
+            # Wrap single object in array
             if isinstance(parsed, dict):
                 return [parsed]
             return None
@@ -1262,7 +1262,7 @@ def extract_multiple_schedules_with_gemini(text):
 
 
 def ask_gemini_for_missing_info(text, current_data, lang='en'):
-    """부족한 정보에 대한 역질문 생성"""
+    """Generate follow-up questions for missing information"""
     if not GEMINI_API_KEY: return ""
     lang_instruction = "in Korean" if lang == 'ko' else "in English"
 
@@ -1290,9 +1290,9 @@ _CACHE_MAX_SIZE = 100  # Maximum cache entries
 
 def enhance_with_gemini_title(text: str) -> dict:
     """
-    [NEW] Gemini로 제목/설명만 추출 (병렬 처리용)
-    날짜/시간은 다루지 않고 오직 제목과 설명만 생성
-    [OPTIMIZED] Cache를 사용해 동일 요청 시 API 호출 절약
+    [NEW] Extract only title/description using Gemini (for parallel processing)
+    Does not handle dates/times - only generates title and description
+    [OPTIMIZED] Uses cache to save API calls for duplicate requests
     """
     global _enhance_cache
     
@@ -1353,7 +1353,7 @@ def enhance_with_gemini_title(text: str) -> dict:
 # ==============================================================================
 
 def run_vision_extraction(image_bytes):
-    """이미지에서 일정 정보 직접 추출 (OCR + 분석 통합 - 1회 호출)"""
+    """Extract schedule information directly from image (integrated OCR + analysis - single call)"""
     if not GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY not set"}
     
@@ -1362,7 +1362,7 @@ def run_vision_extraction(image_bytes):
     try:
         image = PIL.Image.open(io.BytesIO(image_bytes))
         
-        # 통합 프롬프트: OCR + 일정 추출을 한 번에
+        # Integrated prompt: OCR + schedule extraction in one call
         prompt = f"""You are a smart scheduler assistant. Today is {today}.
 
 TASK: Read ALL text from this image and extract schedule information.
@@ -1403,7 +1403,7 @@ Return JSON ONLY:
             logger.warning("[Vision] Gemini returned empty response.")
             return {"error": "Empty response from Gemini"}
         
-        # JSON 파싱
+        # JSON parsing
         clean = re.sub(r'```json|```', '', response.text).strip()
         result = json.loads(clean)
         logger.info(f"[Vision] Extracted: {result.get('summary', 'N/A')}")
@@ -1463,7 +1463,7 @@ def save_feedback_to_hub(original_text, translated_text, final_data):
         logger.error(f"Save feedback error: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
     finally:
-        # 로컬 CSV 파일 삭제
+        # Delete local CSV file
         if unique_filename and os.path.exists(unique_filename):
             try:
                 os.remove(unique_filename)
@@ -1549,7 +1549,7 @@ class ExtractResponse(BaseModel):
     ai_message: str = ""
     used_model: str = ""
     spacy_log: str = ""
-    schedules: list = []  # 여러 일정 지원
+    schedules: list = []  # Multiple schedule support
 
 
 class AddEventRequest(BaseModel):
@@ -1578,9 +1578,9 @@ class UpdateEventRequest(BaseModel):
 
 
 class EnhanceSchedulesRequest(BaseModel):
-    """spaCy가 추출한 일정 목록을 Gemini가 검토/보완하기 위한 요청"""
-    schedules: list  # spaCy가 추출한 일정 목록
-    original_text: str  # 원본 텍스트 (컨텍스트 참조용)
+    """Request for Gemini to review/enhance schedules extracted by spaCy"""
+    schedules: list  # List of schedules extracted by spaCy
+    original_text: str  # Original text for context reference
 
 
 # ==============================================================================
@@ -1660,17 +1660,17 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
 
     spacy_debug_str = f"StartDate=[{date_str}] StartTime=[{time_str}] EndDate=[{end_date_str}] EndTime=[{end_time_str}] Loc=[{loc_str}]"
     
-    # ===== 다중 일정 감지 (spaCy 결과 기반) =====
-    # spaCy가 여러 날짜 또는 장소를 감지하면 다중 일정으로 처리
+    # ===== Multiple schedule detection (based on spaCy results) =====
+    # Process as multiple schedules if spaCy detects multiple dates or locations
     if "nlp_sm" in models and mode == "full" and spacy_doc:
         # [OPTIMIZED] Reuse spacy_doc instead of calling nlp again
         doc = spacy_doc
         
-        # 여러 날짜 감지 확인
+        # Check for multiple date detection
         dates_found = [ent.text for ent in doc.ents if ent.label_ in ["START_DATE", "DATE"]]
         locs_found = [ent.text for ent in doc.ents if ent.label_ in ["LOC", "GPE"]]
         
-        # 2개 이상의 날짜 또는 "also", "그리고" 같은 키워드가 있으면 다중 일정으로 처리
+        # Process as multiple schedules if 2+ dates or keywords like "also", "그리고" are found
         has_multiple_signals = (
             len(dates_found) >= 2 or
             "also" in translated_text.lower() or
@@ -1686,12 +1686,12 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         if has_multiple_signals:
             logger.info(f"[AI] Multiple schedules detected: {len(dates_found)} dates, {len(locs_found)} locations")
             
-            # [NEW] spaCy로 먼저 다중 일정 추출 (즉시 반환, Gemini는 프론트엔드에서 비동기 호출)
+            # [NEW] Extract multiple schedules using spaCy first (return immediately, Gemini called async from frontend)
             logger.debug(f"[AI] Using spaCy for immediate multi-schedule extraction...")
             spacy_schedules = extract_multiple_schedules_with_spacy(translated_text, models["nlp_sm"])
             
             if spacy_schedules and len(spacy_schedules) > 1:
-                # [FIX] 한국어 입력인 경우 location과 summary를 한국어로 역변환
+                # [FIX] If Korean input, translate location and summary back to Korean
                 if is_korean_input:
                     for schedule in spacy_schedules:
                         if schedule.get("location"):
@@ -1718,7 +1718,7 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
                     schedules=spacy_schedules
                 )
             else:
-                # spaCy가 다중 일정 추출 실패 시 Gemini fallback (동기)
+                # Fallback to Gemini (sync) when spaCy fails to extract multiple schedules
                 logger.debug(f"[AI] spaCy multi-schedule failed, falling back to Gemini...")
                 schedules = extract_multiple_schedules_with_gemini(original_text)
                 
@@ -1743,8 +1743,8 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
                 else:
                     logger.warning(f"[AI] Both spaCy and Gemini failed for multi-schedule, continuing with single schedule...")
     
-    # ===== 단일 일정 처리 (spaCy + Gemini) =====
-    # spaCy 결과 직접 사용
+    # ===== Single schedule processing (spaCy + Gemini) =====
+    # Use spaCy results directly
     start_date_val = date_str
     start_time_val = time_str
     loc_val = loc_str
@@ -1757,9 +1757,9 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
     used_model = "Fast-Inference (spaCy)"
     ai_message = ""
 
-    # [NEW] 한글 입력: 스마트 요약 생성 (Pattern Matcher로 추출된 정보 사용)
+    # [NEW] Korean input: Generate smart summary (using Pattern Matcher extracted info)
     if is_korean_input:
-        # 장소 + 약속 키워드 기반 요약 생성
+        # Generate summary based on location + appointment keywords
         keywords = ['술', '밥', '미팅', '회의', '만나', '약속', '파티', '생일', '저녁', '점심', '아침', '커피', '카페']
         found_keyword = ""
         for kw in keywords:
@@ -1774,14 +1774,14 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         elif found_keyword:
             summary_val = f"{found_keyword} 약속"
         else:
-            # 첫 번째 의미 있는 문장 사용
+            # Use first meaningful sentence
             lines = [l.strip() for l in original_text.split('\n') if len(l.strip()) > 5]
-            # 메시지 타임스탬프 제외
+            # Exclude message timestamps
             content_lines = [l for l in lines if not l.startswith('오후') and not l.startswith('오전') and '장지윤' not in l and 'HY' not in l]
             if content_lines:
                 summary_val = content_lines[0][:30]
 
-    # [NEW] spaCy 기반 Description 생성 (Gemini 없이)
+    # [NEW] Generate spaCy-based Description (without Gemini)
     temp_schedule = {
         "summary": summary_val,
         "location": loc_val,
@@ -1805,7 +1805,7 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
         )
 
     # 2. Gemini Extraction (Smart Fallback)
-    # [SIMPLIFIED] spaCy 결과가 부족하면 Gemini로 보완
+    # [SIMPLIFIED] Supplement with Gemini if spaCy results are insufficient
     has_date = bool(start_date_val)
     has_time = bool(start_time_val)
     
@@ -1839,13 +1839,13 @@ def process_text_schedule(text: str, mode: str = "full", lang: str = "en", is_oc
             is_allday_val = gemini_data.get("is_allday") or False
             used_model = "🧠 Smart (Gemini 2.5)"
     else:
-        # [UPDATED] spaCy만 사용 성공
+        # [UPDATED] Successfully used spaCy only
         used_model = "⚡ Fast (spaCy)"
 
-    # 3. Localization - 한국어 입력인 경우 location과 summary를 한국어로 역변환
+    # 3. Localization - Translate location and summary back to Korean for Korean input
     if is_korean_input and "Fast" in used_model:
         loc_val = translate_english_to_korean(loc_val)
-        # [FIX] summary(title)도 영어로 추출되었을 수 있으므로 한국어로 역변환
+        # [FIX] summary(title) might also be extracted in English, translate back to Korean
         if summary_val and not check_is_korean(summary_val):
             summary_val = translate_english_to_korean(summary_val)
 
@@ -1882,9 +1882,9 @@ class EnhanceResponse(BaseModel):
 @app.post("/enhance", response_model=EnhanceResponse)
 async def api_enhance_title(request: EnhanceRequest):
     """
-    [NEW] Gemini로 제목/설명만 향상 (병렬 처리용)
-    - 프론트엔드에서 /extract 호출 후 비동기로 /enhance 호출
-    - 날짜/시간/장소는 건드리지 않음
+    [NEW] Enhance only title/description using Gemini (for parallel processing)
+    - Frontend calls /enhance asynchronously after calling /extract
+    - Does not modify date/time/location
     """
     logger.debug(f"[Enhance] Requesting title enhancement for: {request.text[:50]}...")
     
@@ -1908,10 +1908,10 @@ async def api_enhance_title(request: EnhanceRequest):
 @app.post("/enhance-schedules")
 async def api_enhance_schedules(request: EnhanceSchedulesRequest):
     """
-    spaCy가 추출한 일정 목록을 Gemini가 검토/보완
-    - 누락된 날짜는 이전 일정에서 상속
-    - 누락된 시간 형식 정규화
-    - 제목 개선
+    Review/enhance schedules extracted by spaCy using Gemini
+    - Inherit missing dates from previous schedules
+    - Normalize missing time formats
+    - Improve titles
     """
     logger.debug(f"[Enhance Schedules] Received {len(request.schedules)} schedules to enhance")
     
@@ -1924,23 +1924,23 @@ async def api_enhance_schedules(request: EnhanceSchedulesRequest):
     for i, schedule in enumerate(request.schedules):
         enhanced = schedule.copy() if isinstance(schedule, dict) else dict(schedule)
         
-        # 1. 날짜 상속 로직
+        # 1. Date inheritance logic
         if enhanced.get("start_date"):
-            # 날짜가 "next Friday" 같은 텍스트면 파싱
+            # Parse text-based dates like "next Friday"
             parsed_date = _extract_date_from_text(enhanced["start_date"])
             if parsed_date:
                 enhanced["start_date"] = parsed_date
                 last_valid_date = parsed_date
         elif last_valid_date:
-            # 날짜가 없으면 이전 일정에서 상속
+            # Inherit from previous schedule if no date
             enhanced["start_date"] = last_valid_date
             logger.debug(f"[Enhance] Schedule {i+1}: Inherited date '{last_valid_date}'")
         
-        # end_date도 start_date와 같게 설정
+        # Set end_date same as start_date
         if enhanced.get("start_date") and not enhanced.get("end_date"):
             enhanced["end_date"] = enhanced["start_date"]
         
-        # 2. 시간 형식 정규화 (12:30pm -> 12:30)
+        # 2. Normalize time format (12:30pm -> 12:30)
         if enhanced.get("start_time"):
             time_str = enhanced["start_time"]
             # "12:30pm" -> "12:30", "10am" -> "10:00"
@@ -1948,9 +1948,9 @@ async def api_enhance_schedules(request: EnhanceSchedulesRequest):
         
         enhanced_schedules.append(enhanced)
     
-    # 3. Gemini로 제목 개선 (선택적 - 속도 고려)
+    # 3. Improve titles with Gemini (optional - considering speed)
     try:
-        if GEMINI_API_KEY and len(enhanced_schedules) <= 5:  # 5개 이하만 처리
+        if GEMINI_API_KEY and len(enhanced_schedules) <= 5:  # Process only 5 or less
             enhanced_schedules = _enhance_titles_with_gemini(enhanced_schedules, request.original_text)
     except Exception as e:
         logger.warning(f"[Enhance] Title enhancement skipped: {e}")
@@ -1960,7 +1960,7 @@ async def api_enhance_schedules(request: EnhanceSchedulesRequest):
 
 
 def _normalize_time_format(time_str: str) -> str:
-    """시간 문자열 정규화 (12:30pm -> 12:30, 10am -> 10:00)"""
+    """Normalize time string (12:30pm -> 12:30, 10am -> 10:00)"""
     if not time_str:
         return ""
     
@@ -1970,7 +1970,7 @@ def _normalize_time_format(time_str: str) -> str:
     # "at 10am" -> "10am"
     time_str = re.sub(r'^at\s+', '', time_str)
     
-    # "12:30pm" 형식 처리
+    # Process "12:30pm" format
     match = re.match(r'(\d{1,2}):?(\d{2})?\s*(am|pm)?', time_str)
     if match:
         hour = int(match.group(1))
@@ -1988,14 +1988,14 @@ def _normalize_time_format(time_str: str) -> str:
 
 
 def _enhance_titles_with_gemini(schedules: list, original_text: str) -> list:
-    """Gemini로 각 일정의 제목을 개선"""
+    """Improve titles for each schedule using Gemini"""
     if not GEMINI_API_KEY or not schedules:
         return schedules
     
     is_korean_input = check_is_korean(original_text)
     lang_instruction = "Return titles in Korean." if is_korean_input else ""
     
-    # 일정 목록을 JSON으로 변환
+    # Convert schedule list to JSON
     schedules_json = json.dumps(schedules, ensure_ascii=False)
     
     prompt = f"""
@@ -2100,25 +2100,25 @@ async def api_reanalyze_with_gemini(request: ReanalyzeRequest):
     )
 
 
-# --- 2. Image Analysis (Vision) - Gemini 통합 (1회 호출) ---
+# --- 2. Image Analysis (Vision) - Gemini Integrated (single call) ---
 @app.post("/extract-image", response_model=ExtractResponse)
 async def api_extract_image_schedule(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         
-        # [NEW] Gemini 통합 호출 - OCR + 분석을 한 번에!
+        # [NEW] Gemini integrated call - OCR + analysis in one!
         result = run_vision_extraction(contents)
         
         if "error" in result:
             return JSONResponse(status_code=500, content={"error": result["error"]})
         
-        # 결과를 ExtractResponse 형식으로 변환
+        # Convert results to ExtractResponse format
         transcribed_text = result.get("transcribed_text", "")
         logger.info(f"Image extracted: {result.get('summary', 'N/A')}")
         
         return ExtractResponse(
             original_text=transcribed_text,
-            translated_text=transcribed_text,  # 이미 원본 언어 유지
+            translated_text=transcribed_text,  # Keep original language
             summary=result.get("summary", ""),
             description=result.get("description", ""),
             start_date=result.get("start_date", ""),
@@ -2128,7 +2128,7 @@ async def api_extract_image_schedule(file: UploadFile = File(...)):
             location=result.get("location", ""),
             is_allday=result.get("is_allday", False),
             ai_message="",
-            used_model="🧠 Gemini Vision (통합)",
+            used_model="🧠 Gemini Vision (Integrated)",
             spacy_log=f"Direct extraction from image"
         )
 
@@ -2152,7 +2152,7 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
         logger.info("[PDF] Processing PDF file...")
         text_content = extract_text_from_pdf(contents)
         
-        # PDF 전용 분석: spaCy 우선 사용
+        # PDF-specific analysis: prioritize spaCy
         if text_content and "nlp_sm" in models:
             logger.debug("[PDF] Step 1: Using spaCy...")
             nlp_model = models.get("nlp_sm")
@@ -2161,7 +2161,7 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
             spacy_schedules = analyze_assignment_pdf(text_content, nlp_model)
             spacy_count = len(spacy_schedules) if spacy_schedules else 0
             
-            # 결과가 충분하면 (3개 이상) spaCy 결과만 반환
+            # If results are sufficient (3+), return only spaCy results
             if spacy_schedules and spacy_count >= 3:
                 logger.info(f"[PDF] spaCy extraction successful: {spacy_count} schedules")
                 if spacy_count > 1:
@@ -2199,17 +2199,17 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
                         spacy_log="Single schedule extracted with custom NER"
                     )
             
-            # 결과가 부족하면 (3개 미만) Gemini로 보완
+            # If results are insufficient (<3), supplement with Gemini
             logger.debug(f"[PDF] Step 2: spaCy found {spacy_count} schedules, trying Gemini enhancement...")
             
-            # Gemini로 추가 분석
+            # Additional analysis with Gemini
             gemini_schedules = extract_multiple_schedules_with_gemini(text_content)
             gemini_count = len(gemini_schedules) if gemini_schedules else 0
             
             if gemini_schedules and gemini_count > spacy_count:
                 logger.info(f"[PDF] Gemini enhanced: {gemini_count} schedules (was {spacy_count})")
                 
-                # spaCy 결과가 있었다면 로그에 표시
+                # Log if spaCy results existed
                 spacy_log_msg = f"spaCy found {spacy_count}, Gemini enhanced to {gemini_count} schedules"
                 
                 if gemini_count > 1:
@@ -2247,7 +2247,7 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
                         spacy_log=spacy_log_msg
                     )
             
-            # spaCy 결과라도 있으면 반환
+            # Return spaCy results if available
             elif spacy_schedules and spacy_count > 0:
                 logger.info(f"[PDF] Using spaCy results ({spacy_count} schedules)")
                 if spacy_count > 1:
@@ -2336,11 +2336,11 @@ async def api_extract_file_schedule(file: UploadFile = File(...)):
 
 @app.get('/login')
 async def login(request: Request):
-    # 현재 환경(로컬/Hugging Face)에 맞게 자동으로 redirect_uri 생성
+    # Automatically generate redirect_uri based on current environment (local/Hugging Face)
     redirect_uri = request.url_for('auth')
     
-    # Hugging Face Spaces는 리버스 프록시 뒤에서 실행되므로 HTTPS로 변경 필요
-    # X-Forwarded-Proto 헤더가 있으면 HTTPS 환경
+    # Hugging Face Spaces runs behind reverse proxy, need to change to HTTPS
+    # Change to HTTPS if X-Forwarded-Proto header exists
     if request.headers.get('x-forwarded-proto') == 'https':
         redirect_uri = str(redirect_uri).replace('http://', 'https://')
     
@@ -2532,7 +2532,7 @@ async def add_multiple_to_calendar(request: Request, batch_data: BatchAddEventRe
             error_count += 1
             results.append({"summary": schedule.get('summary', 'Unknown'), "status": "failed", "error": str(e)})
     
-    # Consent가 체크되었으면 피드백 저장 (여러 일정을 하나의 CSV로)
+    # Save feedback if consent is checked (multiple schedules as one CSV)
     if batch_data.consent and success_count > 0:
         try:
             import traceback
@@ -2567,7 +2567,7 @@ async def add_multiple_to_calendar(request: Request, batch_data: BatchAddEventRe
                 )
                 logger.info(f"Batch feedback saved to Hub: {unique_filename}")
                 
-                # 로컬 파일 삭제
+                # Delete local file
                 if os.path.exists(unique_filename):
                     os.remove(unique_filename)
         except Exception as e:
@@ -2732,10 +2732,10 @@ async def admin_dashboard(request: Request):
         
         final_df = pd.concat(dfs, ignore_index=True)
         
-        # NaN 값을 빈 문자열로 변환
+        # Convert NaN values to empty strings
         final_df = final_df.fillna('')
         
-        # 긴 텍스트 truncation (100자 제한)
+        # Long text truncation (100 char limit)
         for col in ['original_text', 'translated_text']:
             if col in final_df.columns:
                 final_df[col] = final_df[col].apply(
@@ -2747,7 +2747,7 @@ async def admin_dashboard(request: Request):
         
         table_html = final_df.to_html(classes="table", index=False, escape=False)
         
-        # 커스텀 CSS 스타일
+        # Custom CSS styles
         custom_css = """
         <style>
             * { box-sizing: border-box; }

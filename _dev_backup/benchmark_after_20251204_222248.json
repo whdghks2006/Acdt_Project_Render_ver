@@ -1,0 +1,199 @@
+{
+  "mode": "after",
+  "timestamp": "2025-12-04T22:22:48.635419",
+  "total_tests": 10,
+  "successful_tests": 10,
+  "accuracy": {
+    "date_accuracy": 100.0,
+    "time_accuracy": 83.33333333333334,
+    "location_accuracy": 100.0,
+    "date_stats": "8/8",
+    "time_stats": "5/6",
+    "location_stats": "3/3"
+  },
+  "gemini_call_rate": 40.0,
+  "gemini_calls": 4,
+  "avg_response_time": 5.577972006797791,
+  "results": [
+    {
+      "id": 1,
+      "text": "내일 오후 3시에 강남역에서 미팅",
+      "expected": {
+        "start_date": "2025-12-05",
+        "start_time": "15:00",
+        "location": "강남역"
+      },
+      "actual": {
+        "start_date": "2025-12-05",
+        "start_time": "15:00",
+        "location": "내일 강남역"
+      },
+      "used_model": "Fast-Inference (spaCy)",
+      "response_time": 3.241833209991455,
+      "success": true,
+      "gemini_called": false
+    },
+    {
+      "id": 2,
+      "text": "12월 25일 크리스마스 파티",
+      "expected": {
+        "start_date": "2025-12-25",
+        "start_time": "",
+        "location": ""
+      },
+      "actual": {
+        "start_date": "2025-12-25",
+        "start_time": "",
+        "location": ""
+      },
+      "used_model": "🧠 Smart (Gemini 2.5)",
+      "response_time": 9.80494213104248,
+      "success": true,
+      "gemini_called": true
+    },
+    {
+      "id": 3,
+      "text": "다음주 금요일 오전 10시 회의",
+      "expected": {
+        "start_date": "2025-12-12",
+        "start_time": "10:00",
+        "location": ""
+      },
+      "actual": {
+        "start_date": "2025-12-12",
+        "start_time": "10:00",
+        "location": ""
+      },
+      "used_model": "Fast-Inference (spaCy)",
+      "response_time": 3.356196880340576,
+      "success": true,
+      "gemini_called": false
+    },
+    {
+      "id": 4,
+      "text": "2025년 1월 15일 신년회",
+      "expected": {
+        "start_date": "2025-01-15",
+        "start_time": "",
+        "location": ""
+      },
+      "actual": {
+        "start_date": "2025-01-15",
+        "start_time": "",
+        "location": ""
+      },
+      "used_model": "🧠 Smart (Gemini 2.5)",
+      "response_time": 11.595547676086426,
+      "success": true,
+      "gemini_called": true
+    },
+    {
+      "id": 5,
+      "text": "매주 월요일 9시 정례회의",
+      "expected": {
+        "start_date": "",
+        "start_time": "09:00",
+        "location": ""
+      },
+      "actual": {
+        "start_date": "Monday",
+        "start_time": "9 o’clock",
+        "location": ""
+      },
+      "used_model": "Fast-Inference (spaCy)",
+      "response_time": 3.842238187789917,
+      "success": true,
+      "gemini_called": false
+    },
+    {
+      "id": 6,
+      "text": "Meeting at 3pm tomorrow",
+      "expected": {
+        "start_date": "2025-12-05",
+        "start_time": "15:00",
+        "location": ""
+      },
+      "actual": {
+        "start_date": "2025-12-05",
+        "start_time": "15:00",
+        "location": ""
+      },
+      "used_model": "Fast-Inference (spaCy)",
+      "response_time": 2.0557641983032227,
+      "success": true,
+      "gemini_called": false
+    },
+    {
+      "id": 7,
+      "text": "Dec 25 Christmas dinner at home",
+      "expected": {
+        "start_date": "2025-12-25",
+        "start_time": "",
+        "location": "home"
+      },
+      "actual": {
+        "start_date": "2025-12-25",
+        "start_time": "",
+        "location": "home"
+      },
+      "used_model": "🧠 Smart (Gemini 2.5)",
+      "response_time": 7.008868217468262,
+      "success": true,
+      "gemini_called": true
+    },
+    {
+      "id": 8,
+      "text": "next Friday 2:30 PM conference call",
+      "expected": {
+        "start_date": "2025-12-12",
+        "start_time": "14:30",
+        "location": ""
+      },
+      "actual": {
+        "start_date": "2025-12-12",
+        "start_time": "14:30",
+        "location": ""
+      },
+      "used_model": "Fast-Inference (spaCy)",
+      "response_time": 2.0523993968963623,
+      "success": true,
+      "gemini_called": false
+    },
+    {
+      "id": 9,
+      "text": "오후 2시부터 4시까지 세미나",
+      "expected": {
+        "start_date": "",
+        "start_time": "14:00",
+        "location": ""
+      },
+      "actual": {
+        "start_date": "",
+        "start_time": "14:00",
+        "location": ""
+      },
+      "used_model": "🧠 Smart (Gemini 2.5)",
+      "response_time": 10.786076068878174,
+      "success": true,
+      "gemini_called": true
+    },
+    {
+      "id": 10,
+      "text": "12/20 at Seoul Station",
+      "expected": {
+        "start_date": "2025-12-20",
+        "start_time": "",
+        "location": "Seoul Station"
+      },
+      "actual": {
+        "start_date": "2025-12-20",
+        "start_time": "12/20",
+        "location": "Seoul Station"
+      },
+      "used_model": "Fast-Inference (spaCy)",
+      "response_time": 2.0358541011810303,
+      "success": true,
+      "gemini_called": false
+    }
+  ]
+}

@@ -1,0 +1,215 @@
+================================================================================
+                    DEVELOPMENT NOTES - December 8, 2025
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. NER Model Improvement & Training
+2. Model Performance Evaluation (KPI)
+3. main.py Integration & Optimization
+4. Hybrid Multi-Schedule Processing
+5. Quality Enhancement Button
+6. Project Cleanup & Deployment
+
+================================================================================
+1. NER MODEL IMPROVEMENT & TRAINING
+================================================================================
+
+1.1 Data Preparation
+--------------------
+- Data Consolidation: Merged 3 datasets
+  * synthetic_training_data.json (existing synthetic data)
+  * new_ai_data.json (ChatGPT generated data)
+  * ai_test_data_yelim.json (additional test data - 100 entries)
+  * Total: 10,248 samples
+
+- Data Split (70/15/15):
+  * train_data.json: 7,173 samples (training)
+  * dev_data.json: 1,537 samples (validation)
+  * test_data.json: 1,538 samples (KPI evaluation)
+
+1.2 Training Script Improvements (train_improved.py)
+----------------------------------------------------
+- Extended to 6 entity labels:
+  * START_DATE, START_TIME
+  * END_DATE, END_TIME (NEW)
+  * LOC, EVENT_TITLE
+
+- Base Model: en_core_web_lg (transfer learning)
+- Training Parameters:
+  * Epochs: 30
+  * Dropout: 0.35
+- Output Path: ./output/new_ner_model
+
+1.3 Key Issues Resolved
+-----------------------
+- AttributeError: 'int' object has no attribute 'strip'
+  * Cause: Integer entity values in JSON data
+  * Solution: Added str() conversion
+
+================================================================================
+2. MODEL PERFORMANCE EVALUATION (KPI)
+================================================================================
+
+2.1 Evaluation Scripts
+----------------------
+- evaluate_kpi.py, benchmark_compare.py
+- Evaluation based on test_data.json
+- Metrics: Precision, Recall, F1-score
+
+2.2 Benchmark Results (Custom vs Baseline)
+------------------------------------------
+Entity          | Custom Model F1 | Baseline F1 | Improvement
+----------------|-----------------|-------------|------------
+START_DATE      | 81.2%           | 39.0%       | +42.2%
+START_TIME      | 78.8%           | 19.5%       | +59.3%
+END_DATE        | 100.0%          | 0.0%        | +100.0%
+END_TIME        | 99.4%           | 0.0%        | +99.4%
+LOC             | 91.2%           | 2.6%        | +88.6%
+EVENT_TITLE     | 95.3%           | 3.2%        | +92.1%
+----------------|-----------------|-------------|------------
+OVERALL         | 88.0%           | 19.0%       | +69.1%
+
+>> Custom model shows +69.1% improvement over baseline!
+
+================================================================================
+3. MAIN.PY INTEGRATION & OPTIMIZATION
+================================================================================
+
+3.1 Model Loading Changes
+-------------------------
+Before:
+  NER_MODEL_NAME = "en_core_web_md"
+
+After:
+  CUSTOM_NER_MODEL_PATH = "./output/new_ner_model"
+  FALLBACK_NER_MODEL = "en_core_web_md"  # Fallback
+
+3.2 6-Label Extraction Support
+------------------------------
+New entity extraction logic:
+  start_dates = [ent.text for ent in doc.ents if ent.label_ == "START_DATE"]
+  start_times = [ent.text for ent in doc.ents if ent.label_ == "START_TIME"]
+  end_dates = [ent.text for ent in doc.ents if ent.label_ == "END_DATE"]
+  end_times = [ent.text for ent in doc.ents if ent.label_ == "END_TIME"]
+  locs = [ent.text for ent in doc.ents if ent.label_ in ["LOC", "GPE"]]
+  events = [ent.text for ent in doc.ents if ent.label_ in ["EVENT_TITLE", "EVENT"]]
+
+3.3 Gemini Call Optimization
+----------------------------
+- Problem: " to " pattern triggered unnecessary Gemini calls
+- Solution: Skip Gemini if END_TIME already extracted
+
+  needs_gemini = is_ocr or not date_str or not time_str
+  if " to " in translated_text and not end_time_str:
+      needs_gemini = True
+
+================================================================================
+4. HYBRID MULTI-SCHEDULE PROCESSING
+================================================================================
+
+4.1 Problem
+-----------
+- Previous: Always called Gemini for multiple schedules (slow)
+- Time ranges like "10 AM to 4 PM" misidentified as "multiple schedules"
+
+4.2 Improved Logic
+------------------
+1. Time Range Detection: " to ", " - ", "~", "부터" patterns
+2. spaCy-First Processing: Sentence-based entity extraction
+3. Quality Score Calculation: Fall back to Gemini if < 50%
+
+4.3 Smart Summary Extraction (_extract_smart_summary)
+-----------------------------------------------------
+- Event keyword detection: meeting, presentation, deadline, etc.
+- Skip unnecessary starters: the, our, we, etc.
+
+4.4 Quality Score Criteria (_calculate_quality_score)
+-----------------------------------------------------
+- Has date/time: +30%
+- Meaningful summary: +30%
+- Has location: +20%
+- Both date and time: +20%
+- Below 50% -> Gemini fallback
+
+================================================================================
+5. QUALITY ENHANCEMENT BUTTON
+================================================================================
+
+5.1 Backend (/reanalyze-gemini)
+-------------------------------
+@app.post("/reanalyze-gemini", response_model=ExtractResponse)
+async def api_reanalyze_with_gemini(request: ReanalyzeRequest):
+    """Force re-analysis using Gemini for better quality"""
+
+5.2 Frontend (Enhance Button)
+-----------------------------
+- Location: Top-right of Details section
+- Function: User manually requests Gemini re-analysis when results look wrong
+- Feedback: Loading/Success/Failure states
+
+================================================================================
+6. PROJECT CLEANUP & DEPLOYMENT
+================================================================================
+
+6.1 File Organization
+---------------------
+Production Files (root):
+  - main.py, pattern_matcher.py
+  - requirements.txt, Dockerfile
+  - static/, output/
+
+Development Files (moved to _dev_backup/):
+  - 6 training scripts
+  - 7 training data files (~16MB)
+  - Benchmark/KPI results
+  - Development notes/plans
+  - Total: 58 files
+
+6.2 Git Configuration
+---------------------
+- Added _dev_backup/ to .gitignore
+- Configured Git LFS for output/**/*
+
+6.3 Deployment
+--------------
+- GitHub push completed
+- Hugging Face Spaces push completed
+  git remote add hf https://huggingface.co/spaces/snowmang/AI_Scheduler_G14
+  git push hf master:main --force
+
+================================================================================
+SUMMARY OF ACHIEVEMENTS
+================================================================================
+
+Metric                | Before          | After
+----------------------|-----------------|------------------
+NER Accuracy (F1)     | 19.0%           | 88.0%
+Supported Entities    | 4               | 6 (added END)
+Gemini Calls          | Always          | Only when needed
+Multi-Schedule        | Gemini only     | Hybrid (spaCy first)
+User Feedback         | None            | Enhance button
+
+================================================================================
+RESOLVED ISSUES
+================================================================================
+
+1. spaCy Version Warning: en_core_web_lg 3.8.0 vs spaCy 3.7.5 (ignorable)
+2. Integer Entity Error: Fixed with str() conversion
+3. Unnecessary Gemini Calls: Optimized conditions
+4. Git Push Failure (408): Resolved with Git LFS
+5. Hugging Face Not Updated: Resolved with separate remote push
+
+================================================================================
+NEXT STEPS (Optional)
+================================================================================
+
+[ ] Upgrade to spaCy 3.8.0 (remove warnings)
+[ ] Collect more training data
+[ ] Improve recurring schedule handling ("every Wednesday")
+[ ] Consider Korean-specific NER model training
+
+================================================================================
+Date: 2025-12-08
+Author: AI Smart Scheduler Development Team
+================================================================================
